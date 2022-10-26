@@ -1,6 +1,10 @@
 from queue import Queue
 
 
+#import Logger.Logger
+#import MqttBridge.MqttBridge
+
+
 class MqttInterface(object):
     '''
     classdocs
@@ -17,7 +21,6 @@ class MqttInterface(object):
         super().__init__()
         self.name = baseName
         self.logger = logger
-        self.mqttRxQueue = Queue()      # set up  MQTT RX queue
         self.logger.x(self.logger.LOG_LEVEL.TRACE, self.name, "MqttInterface init")
 
 
@@ -26,4 +29,15 @@ class MqttInterface(object):
         Returns MQTT RX queue from whatever object has inherited from this class
         '''
         return self.mqttRxQueue
+
+
+    def registerMqttBridge(self, mqttBridge):
+        if not hasattr(self, "mqttRxQueue"):
+            self.mqttRxQueue = Queue()
+        else:
+            raise Exception("object " + self.name + " has already registered to an MqttBridge")
+        
+        # whereas the transmit queue mqttTxQueue (TX Queue) is used by all threads the instance specific receive queue (RX Queue) has to be registered to the MqttBridge
+        mqttBridge.addListener(self.name, self.mqttRxQueue)
+
 

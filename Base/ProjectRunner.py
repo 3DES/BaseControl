@@ -9,10 +9,10 @@ import traceback
 import time
 
 
-import Worker
-import Logger
-import MqttBridge
-from Base.ThreadInterface import ThreadInterface
+import Worker.Worker
+import Logger.Logger
+import MqttBridge.MqttBridge
+import Base.ThreadInterface
 
 
 class ProjectRunner(object):
@@ -25,6 +25,7 @@ class ProjectRunner(object):
     projectLogger = None
     projectWorker = None
     projectMqttBridge = None
+    projectThreads = None
 
 
     def __init__(self):
@@ -71,7 +72,7 @@ class ProjectRunner(object):
         Load module and instantiate a new object
         '''
         # ensure a proper class has been given
-        if not issubclass(loadableClass, ThreadInterface):
+        if not issubclass(loadableClass, Base.ThreadInterface.ThreadInterface):
             raise Exception("given class for \"" + threadName + "\" is not a subclass of ThreadInterface and, therefore, not supported")
 
         # create new thread from given class
@@ -96,22 +97,34 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def instantiateThreadDictionary(cls, threadDictionary : dict, loggerName : str, mqttBridgeName : str, workerName : str):
+    def setupThreads(cls, threadDictionary : dict, loggerName : str, mqttBridgeName : str, workerName : str):
         cls.projectLogger     = threadDictionary[loggerName]["class"](
             loggerName,
             threadDictionary[loggerName]["configuration"])
+        threadDictionary.pop(loggerName)
+
         cls.projectMqttBridge = threadDictionary[mqttBridgeName]["class"](
             mqttBridgeName,
             threadDictionary[mqttBridgeName]["configuration"],
             cls.projectLogger)
-        cls.projectWorker = None
+        threadDictionary.pop(mqttBridgeName)
+
+        cls.projectLogger.registerMqttBridge(cls.projectMqttBridge)
+
         cls.projectWorker     = threadDictionary[workerName]["class"](
             workerName,
             threadDictionary[workerName]["configuration"],
             cls.projectLogger)
-        # @ todo alle anderen Threads benoetigen jetzt noch Zugriff auf die Mqtt Queue!!!! xxxxxxxxxxxxxx
-        abc = None
-        pass
+        threadDictionary.pop(workerName)
+        cls.projectWorker.registerMqttBridge(cls.projectMqttBridge)
+
+        for threadName in threadDictionary:
+            thread = threadDictionary[threadName]["class"](
+                threadName,
+                threadDictionary[threadName]["configuration"],
+                cls.projectLogger)
+            thread.registerMqttBridge(cls.projectMqttBridge)
+        cls.projectThreads = threadDictionary       # remaining objects in threadDictionary are all just ordinary threads
 
 
     @classmethod
@@ -119,7 +132,7 @@ class ProjectRunner(object):
         counter = 5
 
         # loop until any thread throws an exception (and for debugging after 5 seconds)
-        while (ThreadInterface.exceptionThrown is None) and counter:
+        while (Base.ThreadInterface.ThreadInterface.exceptionThrown is None) and counter:
             time.sleep(1)
             print(".", end = "", flush = True)
             counter -= 1
@@ -157,7 +170,7 @@ class ProjectRunner(object):
                         workerName = threadName
                     else:
                         raise Exception("init file contains more than one Worker, at least [" + workerName + "] and [" + threadName + "]")
-                elif not issubclass(loadableClass, ThreadInterface):
+                elif not issubclass(loadableClass, Base.ThreadInterface.ThreadInterface):
                     raise Exception("init file contained class [" + threadName + "] is not a sub class of [Base.ThreadInterface.ThreadInterface]")
                 
                 
@@ -186,6 +199,13 @@ class ProjectRunner(object):
         Logger will be executed first since all other threads need it for logging
         MqttBridge will be the second one since all other threads need it for inter-thread communication
         '''
+        
+        # ensure this method is called only once!
+        if cls.executed:
+            raise Exception()
+        else:
+            cls.executed = True
+
         configuration = cls.loadInitFile(initFileName)
 
         try:
@@ -196,12 +216,12 @@ class ProjectRunner(object):
             try:
                 # now really setup all the threads
                 #print(threadDictionary)
-                cls.instantiateThreadDictionary(threadDictionary, loggerName, mqttBridgeName, workerName)
+                cls.setupThreads(threadDictionary, loggerName, mqttBridgeName, workerName)
                 cls.monitorThreads()        # "endless" while loop
             except Exception:
                 print("INSTANTIATE EXCEPTION " + traceback.format_exc())
 
-            ThreadInterface.stopAllWorkers()
+            Base.ThreadInterface.ThreadInterface.stopAllWorkers()
         except Exception:
             print("SETUP EXCEPTION " + traceback.format_exc())
 

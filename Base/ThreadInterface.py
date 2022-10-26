@@ -2,11 +2,11 @@ import threading
 import traceback
 
 
-from Base.MqttInterface import MqttInterface
-import Logger          # prevent circular import!
+import Base.MqttInterface   # prevent circular import!
+import Logger.Logger        # prevent circular import!
 
 
-class ThreadInterface(MqttInterface):
+class ThreadInterface(Base.MqttInterface.MqttInterface):
     '''
     classdocs
     '''

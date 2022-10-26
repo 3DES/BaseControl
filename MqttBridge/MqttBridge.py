@@ -13,12 +13,12 @@ class MqttBridge(ThreadObject):
     '''
 
 
-    mqttListenersDictionary = None      # collect all listeners with their names and add topics if they subscribe for some or remove toppics if they unsubscribe
+    mqttListeners = None      # collect all listeners with their names and add topics if they subscribe for some or remove topics if they un-subscribe
 
 
     def __init__(self, threadName : str, configuration : dict, logger : Logger):
-        if MqttBridge.mqttListenersDictionary is None:
-            MqttBridge.mqttListenersDictionary = {}
+        if self.mqttListeners is None:
+            self.mqttListeners = {}
             super().__init__(threadName, configuration, logger)
             self.logger.x(self.logger.LOG_LEVEL.TRACE, self.name, "MqttBridge init")
         else:
@@ -31,7 +31,8 @@ class MqttBridge(ThreadObject):
         time.sleep(1)
 
 
-    def addListener(self, listener : MqttInterface):
-        pass
-        
-        
+    def addListener(self, listenerName : str, listener : Queue):
+        if listenerName in self.mqttListeners:
+            raise Exception("listener " + listenerName + " already registered to MqttBridge")  
+        self.mqttListeners[listenerName] = { "queue" : listener , "subscriptions" : [] }
+

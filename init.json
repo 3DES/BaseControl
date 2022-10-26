@@ -27,10 +27,6 @@
     },
 
     "Logger": {
-        "class":      "Logger.Logger.Logger"
-    },
-
-    "Logger": {
         "class":      "Logger.Logger.Logger"        # optionally: Logger.LoggerOverwrite.LoggerOverwrite
     }
 }
