@@ -1,27 +1,22 @@
-import time
+#!/usr/bin/python3
 
 
-from L.L import L
-from Worker.W import W
-from WD.WD import WD
-from Base.SilentBase.TI import TI
+import argparse
 
 
-w = W("my worker")
-wd = WD("my watchdog")
-logger = L("my logger")
-L.x("main")
+from Base.ProjectRunner import ProjectRunner
 
-print("START")
-TI.overallRunning = True
 
-while (TI.workerThreadException is not None):
-    time.sleep(0.1)
-
-if TI.workerThreadException is not None:
-    print("EXCEPTION")
-else:
-    print("END")
-
-print("STOP")
-TI.stopAllWorkers()
+'''
+project main function
+'''
+if __name__ == '__main__':
+    initFileName = 'init.json'
+    
+    # handle command line arguments
+    argumentParser = argparse.ArgumentParser()
+    argumentParser.add_argument("-i", "--init", dest = initFileName, help = "use this init file instead of init.json")
+    arguments = argumentParser.parse_args()
+    
+    ProjectRunner.executeProject(initFileName)
+    

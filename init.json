@@ -1,0 +1,38 @@
+{
+    "PowerPlant":
+    {
+        "class":   "Worker.Worker.Worker"
+    },
+
+    "MqttBridge":
+    {
+        "class":     "MqttBridge.MqttBridge.MqttBridge",
+        "interface":
+        {
+            "connection": "Interface.Telnet.Telnet",
+            "server":     "192.168.168.23",
+            "port":       233
+        }
+    },
+
+    "WatchDog":
+    {
+        "class":     "WatchDog.WatchDog.WatchDog",
+        "interface":
+        {
+            "connection": "Interface.Uart.Uart",
+            "interface":  "/dev/tty/watchdog",
+            "settings":   "19200,8,N,1"
+        }
+    },
+
+    "Logger": {
+        "class":      "Logger.Logger.Logger"
+    },
+
+    "Logger": {
+        "class":      "Logger.Logger.Logger"        # optionally: Logger.LoggerOverwrite.LoggerOverwrite
+    }
+}
+
+
