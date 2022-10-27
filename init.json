@@ -23,7 +23,8 @@
             "connection": "Interface.Uart.Uart",
             "interface":  "/dev/tty/watchdog",
             "settings":   "19200,8,N,1"
-        }
+        },
+        "timeout": "3"
     },
 
     "Logger": {

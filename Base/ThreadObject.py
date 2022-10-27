@@ -18,5 +18,5 @@ class ThreadObject(ThreadInterface):
         Constructor
         '''
         super().__init__(threadName, configuration, logger)
-        logger.x(self.logger.LOG_LEVEL.TRACE, self.name, "ThreadObject init")
+        self.logger.info(self, "init (ThreadObject)")
 

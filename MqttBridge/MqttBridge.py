@@ -17,22 +17,35 @@ class MqttBridge(ThreadObject):
 
 
     def __init__(self, threadName : str, configuration : dict, logger : Logger):
-        if self.mqttListeners is None:
-            self.mqttListeners = {}
+        if self.setMqttListenersList():
             super().__init__(threadName, configuration, logger)
-            self.logger.x(self.logger.LOG_LEVEL.TRACE, self.name, "MqttBridge init")
+            self.logger.info(self, "init (MqttBridge)")
         else:
-            logger.x(logger.LOG_LEVEL.FATAL, threadName, "MqttBridge already instantiated, no further instance allowed")
-            raise Exception("MqttBridge already instantiated, no further instance allowed")
+            self.raiseException("MqttBridge already instantiated, no further instances allowed")
+
+
+    @classmethod
+    def setMqttListenersList(cls):
+        '''
+        Setter for cls.logQueue
+        '''
+        setupResult = False
+        with cls.threadLock:
+            if cls.mqttListeners is None:
+                cls.mqttListeners = {}         # create listeners dictionary
+                setupResult = True
+        return setupResult
 
 
     def threadMethod(self):
-        self.logger.x(self.logger.LOG_LEVEL.TRACE, self.name, "I am MqttBridge thread")
+        self.logger.trace(self, "I am the MqttBridge thread")
         time.sleep(1)
 
 
-    def addListener(self, listenerName : str, listener : Queue):
-        if listenerName in self.mqttListeners:
-            raise Exception("listener " + listenerName + " already registered to MqttBridge")  
-        self.mqttListeners[listenerName] = { "queue" : listener , "subscriptions" : [] }
+    @classmethod
+    def addListener(cls, listenerName : str, listener : Queue):
+        with cls.threadLock:
+            if listenerName in cls.mqttListeners:
+                cls.raiseException("listener " + listenerName + " already registered to MqttBridge")  
+            cls.mqttListeners[listenerName] = { "queue" : listener , "subscriptions" : [] }
 

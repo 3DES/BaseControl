@@ -9,15 +9,34 @@ class Worker(ThreadObject):
     '''
 
 
+    instantiated = False    # Worker is a singleton!
+
+
     def __init__(self, threadName : str, configuration : dict, logger : Logger):
         '''
         Constructor
         '''
-        super().__init__(threadName, configuration, logger)
-        self.logger.x(self.logger.LOG_LEVEL.TRACE, self.name, "Worker init")
+        if self.setInstantiated():
+            super().__init__(threadName, configuration, logger)
+            self.logger.info(self, "init (Worker)")
+        else:
+            self.raiseException("Worker already instantiated, no further instances allowed")
+
+
+    @classmethod
+    def setInstantiated(cls):
+        '''
+        Setter for cls.instantiated
+        '''
+        setupResult = False
+        with cls.threadLock:
+            if not cls.instantiated:
+                cls.instantiated = True        # remember __init__ has been called now
+                setupResult = True
+        return setupResult
 
 
     def threadMethod(self):
-        self.logger.x(self.logger.LOG_LEVEL.TRACE, self.name, "I am Worker thread")
+        self.logger.trace(self, "I am the Worker thread")
         time.sleep(1)
         
