@@ -13,6 +13,7 @@ import logging
 import Worker.Worker
 import Logger.Logger
 import MqttBridge.MqttBridge
+import WatchDog.WatchDog
 import Base.ThreadInterface
 from Base.Supporter import Supporter
 
@@ -86,37 +87,73 @@ class ProjectRunner(object):
 
     @classmethod
     def setupThreads(cls, threadDictionary : dict, loggerName : str, mqttBridgeName : str, workerName : str):
+        '''
+        Setups up all threads in correct order
+
+        First a Logger will be set up since all other threads need it
+        Second a MqttBridge will be set up  since all other threads need it, since logger was already created it gets the MqttBridge set afterwards
+        Third a Worker will be set up since it's the master thread (maybe the worker should be the last one that is started?!)
+        Fourth all other threads are setup and all except WatchDogs are started
+        Fifth all watchdogs will get started with a list of all the threads setup up so far
+        '''
+        threadNamesList = []
+
+        # setup logger thread
         cls.projectLogger     = threadDictionary[loggerName]["class"](
             loggerName,
             threadDictionary[loggerName]["configuration"])
         threadDictionary.pop(loggerName)
         cls.projectLogger.startThread()
+        threadNamesList.append(loggerName)
 
+        # setup mqtt bridge thread
         cls.projectMqttBridge = threadDictionary[mqttBridgeName]["class"](
             mqttBridgeName,
             threadDictionary[mqttBridgeName]["configuration"],
             cls.projectLogger)
         threadDictionary.pop(mqttBridgeName)
         cls.projectMqttBridge.startThread()
+        threadNamesList.append(mqttBridgeName)
 
-        cls.projectLogger.registerMqttBridge(cls.projectMqttBridge)
+        cls.projectLogger.registerMqttBridge(cls.projectMqttBridge)         # register mqtt bridge to logger
 
+        # setup worker thread
         cls.projectWorker     = threadDictionary[workerName]["class"](
             workerName,
             threadDictionary[workerName]["configuration"],
             cls.projectLogger)
         threadDictionary.pop(workerName)
-        cls.projectWorker.registerMqttBridge(cls.projectMqttBridge)
+        cls.projectWorker.registerMqttBridge(cls.projectMqttBridge)         # register mqtt bridge to worker
         cls.projectWorker.startThread()
+        threadNamesList.append(workerName)
+
+        watchDogList = []
 
         for threadName in threadDictionary:
             thread = threadDictionary[threadName]["class"](
                 threadName,
                 threadDictionary[threadName]["configuration"],
                 cls.projectLogger)
-            thread.registerMqttBridge(cls.projectMqttBridge)
-            thread.startThread()
-        cls.projectThreads = threadDictionary       # remaining objects in threadDictionary are all just ordinary threads
+            thread.registerMqttBridge(cls.projectMqttBridge)                # register mqtt bridge to worker
+
+            # start all threads except workers (they expect a thread list we currently don't have)
+            if not issubclass(thread.__class__, WatchDog.WatchDog.WatchDog):
+                thread.startThread()
+            else:
+                # collect watchdogs
+                watchDogList.append(thread)
+            threadNamesList.append(threadName)                              # collect all (really all!) threads for the watch dogs
+        cls.projectThreads = threadDictionary                               # remaining objects in threadDictionary are all just ordinary threads
+
+        # set thread names list to all watchdogs
+        for watchDog in watchDogList:
+            watchDog.setThreadList(threadNamesList)
+
+        # finally start all watchdogs
+        for watchDog in watchDogList:
+            watchDog.startThread()
+            
+        cls.projectLogger.info(cls, "all threads up and running")
 
 
     @classmethod
@@ -128,10 +165,11 @@ class ProjectRunner(object):
         while (Base.ThreadInterface.ThreadInterface.getException() is None) and running:
             time.sleep(1)
             cls.projectLogger.trace(cls, "alive")
-            cls.projectLogger.trace(cls, Supporter.encloseString(Base.ThreadInterface.ThreadInterface.getException(), ">>>>", "<<<<"))
             if stopAfterSeconds:
                 if Supporter.getTimeStamp() - startTime > stopAfterSeconds:
-                    running = False 
+                    cls.projectLogger.info(cls, "overall stop since given running time is over")
+                    running = False
+
 
     @classmethod
     def createThreadDictionary(cls, configuration : dict):
@@ -171,8 +209,8 @@ class ProjectRunner(object):
                 elif not issubclass(loadableClass, Base.ThreadInterface.ThreadInterface):
                     # init file error found
                     cls.raiseException("init file contained class [" + threadName + "] is not a sub class of [Base.ThreadInterface.ThreadInterface]")
-                
-                
+
+
                 # since a json object is a dict each thread name is uniq (even if it isn't inside init file but duplicates will get lost!)
                 threadDictionary[threadName] = { "class" : loadableClass, "configuration" : configuration[threadName] }
             else:
@@ -198,7 +236,7 @@ class ProjectRunner(object):
         Logger will be executed first since all other threads need it for logging
         MqttBridge will be the second one since all other threads need it for inter-thread communication
         '''
-        
+
         # ensure this method is called only once!
         if cls.executed:
             cls.raiseException("don't call executeProject() more than once")
@@ -223,7 +261,7 @@ class ProjectRunner(object):
                 print("INSTANTIATE EXCEPTION " + traceback.format_exc())
                 #logging.exception("INSTANTIATE EXCEPTION " + traceback.format_exc())
 
-            Base.ThreadInterface.ThreadInterface.stopAllWorkers()
+            Base.ThreadInterface.ThreadInterface.stopAllThreads()
         except Exception:
             print("SETUP EXCEPTION " + traceback.format_exc())
             #logging.exception("SETUP EXCEPTION " + traceback.format_exc())

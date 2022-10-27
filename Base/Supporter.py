@@ -19,3 +19,8 @@ class Supporter(object):
     def getTimeStamp(cls):
         return calendar.timegm(time.gmtime())
 
+
+    @classmethod
+    def getDeltaTime(cls, timeStamp : int):
+        return cls.getTimeStamp() - timeStamp
+

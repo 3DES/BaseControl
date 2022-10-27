@@ -3,6 +3,7 @@ import inspect
 import logging
 from enum import Enum
 from queue import Queue
+from datetime import date
 
 
 from Base.ThreadInterface import ThreadInterface
@@ -97,6 +98,9 @@ class Logger(ThreadInterface):
 
     @classmethod
     def setLogLevel(cls, newLogLevel : LOG_LEVEL):
+        '''
+        To change log level, e.g. during development to show debug information or in productiv state to hide too many log information nobody needs
+        '''
         with cls.threadLock:
             if newLogLevel > Logger.LOG_LEVEL.DEBUG.value:
                 newLogLevel = Logger.LOG_LEVEL.DEBUG
@@ -105,6 +109,9 @@ class Logger(ThreadInterface):
 
     @classmethod
     def getSenderName(cls, sender):
+        '''
+        Try to create proper sender name usually for log messages
+        '''
         senderName = ""
         if hasattr(sender, "name"):
             senderName = "THREAD " + sender.name
@@ -119,43 +126,64 @@ class Logger(ThreadInterface):
         #elif hasattr(sender, "__name__"):
         #    return sender.__name__
         else:
-            self.raiseException("unknown caller: " + str(sender))
+            cls.raiseException("unknown caller: " + str(sender))
 
         return senderName
 
 
     @classmethod
     def debug(cls, sender, data : str):
+        '''
+    ....To log a debug message
+        '''
         cls.message(Logger.LOG_LEVEL.DEBUG, sender, data)
 
 
     @classmethod
     def trace(cls, sender, data : str):
+        '''
+    ....To log a trace message, usually to be used to see the steps through setup and tear down process as well as to see the threads working
+        '''
         cls.message(Logger.LOG_LEVEL.TRACE, sender, data)
 
 
     @classmethod
-    def warning(cls, sender, data : str):
-        cls.message(Logger.LOG_LEVEL.WARN, sender, data)
-
-
-    @classmethod
     def info(cls, sender, data : str):
+        '''
+    ....To log any information that could be from interest
+        '''
         cls.message(Logger.LOG_LEVEL.INFO, sender, data)
 
 
     @classmethod
+    def warning(cls, sender, data : str):
+        '''
+    ....To log any warnings
+        '''
+        cls.message(Logger.LOG_LEVEL.WARN, sender, data)
+
+
+    @classmethod
     def error(cls, sender, data : str):
+        '''
+    ....To log an error, usually in case of exceptions, that's usually the highest error level for any problems in the script
+        '''
         cls.message(Logger.LOG_LEVEL.ERROR, sender, data)
 
 
     @classmethod
     def fatal(cls, sender, data : str):
+        '''
+    ....To log an fatal errors, usually by detecting real critical hardware problems
+        '''
         cls.message(Logger.LOG_LEVEL.FATAL, sender, data)
 
 
     @classmethod
     def message(cls, level : int, sender, data : str):
+        '''
+        Overall log method, all log methods have to end up here
+        '''
         senderName = cls.getSenderName(sender)
         if level <= cls.logLevel:
             message = "Logger : " + senderName + " [" + str(level) + "] " + data
@@ -168,12 +196,4 @@ class Logger(ThreadInterface):
             pass
         # @todo add timestamp xxxxxxxxxxxxxxxxxxx
         # @todo write to queue
-
-
-    @classmethod
-    def getLogQueue(cls):
-        if cls.logQueue is None:
-            self.raiseException("logger queue not yet set up")
-
-        return cls.logQueue
 

@@ -1,6 +1,21 @@
 #!/usr/bin/python3
 
 
+'''
+@todo in ProjectRunner alle globalen Variablen ggf. umbenennen nach "__xxx"?
+@todo timestamp in logger einbauen
+@todo interfaces fehlen noch komplett
+@todo alle todos suchen
+@todo alle xxxxx suchen
+
+
+ATTENTION:
+- never handle class variables yourself, always use setter and getter methods
+  - main reason is that a variable cls.abc is identical to self.abc until you set self.abc to something than you really have two different variables cls.abc and self.abc!!!
+- @todo add further good practice here!
+'''
+
+
 import argparse
 
 
@@ -14,7 +29,7 @@ project main function
 if __name__ == '__main__':
     initFileName = "init.json"
     logLevel     = Logger.Logger.Logger.LOG_LEVEL.INFO.value
-    stopAfterSeconds = 0
+    stopAfterSeconds = 3
 
     # handle command line arguments
     argumentParser = argparse.ArgumentParser()
