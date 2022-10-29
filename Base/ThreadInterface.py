@@ -101,7 +101,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         '''
         self.logger.trace(self, "thread loop started")
 
-        # proces thread loop until thread gets killed
+        # execute thread loop until thread gets killed
         try:
             # wait for getting started (or killed)
             while not self.running and not self.killed:     # and not event.is_set():
@@ -113,7 +113,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
         except Exception as exception:
-            # beside explicite exceptions handled tread internally we also have to catch all implicite exceptions
+            # beside explicitly exceptions handled tread internally we also have to catch all implicite exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
@@ -121,7 +121,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         try:
             self.tearDownMethod()               # call tear down method for the case the thread has sth. to clean up
         except Exception as exception:
-            # beside explicite exceptions handled tread internally we also have to catch all implicite exceptions
+            # beside explicitly exceptions handled tread internally we also have to catch all implicite exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
@@ -134,7 +134,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         
         To be overwritten in any case
         '''
-        self.raiseException("abstract method \"threadMethod()\" has to be overwritten by " + self.__class__.__name__)
+        raise Exception("abstract method \"threadMethod()\" has to be overwritten by " + self.__class__.__name__)    # self.raiseException
 
 
     def tearDownMethod(self):

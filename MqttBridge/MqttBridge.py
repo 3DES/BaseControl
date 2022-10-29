@@ -26,7 +26,7 @@ class MqttBridge(ThreadObject):
             if MqttBridge._MqttBridge__mqttListeners_always_use_getters_and_setters is None:
                 MqttBridge._MqttBridge__mqttListeners_always_use_getters_and_setters = {}         # create listeners dictionary
             else:
-                self.raiseException("MqttBridge already instantiated, no further instances allowed")
+                raise Exception("MqttBridge already instantiated, no further instances allowed")    # self.raiseException
 
     
     @classmethod
@@ -46,7 +46,7 @@ class MqttBridge(ThreadObject):
         # try to add new listener
         with cls.get_threadLock():
             if listenerName in cls.get_mqttListeners():
-                cls.raiseException("listener " + listenerName + " already registered to MqttBridge")
+                raise Exception("listener " + listenerName + " already registered to MqttBridge")    # cls.raiseException
             cls.get_mqttListeners()[listenerName] = { "queue" : listenerRxQueue , "subscriptions" : [] }
 
     
@@ -57,6 +57,11 @@ class MqttBridge(ThreadObject):
 
 
     def threadMethod(self):
-        self.logger.trace(self, "I am the MqttBridge thread")
+        self.logger.trace(self, "I am the MqttBridge thread = " + self.name)
+
+        while not self.get_mqttTxQueue().empty():
+            newMqttMessage = self.get_logQueue().get(block = False)
+            self.add_logMessage("message received : " + newMqttMessage)
+
         time.sleep(1)
 

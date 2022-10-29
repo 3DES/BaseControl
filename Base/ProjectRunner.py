@@ -165,6 +165,10 @@ class ProjectRunner(object):
                     cls.projectLogger.info(cls, "overall stop since given running time is over")
                     running = False
 
+        # in error case try to write the log buffer content out to disk
+        if Base.ThreadInterface.ThreadInterface.get_exception() is not None:
+            cls.projectLogger.writeLogBufferToDisk()
+
 
     @classmethod
     def createThreadDictionary(cls, configuration : dict):
@@ -206,7 +210,7 @@ class ProjectRunner(object):
                     raise Exception("init file contained class [" + threadName + "] is not a sub class of [Base.ThreadInterface.ThreadInterface]")
 
 
-                # since a json object is a dict each thread name is uniq (even if it isn't inside init file but duplicates will get lost!)
+                # since a json object is a dict each thread name is unique (even if it isn't inside init file but duplicates will get lost!)
                 threadDictionary[threadName] = { "class" : loadableClass, "configuration" : configuration[threadName] }
             else:
                 raise Exception("definition " + threadName + " doesn't contain a \"class\" key")
@@ -253,7 +257,7 @@ class ProjectRunner(object):
                 cls.setupThreads(threadDictionary, loggerName, mqttBridgeName, workerName)
                 cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
             except Exception:
-                print("INSTANTIATE EXCEPTION " + traceback.format_exc())
+                print("INSTANTIATE/RUNNING EXCEPTION " + traceback.format_exc())
                 #logging.exception("INSTANTIATE EXCEPTION " + traceback.format_exc())
 
             Base.ThreadInterface.ThreadInterface.stopAllThreads()

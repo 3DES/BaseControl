@@ -95,6 +95,9 @@ class MqttInterface(object):
 
     @classmethod
     def raiseException(cls, message : str):
+        '''
+        Actually not in use, previously used to handle all exceptions at one place but now the exceptions are all caught by the threadLoop
+        '''
         # create exception
         exception = Exception(message)
 
@@ -106,13 +109,40 @@ class MqttInterface(object):
 
 
     def get_mqttRxQueue(self):
+        '''
+        Return object mqtt Queue
+        There are two queues for mqtt:
+        - one class wide mqttTxQueue only read by the singleton MqttBridge but written by all MqttInterfaces
+        - one mqttRxQueue per instance only written by the MqttBridge and read only by its owner instance 
+        '''
         if not hasattr(self, "mqttRxQueue"):
             self.mqttRxQueue = Queue(100)
         else:
-            self.raiseException("object " + self.name + " has already registered to an MqttBridge")
+            raise Exception("object " + self.name + " has already registered to an MqttBridge")    # self.raiseException
         return self.mqttRxQueue
 
 
     def get_mqttListenerName(self):
+        '''
+        Return the name of this mqtt listener (usually it's self.name)
+        '''
         return self.name
 
+
+    @classmethod
+    def simulateExcepitonError(self, name : str, value : int):
+        '''
+        To test if exceptions caught correctly
+        just enter somewhere:
+            MqttInterface.simulateExcepitonError(self.name, 0)        # for immediate exception
+            MqttInterface.simulateExcepitonError(self.name, 10)       # for exception after 10 calls
+        '''
+        counterName = "__simulateExceptionError_" + name
+        nameSpace = globals()
+        if counterName not in nameSpace:
+            nameSpace[counterName] = 1       # create local variable with name given in string
+        else:
+            nameSpace[counterName] += 1
+        
+        if nameSpace[counterName] >= value:
+            raise Exception("testwise rissen exception : " + name)

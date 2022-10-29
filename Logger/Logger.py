@@ -28,37 +28,37 @@ class Logger(ThreadInterface):
             if self.__class__ is other.__class__:
                 result = self.value < other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " < " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " < " + str(other.__class__))    # xxx.raiseException
         def __le__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value <= other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " <= " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " <= " + str(other.__class__))    # xxx.raiseException
         def __gt__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value > other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " > " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " > " + str(other.__class__))    # xxx.raiseException
         def __ge__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value >= other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " >= " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " >= " + str(other.__class__))    # xxx.raiseException
         def __eq__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value == other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " == " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " == " + str(other.__class__))    # xxx.raiseException
         def __ne__(self, other):
             if self.__class__ is other.__class__:
                 result = not(self.value == other.value)
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))    # xxx.raiseException
 
 
-    __logQueue_always_use_getters_and_setters = None                # to be a "singleton"
-    __logLevel_always_use_getters_and_setters = LOG_LEVEL.DEBUG     # will be overwritten in __init__
-
+    __logQueue_always_use_getters_and_setters  = None                           # to be a "singleton"
+    __logLevel_always_use_getters_and_setters  = LOG_LEVEL.DEBUG                # will be overwritten in __init__
+    __logBuffer_always_use_getters_and_setters = collections.deque([], 500)     # length of 500 elements
 
     @classmethod
     def get_logQueue(cls):
@@ -77,7 +77,7 @@ class Logger(ThreadInterface):
             if Logger._Logger__logQueue_always_use_getters_and_setters is None:
                 Logger._Logger__logQueue_always_use_getters_and_setters = Queue(100)          # create logger queue
             else:
-                self.raiseException("Logger already instantiated, no further instances allowed")
+                raise Exception("Logger already instantiated, no further instances allowed")    # self.raiseException
 
 
     @classmethod
@@ -101,22 +101,43 @@ class Logger(ThreadInterface):
             Logger._Logger__logLevel_always_use_getters_and_setters = Logger.LOG_LEVEL(newLogLevel)
 
 
+    @classmethod
+    def add_logMessage(cls, logEntry : str):
+        '''
+        To add a log message to log buffer
+        '''
+        with cls.get_threadLock():
+            Logger._Logger__logBuffer_always_use_getters_and_setters.append(logEntry)
+# @todo diese Exception laesst sich nicht fangen!?!?
+#            if (len(Logger._Logger__logBuffer_always_use_getters_and_setters) > 20):
+#                raise Exception("test exception")
+
+
+    @classmethod
+    def get_logBuffer(cls):
+        '''
+        To add a log message to log buffer
+        '''
+        return Logger._Logger__logBuffer_always_use_getters_and_setters
+
+
     def __init__(self, threadName : str, configuration : dict, logger = None):
         # are we the Logger or was our __init__ just called by a sub class?
         self.setup_logQueue()
-        self.logBuffer = collections.deque([], 12)          # length of 500 elements (@todo auf 500 setzen!)
+        self.logBuffer = collections.deque([], 500)         # length of 500 elements
         self.logCoutner = 0                                 # counts all logged messages
         super().__init__(threadName, configuration, self if logger is None else logger)
         self.logger.info(self, "init (Logger)")
 
 
     def threadMethod(self):
+        self.logger.trace(self, "I am the Logger thread = " + self.name)
         logPrinted = False
-        while not self.get_logQueue().empty():
+        while not self.get_logQueue().empty():      # @todo ggf. sollten wir hier nur max. 100 Messages behandeln und danach die Loop verlassen, damit die threadLoop wieder dran kommt, andernfalls koennte diese komplett ausgehebelt werden
             self.logCoutner += 1;
             newLogEntry = self.get_logQueue().get(block = False)
 
-            self.logBuffer.appendleft(newLogEntry)
+            self.add_logMessage(newLogEntry)
             
             if self.get_logLevel() == Logger.LOG_LEVEL.DEBUG:
                 print("#" + str(self.logCoutner) + " " + newLogEntry)
@@ -146,7 +167,7 @@ class Logger(ThreadInterface):
         #elif hasattr(sender, "__name__"):
         #    return sender.__name__
         else:
-            cls.raiseException("unknown caller: " + str(sender))
+            raise Exception("unknown caller: " + str(sender))    # cls.raiseException
 
         return senderName
 
@@ -214,7 +235,7 @@ class Logger(ThreadInterface):
                 cls.get_logQueue().put(logMessage, block = False)
             else:
                 print(logMessage)           # Logger not yet set up so print message to STDOUT meanwhile
-            
+
             if level == cls.LOG_LEVEL.ERROR:
                 logging.error(logMessage)
                 pass
@@ -222,3 +243,19 @@ class Logger(ThreadInterface):
                 logging.critical(logMessage)
                 pass
 
+
+    @classmethod
+    def writeLogBufferToDisk(cls, logFileName = None):
+        '''
+        Without regard to losses the current buffer content is written to disk 
+        '''
+        if logFileName is None:
+            logFileName = "logger.txt"
+        
+        bufferCopy = cls.get_logBuffer().copy()
+        
+        with open(logFileName, 'w') as logFile:
+            for message in bufferCopy:
+                logFile.write(message + "\n")
+            
+            logFile.close()

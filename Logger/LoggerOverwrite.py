@@ -9,7 +9,8 @@ class LoggerOverwrite(Logger):
 
 
     def threadMethod(self):
-        self.logger.trace(self, "I am the LoggerOverwrite thread")
+        self.logger.trace(self, "I am the LoggerOverwrite thread = " + self.name)
+        
         time.sleep(0.3)
 
 
