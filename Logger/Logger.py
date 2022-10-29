@@ -228,7 +228,7 @@ class Logger(ThreadInterface):
         if level <= cls.get_logLevel():
             senderName = cls.getSenderName(sender)
             timeStamp = datetime.now()
-            levelText = "{:<18}".format("[" + str(cls.get_logLevel()) + "]")
+            levelText = "{:<18}".format("[" + str(level) + "]")
             logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
             
             if cls.get_logQueue() is not None:
