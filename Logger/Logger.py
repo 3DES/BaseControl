@@ -1,9 +1,11 @@
 import time
 import inspect
 import logging
+import collections
 from enum import Enum
+import queue
 from queue import Queue
-from datetime import date
+from datetime import datetime
 
 
 from Base.ThreadInterface import ThreadInterface
@@ -55,8 +57,7 @@ class Logger(ThreadInterface):
 
 
     __logQueue_always_use_getters_and_setters = None                # to be a "singleton"
-    __logLevel_always_use_getters_and_setters = LOG_LEVEL.TRACE
-    #__logLevel_always_use_getters_and_setters = LOG_LEVEL.DEBUG
+    __logLevel_always_use_getters_and_setters = LOG_LEVEL.DEBUG     # will be overwritten in __init__
 
 
     @classmethod
@@ -74,7 +75,7 @@ class Logger(ThreadInterface):
         '''
         with cls.get_threadLock():
             if Logger._Logger__logQueue_always_use_getters_and_setters is None:
-                Logger._Logger__logQueue_always_use_getters_and_setters = Queue()               # create logger queue
+                Logger._Logger__logQueue_always_use_getters_and_setters = Queue(100)          # create logger queue
             else:
                 self.raiseException("Logger already instantiated, no further instances allowed")
 
@@ -95,19 +96,35 @@ class Logger(ThreadInterface):
         with cls.get_threadLock():
             if newLogLevel > Logger.LOG_LEVEL.DEBUG.value:
                 newLogLevel = Logger.LOG_LEVEL.DEBUG.value
+            elif newLogLevel < Logger.LOG_LEVEL.ERROR.value:
+                newLogLevel = Logger.LOG_LEVEL.DEBUG.value
             Logger._Logger__logLevel_always_use_getters_and_setters = Logger.LOG_LEVEL(newLogLevel)
 
 
     def __init__(self, threadName : str, configuration : dict, logger = None):
         # are we the Logger or was our __init__ just called by a sub class?
         self.setup_logQueue()
+        self.logBuffer = collections.deque([], 12)          # length of 500 elements (@todo auf 500 setzen!)
+        self.logCoutner = 0                                 # counts all logged messages
         super().__init__(threadName, configuration, self if logger is None else logger)
         self.logger.info(self, "init (Logger)")
 
 
     def threadMethod(self):
-        self.logger.trace(self, "I am the Logger thread")
-        time.sleep(0.3)
+        logPrinted = False
+        while not self.get_logQueue().empty():
+            self.logCoutner += 1;
+            newLogEntry = self.get_logQueue().get(block = False)
+
+            self.logBuffer.appendleft(newLogEntry)
+            
+            if self.get_logLevel() == Logger.LOG_LEVEL.DEBUG:
+                print("#" + str(self.logCoutner) + " " + newLogEntry)
+                logPrinted = True
+        
+        if logPrinted:
+            print("--------------")
+        time.sleep(1)
 
 
     @classmethod
@@ -135,68 +152,73 @@ class Logger(ThreadInterface):
 
 
     @classmethod
-    def debug(cls, sender, data : str):
+    def debug(cls, sender, message : str):
         '''
     ....To log a debug message
         '''
-        cls.message(Logger.LOG_LEVEL.DEBUG, sender, data)
+        cls.message(Logger.LOG_LEVEL.DEBUG, sender, message)
 
 
     @classmethod
-    def trace(cls, sender, data : str):
+    def trace(cls, sender, message : str):
         '''
     ....To log a trace message, usually to be used to see the steps through setup and tear down process as well as to see the threads working
         '''
-        cls.message(Logger.LOG_LEVEL.TRACE, sender, data)
+        cls.message(Logger.LOG_LEVEL.TRACE, sender, message)
 
 
     @classmethod
-    def info(cls, sender, data : str):
+    def info(cls, sender, message : str):
         '''
     ....To log any information that could be from interest
         '''
-        cls.message(Logger.LOG_LEVEL.INFO, sender, data)
+        cls.message(Logger.LOG_LEVEL.INFO, sender, message)
 
 
     @classmethod
-    def warning(cls, sender, data : str):
+    def warning(cls, sender, message : str):
         '''
     ....To log any warnings
         '''
-        cls.message(Logger.LOG_LEVEL.WARN, sender, data)
+        cls.message(Logger.LOG_LEVEL.WARN, sender, message)
 
 
     @classmethod
-    def error(cls, sender, data : str):
+    def error(cls, sender, message : str):
         '''
     ....To log an error, usually in case of exceptions, that's usually the highest error level for any problems in the script
         '''
-        cls.message(Logger.LOG_LEVEL.ERROR, sender, data)
+        cls.message(Logger.LOG_LEVEL.ERROR, sender, message)
 
 
     @classmethod
-    def fatal(cls, sender, data : str):
+    def fatal(cls, sender, message : str):
         '''
     ....To log an fatal errors, usually by detecting real critical hardware problems
         '''
-        cls.message(Logger.LOG_LEVEL.FATAL, sender, data)
+        cls.message(Logger.LOG_LEVEL.FATAL, sender, message)
 
 
     @classmethod
-    def message(cls, level : LOG_LEVEL, sender, data : str):
+    def message(cls, level : LOG_LEVEL, sender, message : str):
         '''
         Overall log method, all log methods have to end up here
         '''
-        senderName = cls.getSenderName(sender)
         if level <= cls.get_logLevel():
-            message = "Logger : " + senderName + " [" + str(level) + "] " + data
-            print(message)
-        if level == cls.LOG_LEVEL.ERROR:
-            #logging.error()
-            pass
-        elif level == cls.LOG_LEVEL.FATAL:
-            #logging.critical()
-            pass
-        # @todo add timestamp xxxxxxxxxxxxxxxxxxx
-        # @todo write to queue
+            senderName = cls.getSenderName(sender)
+            timeStamp = datetime.now()
+            levelText = "{:<18}".format("[" + str(cls.get_logLevel()) + "]")
+            logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
+            
+            if cls.get_logQueue() is not None:
+                cls.get_logQueue().put(logMessage, block = False)
+            else:
+                print(logMessage)
+            
+            if level == cls.LOG_LEVEL.ERROR:
+                #logging.error()
+                pass
+            elif level == cls.LOG_LEVEL.FATAL:
+                #logging.critical()
+                pass
 

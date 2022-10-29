@@ -18,7 +18,7 @@ class MqttInterface(object):
 
     __threadLock_always_use_getters_and_setters  = threading.Lock()     # class lock to access class variables
     __exception_always_use_getters_and_setters   = None                 # will be set with first thrown exception but not overwritten anymore
-    __mqttTxQueue_always_use_getters_and_setters = Queue()              # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
+    __mqttTxQueue_always_use_getters_and_setters = Queue(100)           # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
 
 
     @classmethod
@@ -107,7 +107,7 @@ class MqttInterface(object):
 
     def get_mqttRxQueue(self):
         if not hasattr(self, "mqttRxQueue"):
-            self.mqttRxQueue = Queue()
+            self.mqttRxQueue = Queue(100)
         else:
             self.raiseException("object " + self.name + " has already registered to an MqttBridge")
         return self.mqttRxQueue
