@@ -2,6 +2,15 @@
 
 
 '''
+ATTENTION:
+- class variables should always be named that way:
+    __<variableName>_always_use_getters_and_setters
+    - Python will transform then into _<class>__<variableName>_always_use_getters_and_setters, so they will get maximum prevented from misusage  
+    - reason is that a variable cls.abc is identical to self.abc until you set self.abc to something than you really have two different variables cls.abc and self.abc!!!
+- @todo add further good practice here!
+
+
+
 @todo in ProjectRunner alle globalen Variablen ggf. umbenennen nach "__xxx"?
 @todo timestamp in logger einbauen
 @todo interfaces fehlen noch komplett
@@ -9,10 +18,6 @@
 @todo alle xxxxx suchen
 
 
-ATTENTION:
-- never handle class variables yourself, always use setter and getter methods
-  - main reason is that a variable cls.abc is identical to self.abc until you set self.abc to something than you really have two different variables cls.abc and self.abc!!!
-- @todo add further good practice here!
 '''
 
 
@@ -29,7 +34,7 @@ project main function
 if __name__ == '__main__':
     initFileName = "init.json"
     logLevel     = Logger.Logger.Logger.LOG_LEVEL.INFO.value
-    stopAfterSeconds = 3
+    stopAfterSeconds = 0
 
     # handle command line arguments
     argumentParser = argparse.ArgumentParser()

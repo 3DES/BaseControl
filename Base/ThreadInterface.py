@@ -14,8 +14,40 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
     '''
 
 
-    setupThreadObjects = []         # all threads set up so far (even already teared down ones)
-    numberOfThreads = 0             # threads setup counter (will no be decremented if a thread is teared down again, it's only incremented, so its sth. like an internal thread PID), threads should increment it and than store its content into object variable "self.threadNumber" 
+    __setupThreadObjects_always_use_getters_and_setters = []         # all threads set up so far (even already teared down ones)
+    __numberOfThreads_always_use_getters_and_setters    = 0          # threads setup counter (will no be decremented if a thread is teared down again, it's only incremented, so its sth. like an internal thread PID), threads should increment it and than store its content into object variable "self.threadNumber" 
+
+
+    @classmethod
+    def get_setupThreadObjects(cls):
+        '''
+        Getter for __setupThreadObjects variable
+        '''
+        return ThreadInterface._ThreadInterface__setupThreadObjects_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_setupThreadObjects(cls, threadObjects : list):
+        '''
+        Setter for __setupThreadObjects variable
+        '''
+        ThreadInterface._ThreadInterface__setupThreadObjects_always_use_getters_and_setters = threadObjects
+
+
+    @classmethod
+    def get_numberOfThreads(cls):
+        '''
+        Getter for __numberOfThreads variable
+        '''
+        return ThreadInterface._ThreadInterface__numberOfThreads_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_numberOfThreads(cls, numberOfThreads : int):
+        '''
+        Setter for __numberOfThreads variable
+        '''
+        ThreadInterface._ThreadInterface__numberOfThreads_always_use_getters_and_setters = numberOfThreads
 
 
     def __init__(self, threadName : str, configuration : dict, logger):
@@ -24,7 +56,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         '''
         super().__init__(threadName, configuration, logger)
         # don't set up any further threads if there is already an exception!
-        if self.exception is None:
+        if self.get_exception() is None:
             self.running = False        # to start thread until it's waiting endless
             self.killed  = False        # to stop thread independent if it has been started before or not
             
@@ -40,14 +72,14 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
 
 
     @classmethod
-    def addThread(cls, thread):
+    def addThread(cls, thread) -> int:
         '''
-        Setter and getter for cls.numberOfThreads and cls.threadNumber
+        Adds a thread to __setupThreadObjects and increments __numberOfThreads
         '''
-        with cls.threadLock:
-            threadNumber = cls.numberOfThreads          # remember own thread number
-            cls.numberOfThreads += 1                    # ensure each thread has uniq number
-            cls.setupThreadObjects.append(thread)       # remember new thread in global thread list for tearing them all down if neccessary 
+        with cls.get_threadLock():
+            threadNumber = cls.get_numberOfThreads()        # remember own thread number
+            cls.set_numberOfThreads(threadNumber + 1)       # ensure each thread has unique number
+            cls.get_setupThreadObjects().append(thread)     # remember new thread in global thread list for tearing them all down if necessary 
         return threadNumber
 
 
@@ -82,7 +114,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
                 # do some overall thread related stuff here (@todo)
         except Exception as exception:
             # beside explicite exceptions handled tread internally we also have to catch all implicite exceptions
-            self.setException(exception)
+            self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
         # final thread clean up
@@ -90,7 +122,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
             self.tearDownMethod()               # call tear down method for the case the thread has sth. to clean up
         except Exception as exception:
             # beside explicite exceptions handled tread internally we also have to catch all implicite exceptions
-            self.setException(exception)
+            self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
         self.logger.trace(self, "leaving thread loop")
@@ -141,13 +173,13 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
 
         # find Logger
         tearDownLoggerObject = None
-        if len(cls.setupThreadObjects):
-            tearDownLoggerObject = cls.setupThreadObjects[0]
+        if len(cls.get_setupThreadObjects()):
+            tearDownLoggerObject = cls.get_setupThreadObjects()[0]
             if not isinstance(tearDownLoggerObject.logger, Logger.Logger.Logger):
                 tearDownLoggerObject = None
 
         # stop workers first but not the logger so we can still log if necessary
-        for threadObject in reversed(cls.setupThreadObjects):
+        for threadObject in reversed(cls.get_setupThreadObjects()):
             if not isinstance(threadObject, Logger.Logger.Logger):
                 cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down object " + Supporter.encloseString(threadObject.name))
                 thread = threadObject.killThread()      # send stop to thread containing object and get real thread back

@@ -34,7 +34,7 @@ class WatchDog(ThreadObject):
 
 
     def setThreadList(self, threadList : list):
-        with self.threadLock:
+        with self.get_threadLock():
             if self.threadList is None:
                 self.threadList = threadList
             else:

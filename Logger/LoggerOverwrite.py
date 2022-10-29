@@ -14,7 +14,7 @@ class LoggerOverwrite(Logger):
 
 
     @classmethod
-    def message(cls, level : int, sender, data : str):
+    def message(cls, level : Logger.LOG_LEVEL, sender, data : str):
         print("LoggerOverwrite : " + sender + " [" + str(level) + "] " + data)
         # @todo wenn super.message fertig ist, dann diese Methode entsprechend anpassen!!!
 

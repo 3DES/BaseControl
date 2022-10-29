@@ -26,85 +26,88 @@ class Logger(ThreadInterface):
             if self.__class__ is other.__class__:
                 result = self.value < other.value
                 return result
-            self.raiseException("cannot compare " + str(self.__class__) + " < " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " < " + str(other.__class__))
         def __le__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value <= other.value
                 return result
-            self.raiseException("cannot compare " + str(self.__class__) + " <= " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " <= " + str(other.__class__))
         def __gt__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value > other.value
                 return result
-            self.raiseException("cannot compare " + str(self.__class__) + " > " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " > " + str(other.__class__))
         def __ge__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value >= other.value
                 return result
-            self.raiseException("cannot compare " + str(self.__class__) + " >= " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " >= " + str(other.__class__))
         def __eq__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value == other.value
                 return result
-            self.raiseException("cannot compare " + str(self.__class__) + " == " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " == " + str(other.__class__))
         def __ne__(self, other):
             if self.__class__ is other.__class__:
                 result = not(self.value == other.value)
                 return result
-            self.raiseException("cannot compare " + str(self.__class__) + " != " + str(other.__class__))
+            raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))
 
 
-    logQueue = None     # this alowes us to be a "singleton"
-    #logLevel = LOG_LEVEL.DEBUG
-    logLevel = LOG_LEVEL.TRACE
+    __logQueue_always_use_getters_and_setters = None                # to be a "singleton"
+    __logLevel_always_use_getters_and_setters = LOG_LEVEL.TRACE
+    #__logLevel_always_use_getters_and_setters = LOG_LEVEL.DEBUG
+
+
+    @classmethod
+    def get_logQueue(cls):
+        '''
+        Getter for __logQueue variable
+        '''
+        return Logger._Logger__logQueue_always_use_getters_and_setters
+
+
+    @classmethod
+    def setup_logQueue(cls):
+        '''
+        Prepares __logQueue variable
+        '''
+        with cls.get_threadLock():
+            if Logger._Logger__logQueue_always_use_getters_and_setters is None:
+                Logger._Logger__logQueue_always_use_getters_and_setters = Queue()               # create logger queue
+            else:
+                self.raiseException("Logger already instantiated, no further instances allowed")
+
+
+    @classmethod
+    def get_logLevel(cls):
+        '''
+        Getter for __logLevel variable
+        '''
+        return Logger._Logger__logLevel_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_logLevel(cls, newLogLevel : int):
+        '''
+        To change log level, e.g. during development to show debug information or in productive state to hide too many log information nobody needs
+        '''
+        with cls.get_threadLock():
+            if newLogLevel > Logger.LOG_LEVEL.DEBUG.value:
+                newLogLevel = Logger.LOG_LEVEL.DEBUG.value
+            Logger._Logger__logLevel_always_use_getters_and_setters = Logger.LOG_LEVEL(newLogLevel)
 
 
     def __init__(self, threadName : str, configuration : dict, logger = None):
-        if self.setLogQueue():
-            # are whe the Logger or was our __init__ just called by a sub class?
-            super().__init__(threadName, configuration, self if logger is None else logger)
-
-            self.logger.info(self, "init (Logger)")
-        else:
-            self.raiseException("Logger already instantiated, no further instances allowed")
-
-
-    @classmethod
-    def setLogQueue(cls):
-        '''
-        Setter for cls.logQueue
-        '''
-        setupResult = False
-        with cls.threadLock:
-            if cls.logQueue is None:
-                cls.logQueue = Queue()               # create logger queue
-                setupResult = True
-        return setupResult
-
-
-    @classmethod
-    def writeLogQueue(cls):
-        '''
-        Some kind of setter for cls.logQueue
-        '''
-        # @todo noch ausprogrammieren!!!
-        cls.logQueue.put()
+        # are we the Logger or was our __init__ just called by a sub class?
+        self.setup_logQueue()
+        super().__init__(threadName, configuration, self if logger is None else logger)
+        self.logger.info(self, "init (Logger)")
 
 
     def threadMethod(self):
         self.logger.trace(self, "I am the Logger thread")
         time.sleep(0.3)
-
-
-    @classmethod
-    def setLogLevel(cls, newLogLevel : LOG_LEVEL):
-        '''
-        To change log level, e.g. during development to show debug information or in productiv state to hide too many log information nobody needs
-        '''
-        with cls.threadLock:
-            if newLogLevel > Logger.LOG_LEVEL.DEBUG.value:
-                newLogLevel = Logger.LOG_LEVEL.DEBUG
-            cls.logLevel = Logger.LOG_LEVEL(newLogLevel)
 
 
     @classmethod
@@ -180,12 +183,12 @@ class Logger(ThreadInterface):
 
 
     @classmethod
-    def message(cls, level : int, sender, data : str):
+    def message(cls, level : LOG_LEVEL, sender, data : str):
         '''
         Overall log method, all log methods have to end up here
         '''
         senderName = cls.getSenderName(sender)
-        if level <= cls.logLevel:
+        if level <= cls.get_logLevel():
             message = "Logger : " + senderName + " [" + str(level) + "] " + data
             print(message)
         if level == cls.LOG_LEVEL.ERROR:
