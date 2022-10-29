@@ -213,12 +213,12 @@ class Logger(ThreadInterface):
             if cls.get_logQueue() is not None:
                 cls.get_logQueue().put(logMessage, block = False)
             else:
-                print(logMessage)
+                print(logMessage)           # Logger not yet set up so print message to STDOUT meanwhile
             
             if level == cls.LOG_LEVEL.ERROR:
-                #logging.error()
+                logging.error(logMessage)
                 pass
             elif level == cls.LOG_LEVEL.FATAL:
-                #logging.critical()
+                logging.critical(logMessage)
                 pass
 
