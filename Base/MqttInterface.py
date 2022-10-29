@@ -110,6 +110,7 @@ class MqttInterface(object):
             self.mqttRxQueue = Queue()
         else:
             self.raiseException("object " + self.name + " has already registered to an MqttBridge")
+        return self.mqttRxQueue
 
 
     def get_mqttListenerName(self):
