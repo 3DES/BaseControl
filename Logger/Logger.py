@@ -140,17 +140,24 @@ class Logger(ThreadBase):
 
 
     def __init__(self, threadName : str, configuration : dict, logger = None):
+        '''
+        Logger constructor
+        
+        the optional logger parameter is for the case that we have a sub class that inherited from us and is, therefore, the real logger!
+        '''
         # are we the Logger or was our __init__ just called by a sub class?
-        self.setup_logQueue()
-        self.logBuffer = collections.deque([], 500)         # length of 500 elements
-        self.logCoutner = 0                                 # counts all logged messages
+        self.setup_logQueue()                                   # setup log queue
+        self.logBuffer = collections.deque([], 500)             # buffer storing the last 500 elements (for emergency write)
+        self.logCoutner = 0                                     # counts all logged messages
+        self.set_logger(self if logger is None else logger)     # set project wide logger (since this is the base class for all loggers its it's job to set the project logger)
 
         # check and prepare mandatory parameters
         if "projectName" not in configuration:
             raise Exception("Logger needs a projectName value in init file")  # self.raiseException
         self.set_projectName(configuration["projectName"])
 
-        super().__init__(threadName, configuration, self if logger is None else logger)
+        # now call super().__init() since all necessary pre-steps have been done
+        super().__init__(threadName, configuration)
 
         self.logger.info(self, "init (Logger)")
 

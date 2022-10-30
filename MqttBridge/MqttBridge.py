@@ -210,9 +210,9 @@ class MqttBridge(ThreadObject):
             self.get_mqttListeners()[subscriber]["queue"].put(content, block = False)
 
 
-    def __init__(self, threadName : str, configuration : dict, logger : Logger):
+    def __init__(self, threadName : str, configuration : dict):
         self.setup_mqttListeners()
-        super().__init__(threadName, configuration, logger)
+        super().__init__(threadName, configuration)
         self.logger.info(self, "init (MqttBridge)")
 
 

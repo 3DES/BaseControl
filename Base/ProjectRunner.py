@@ -95,19 +95,17 @@ class ProjectRunner(object):
             loggerName,
             threadDictionary[loggerName]["configuration"])
         threadDictionary.pop(loggerName)
-        
+
         # setup mqtt bridge thread
         cls.projectMqttBridge = threadDictionary[mqttBridgeName]["class"](
             mqttBridgeName,
-            threadDictionary[mqttBridgeName]["configuration"],
-            cls.projectLogger)
+            threadDictionary[mqttBridgeName]["configuration"])
         threadDictionary.pop(mqttBridgeName)
 
         for threadName in threadDictionary:
             thread = threadDictionary[threadName]["class"](
                 threadName,
-                threadDictionary[threadName]["configuration"],
-                cls.projectLogger)
+                threadDictionary[threadName]["configuration"])
 
         cls.projectLogger.info(cls, "all threads up and running")
 

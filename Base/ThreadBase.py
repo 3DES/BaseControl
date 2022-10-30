@@ -50,11 +50,11 @@ class ThreadBase(Base.MqttBase.MqttBase):
         ThreadBase._ThreadBase__numberOfThreads_always_use_getters_and_setters = numberOfThreads
 
 
-    def __init__(self, threadName : str, configuration : dict, logger):
+    def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
         '''
-        super().__init__(threadName, configuration, logger)
+        super().__init__(threadName, configuration)
         # don't set up any further threads if there is already an exception!
         if self.get_exception() is None:
             self.killed  = False        # to stop thread independent if it has been started before or not

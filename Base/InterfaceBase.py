@@ -10,7 +10,7 @@ class InterfaceBase(ThreadObject):
     '''
 
 
-    def __init__(self, threadName : str, configuration : dict, logger : Logger):
+    def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
         '''

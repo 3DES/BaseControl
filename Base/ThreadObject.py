@@ -13,10 +13,10 @@ class ThreadObject(ThreadBase):
     '''
 
 
-    def __init__(self, threadName : str, configuration : dict, logger : Logger):
+    def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
         '''
-        super().__init__(threadName, configuration, logger)
+        super().__init__(threadName, configuration)
         self.logger.info(self, "init (ThreadObject)")
 
