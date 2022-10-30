@@ -54,8 +54,8 @@ class WatchDog(ThreadObject):
 
 
     def threadInitMethod(self):
-        self.watchDogLastInformedInitTime = self.calculateNextTimeoutTime()         # initial timeout after that all threads must have been seen at least once
-        self.watchDogLastInformedDict = {}                                          # to collect all known threads so far with next timeout time
+        self.watchDogLastInformedInitTime = self.calculateNextTimeoutTime() + self.configuration["triggerTime"]     # initial timeout after that all threads must have been seen at least once
+        self.watchDogLastInformedDict = {}                                                                          # to collect all known threads so far with next timeout time
 
 
     def threadMethod(self):
@@ -95,7 +95,7 @@ class WatchDog(ThreadObject):
                                 Supporter.encloseString(str(len(self.watchDogLastInformedDict))) +
                                 " within timeout time:\n" + "\n".join(self.watchDogLastInformedDict.keys()))
 
-        # now check all timeout times
+        # now check all (already stored) timeout times
         for thread in self.watchDogLastInformedDict:
             if self.watchDogLastInformedDict[thread] < Supporter.getTimeStamp():
                 # @todo ggf. besser noch den HW-Watchdog informieren und danach die exception schmeissen

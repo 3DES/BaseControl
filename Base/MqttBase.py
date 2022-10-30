@@ -9,7 +9,7 @@ from queue import Queue
 from Base.Supporter import Supporter
 
 
-class MqttInterface(object):
+class MqttBase(object):
     '''
     classdocs
     '''
@@ -50,7 +50,7 @@ class MqttInterface(object):
         '''
         Getter for __threadLock variable
         '''
-        return MqttInterface._MqttInterface__threadLock_always_use_getters_and_setters
+        return MqttBase._MqttBase__threadLock_always_use_getters_and_setters
 
 
     @classmethod
@@ -66,7 +66,7 @@ class MqttInterface(object):
         '''
         Getter for __exception variable
         '''
-        return MqttInterface._MqttInterface__exception_always_use_getters_and_setters
+        return MqttBase._MqttBase__exception_always_use_getters_and_setters
 
 
     @classmethod
@@ -76,8 +76,8 @@ class MqttInterface(object):
         '''
         # only set first exception since that's the most interesting one!
         with cls.get_threadLock():
-            if MqttInterface._MqttInterface__exception_always_use_getters_and_setters is None:
-                MqttInterface._MqttInterface__exception_always_use_getters_and_setters = exception
+            if MqttBase._MqttBase__exception_always_use_getters_and_setters is None:
+                MqttBase._MqttBase__exception_always_use_getters_and_setters = exception
 
 
     @classmethod
@@ -85,7 +85,7 @@ class MqttInterface(object):
         '''
         Getter for __mqttTxQueue variable
         '''
-        return MqttInterface._MqttInterface__mqttTxQueue_always_use_getters_and_setters
+        return MqttBase._MqttBase__mqttTxQueue_always_use_getters_and_setters
 
 
     @classmethod
@@ -102,10 +102,10 @@ class MqttInterface(object):
         Setter for __projectName
         '''
         with cls.get_threadLock():
-            if MqttInterface._MqttInterface__projectName_always_use_getters_and_setters is None:
-                MqttInterface._MqttInterface__projectName_always_use_getters_and_setters = projectName
+            if MqttBase._MqttBase__projectName_always_use_getters_and_setters is None:
+                MqttBase._MqttBase__projectName_always_use_getters_and_setters = projectName
             else:
-                raise Exception("MqttInterface's project name already set")    # self.raiseException
+                raise Exception("MqttBase's project name already set")    # self.raiseException
 
 
     @classmethod
@@ -113,7 +113,7 @@ class MqttInterface(object):
         '''
         Getter for __projectName
         '''
-        return MqttInterface._MqttInterface__projectName_always_use_getters_and_setters
+        return MqttBase._MqttBase__projectName_always_use_getters_and_setters
 
 
     @classmethod
@@ -122,8 +122,8 @@ class MqttInterface(object):
         Setter for __watchDogMinimumTime
         '''
         with cls.get_threadLock():
-            if (MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters == 0) or (MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters > watchDogTime):
-                MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters = watchDogTime
+            if (MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters == 0) or (MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters > watchDogTime):
+                MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters = watchDogTime
 
 
     @classmethod
@@ -131,7 +131,7 @@ class MqttInterface(object):
         '''
         Getter for __watchDogMinimumTime
         '''
-        return MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters
+        return MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters
 
 
     def __init__(self, baseName : str, configuration : dict, logger):
@@ -142,7 +142,7 @@ class MqttInterface(object):
         self.name = baseName
         self.configuration = configuration
         self.logger = logger
-        self.logger.info(self, "init (MqttInterface)")
+        self.logger.info(self, "init (MqttBase)")
         self.startupTime = Supporter.getTimeStamp()                     # remember startup time
         self.watchDogTimer = Supporter.getTimeStamp()                   # remember time the watchdog has been contacted the last time, thread-wise!
         self.mqttRxQueue = Queue(100)                                   # create RX MQTT listener queue
@@ -179,8 +179,8 @@ class MqttInterface(object):
         '''
         To test if exceptions caught correctly
         just enter somewhere:
-            MqttInterface.simulateExcepitonError(self.name, 0)        # for immediate exception
-            MqttInterface.simulateExcepitonError(self.name, 10)       # for exception after 10 calls
+            MqttBase.simulateExcepitonError(self.name, 0)        # for immediate exception
+            MqttBase.simulateExcepitonError(self.name, 10)       # for exception after 10 calls
         '''
         counterName = "__simulateExceptionError_" + name
         nameSpace = globals()
@@ -284,7 +284,7 @@ class MqttInterface(object):
         '''
         Subscribe to a certain topic (locally OR globally)
         '''
-        self.mqttSendPackage(MqttInterface.MQTT_TYPE.SUBSCRIBE if not globalSubscription else MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL,
+        self.mqttSendPackage(MqttBase.MQTT_TYPE.SUBSCRIBE if not globalSubscription else MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL,
                              topic = topic)
 
 
@@ -292,28 +292,28 @@ class MqttInterface(object):
         '''
         Un-subscribe from a certain topic (locally AND globally)
         '''
-        self.mqttSendPackage(MqttInterface.MQTT_TYPE.UNSUBSCRIBE, topic = topic)
+        self.mqttSendPackage(MqttBase.MQTT_TYPE.UNSUBSCRIBE, topic = topic)
 
 
     def mqttConnect(self):
         '''
         Register as listener
         '''
-        self.mqttSendPackage(MqttInterface.MQTT_TYPE.CONNECT, content = self.mqttRxQueue)
+        self.mqttSendPackage(MqttBase.MQTT_TYPE.CONNECT, content = self.mqttRxQueue)
 
 
     def mqttDisconnect(self):
         '''
         Unregister as listener
         '''
-        self.mqttSendPackage(MqttInterface.MQTT_TYPE.DISCONNECT)
+        self.mqttSendPackage(MqttBase.MQTT_TYPE.DISCONNECT)
 
 
     def mqttPublish(self, topic : str, content, globalPublish : bool = True):
         '''
         Publish some message locally or globally
         '''
-        self.mqttSendPackage(MqttInterface.MQTT_TYPE.PUBLISH if globalPublish else MqttInterface.MQTT_TYPE.PUBLISH_LOCAL,
+        self.mqttSendPackage(MqttBase.MQTT_TYPE.PUBLISH if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL,
                              topic = topic,
                              content = content)
 
@@ -359,12 +359,12 @@ class MqttInterface(object):
         }
 
         # validate mqttCommand
-        if (mqttCommand.value >= MqttInterface.MQTT_TYPE.CONNECT.value) and (mqttCommand.value <= MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
+        if (mqttCommand.value >= MqttBase.MQTT_TYPE.CONNECT.value) and (mqttCommand.value <= MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
             # validate topic if necessary
-            if mqttCommand.value >= MqttInterface.MQTT_TYPE.SUBSCRIBE.value:
+            if mqttCommand.value >= MqttBase.MQTT_TYPE.SUBSCRIBE.value:
                 if not self.validateTopicFilter(topic):
                     raise Exception(self.name + " tried to send invalid topic filter : " + str(mqttMessageDict)) 
-            elif mqttCommand.value >= MqttInterface.MQTT_TYPE.PUBLISH.value:
+            elif mqttCommand.value >= MqttBase.MQTT_TYPE.PUBLISH.value:
                 if not self.validateTopic(topic):
                     raise Exception(self.name + " tried to send invalid topic : " + str(mqttMessageDict)) 
 

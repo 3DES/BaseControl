@@ -3,12 +3,12 @@ import traceback
 import time
 
 
-import Base.MqttInterface   # prevent circular import!
+import Base.MqttBase   # prevent circular import!
 import Logger.Logger        # prevent circular import!
 from Base.Supporter import Supporter 
 
 
-class ThreadInterface(Base.MqttInterface.MqttInterface):
+class ThreadBase(Base.MqttBase.MqttBase):
     '''
     classdocs
     '''
@@ -23,7 +23,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         '''
         Getter for __setupThreadObjects variable
         '''
-        return ThreadInterface._ThreadInterface__setupThreadObjects_always_use_getters_and_setters
+        return ThreadBase._ThreadBase__setupThreadObjects_always_use_getters_and_setters
 
 
     @classmethod
@@ -31,7 +31,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         '''
         Setter for __setupThreadObjects variable
         '''
-        ThreadInterface._ThreadInterface__setupThreadObjects_always_use_getters_and_setters = threadObjects
+        ThreadBase._ThreadBase__setupThreadObjects_always_use_getters_and_setters = threadObjects
 
 
     @classmethod
@@ -39,7 +39,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         '''
         Getter for __numberOfThreads variable
         '''
-        return ThreadInterface._ThreadInterface__numberOfThreads_always_use_getters_and_setters
+        return ThreadBase._ThreadBase__numberOfThreads_always_use_getters_and_setters
 
 
     @classmethod
@@ -47,7 +47,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         '''
         Setter for __numberOfThreads variable
         '''
-        ThreadInterface._ThreadInterface__numberOfThreads_always_use_getters_and_setters = numberOfThreads
+        ThreadBase._ThreadBase__numberOfThreads_always_use_getters_and_setters = numberOfThreads
 
 
     def __init__(self, threadName : str, configuration : dict, logger):
@@ -57,10 +57,9 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         super().__init__(threadName, configuration, logger)
         # don't set up any further threads if there is already an exception!
         if self.get_exception() is None:
-            self.running = False        # to start thread until it's waiting endless
             self.killed  = False        # to stop thread independent if it has been started before or not
             
-            self.logger.info(self, "init (ThreadInterface)")
+            self.logger.info(self, "init (ThreadBase)")
             
             self.event = threading.Event()      # event is currently not used
             self.thread = threading.Thread(target = self.threadLoop, args=[self.event])
@@ -83,14 +82,6 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         return threadNumber
 
 
-    def startThread(self):
-        '''
-        After a thread has been set up it will wait since some threads need to be further initialized
-        When all necessary initialization and maybe synchronization has been done this method has to be called to make the thread running
-        '''
-        self.running = True
-
-
     def threadLoop(self, event):
         '''
         Thread loop started when thread is set up
@@ -111,12 +102,8 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
 
         # execute thread loop until thread gets killed
         try:
-            # wait for getting started (or killed)
-            while not self.running and not self.killed:     # and not event.is_set():
-                time.sleep(0.1)    # be nice!
-
             # execute thread loop until we get killed
-            while self.running and not self.killed:         # and not event.is_set():
+            while not self.killed:         # and not event.is_set():
                 self.threadMethod()
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)

@@ -8,10 +8,10 @@ from queue import Queue
 from datetime import datetime
 
 
-from Base.ThreadInterface import ThreadInterface
+from Base.ThreadBase import ThreadBase
 
 
-class Logger(ThreadInterface):
+class Logger(ThreadBase):
     '''
     classdocs
     '''
@@ -257,7 +257,7 @@ class Logger(ThreadInterface):
             timeStamp = datetime.now()
             levelText = "{:<18}".format("[" + str(level) + "]")
             logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
-            
+
             if cls.get_logQueue() is not None:
                 cls.get_logQueue().put(logMessage, block = False)
             else:

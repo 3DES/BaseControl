@@ -27,29 +27,29 @@ import sys
 
 from Base.ProjectRunner import ProjectRunner
 import Logger.Logger
-from Base.MqttInterface import MqttInterface
+from Base.MqttBase import MqttBase
 
 
-#print(MqttInterface.validateTopicFilter("#"))
-#print(MqttInterface.validateTopicFilter("a/b/#"))
-#print(MqttInterface.validateTopicFilter("a/+/b"))
-#print(MqttInterface.validateTopicFilter("a/+/b/+/c"))
-#print(MqttInterface.validateTopicFilter("a/+/b/+"))
-#print(MqttInterface.validateTopicFilter(""))
-#print(MqttInterface.validateTopicFilter("/"))
-#print(MqttInterface.validateTopicFilter("a/+b#"))
-#print(MqttInterface.validateTopicFilter("a/##b"))
-#print(MqttInterface.validateTopicFilter("#/a/b"))
-#print(MqttInterface.validateTopicFilter("a/b/"))
+#print(MqttBase.validateTopicFilter("#"))
+#print(MqttBase.validateTopicFilter("a/b/#"))
+#print(MqttBase.validateTopicFilter("a/+/b"))
+#print(MqttBase.validateTopicFilter("a/+/b/+/c"))
+#print(MqttBase.validateTopicFilter("a/+/b/+"))
+#print(MqttBase.validateTopicFilter(""))
+#print(MqttBase.validateTopicFilter("/"))
+#print(MqttBase.validateTopicFilter("a/+b#"))
+#print(MqttBase.validateTopicFilter("a/##b"))
+#print(MqttBase.validateTopicFilter("#/a/b"))
+#print(MqttBase.validateTopicFilter("a/b/"))
 #print("---------")
 #for filter in ("a/b/#", "a/b/+", "a/+/c/+/e"):
-#    filter = MqttInterface.splitTopic(filter)
-#    print(MqttInterface.matchTopic("a/b/c",     filter))
-#    print(MqttInterface.matchTopic("a/b",       filter))
-#    print(MqttInterface.matchTopic("a/b/c/d",   filter))
-#    print(MqttInterface.matchTopic("a/b/c/d/e", filter))
-#    print(MqttInterface.matchTopic("a/a/c/a/e", filter))
-#    print(MqttInterface.matchTopic("a",         filter))
+#    filter = MqttBase.splitTopic(filter)
+#    print(MqttBase.matchTopic("a/b/c",     filter))
+#    print(MqttBase.matchTopic("a/b",       filter))
+#    print(MqttBase.matchTopic("a/b/c/d",   filter))
+#    print(MqttBase.matchTopic("a/b/c/d/e", filter))
+#    print(MqttBase.matchTopic("a/a/c/a/e", filter))
+#    print(MqttBase.matchTopic("a",         filter))
 #    print("--")
 #sys.exit(255)
 

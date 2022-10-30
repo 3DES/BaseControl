@@ -14,7 +14,7 @@ import Worker.Worker
 import Logger.Logger
 import MqttBridge.MqttBridge
 import WatchDog.WatchDog
-import Base.ThreadInterface
+import Base.ThreadBase
 from Base.Supporter import Supporter
 
 
@@ -26,9 +26,7 @@ class ProjectRunner(object):
 
     executed = False                # set to True after first execution
     projectLogger = None
-    projectWorker = None
     projectMqttBridge = None
-    projectThreads = None
 
 
     def __init__(self):
@@ -82,7 +80,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def setupThreads(cls, threadDictionary : dict, loggerName : str, mqttBridgeName : str, workerName : str):
+    def setupThreads(cls, threadDictionary : dict, loggerName : str, mqttBridgeName : str):
         '''
         Setups up all threads in correct order
 
@@ -97,23 +95,13 @@ class ProjectRunner(object):
             loggerName,
             threadDictionary[loggerName]["configuration"])
         threadDictionary.pop(loggerName)
-        cls.projectLogger.startThread()
-# @todo hier aufraeumen, Sonderbehandlung nur noch fuer Logger
+        
         # setup mqtt bridge thread
         cls.projectMqttBridge = threadDictionary[mqttBridgeName]["class"](
             mqttBridgeName,
             threadDictionary[mqttBridgeName]["configuration"],
             cls.projectLogger)
         threadDictionary.pop(mqttBridgeName)
-        cls.projectMqttBridge.startThread()
-
-        # setup worker thread
-        cls.projectWorker     = threadDictionary[workerName]["class"](
-            workerName,
-            threadDictionary[workerName]["configuration"],
-            cls.projectLogger)
-        threadDictionary.pop(workerName)
-        cls.projectWorker.startThread()
 
         for threadName in threadDictionary:
             thread = threadDictionary[threadName]["class"](
@@ -121,21 +109,17 @@ class ProjectRunner(object):
                 threadDictionary[threadName]["configuration"],
                 cls.projectLogger)
 
-            # start all threads except workers (they expect a thread list we currently don't have)
-            thread.startThread()
-        cls.projectThreads = threadDictionary                               # remaining objects in threadDictionary are all just ordinary threads
-#@todo hier aufraeumen, einiges brauchen wir nicht mehr...
-            
         cls.projectLogger.info(cls, "all threads up and running")
 
 
     @classmethod
     def monitorThreads(cls, stopAfterSeconds : int):
+        # used to stop the monitoring loop if a maximum running time has been given
         startTime = Supporter.getTimeStamp()
         running = True
 
         # loop until any thread throws an exception (and for debugging after 5 seconds)
-        while (Base.ThreadInterface.ThreadInterface.get_exception() is None) and running:
+        while (Base.ThreadBase.ThreadBase.get_exception() is None) and running:
             time.sleep(1)
             cls.projectLogger.trace(cls, "alive")
             if stopAfterSeconds:
@@ -146,6 +130,14 @@ class ProjectRunner(object):
 
     @classmethod
     def createThreadDictionary(cls, configuration : dict):
+        '''
+        Search the two threads that have to be started up first
+            #1 Logger
+            #2 MqttBridge
+        all others are started in the order they have been defined
+        
+        The worker thread is only searched to ensure it exists and there is only one of them, but there is no further special handling done with it
+        '''
         threadDictionary = {}
         loggerName = None
         mqttBridgeName = None
@@ -160,7 +152,7 @@ class ProjectRunner(object):
 
                 loadableClass = cls.loadClassFromFile(fullClassName)
 
-                # filter special threads and store others in array so they can be set up in well known order independent from position in init file
+                # search special threads and ensure there are not more than one of them, furthermore ensure all threads are sub classes of ThreadBase
                 if issubclass(loadableClass, Logger.Logger.Logger):
                     # only one system wide Logger is allowed
                     if loggerName is None:
@@ -179,9 +171,9 @@ class ProjectRunner(object):
                         workerName = threadName
                     else:
                         raise Exception("init file contains more than one Worker, at least [" + workerName + "] and [" + threadName + "]")
-                elif not issubclass(loadableClass, Base.ThreadInterface.ThreadInterface):
+                elif not issubclass(loadableClass, Base.ThreadBase.ThreadBase):
                     # init file error found
-                    raise Exception("init file contained class [" + threadName + "] is not a sub class of [Base.ThreadInterface.ThreadInterface]")
+                    raise Exception("init file contained class [" + threadName + "] is not a sub class of [Base.ThreadBase.ThreadBase]")
 
 
                 # since a json object is a dict each thread name is unique (even if it isn't inside init file but duplicates will get lost!)
@@ -189,7 +181,7 @@ class ProjectRunner(object):
             else:
                 raise Exception("definition " + threadName + " doesn't contain a \"class\" key")
 
-        # ensure at least all necessary threads have been defined
+        # ensure all necessary threads have been defined
         if loggerName is None:
             raise Exception("missing any Logger in init file")
         if mqttBridgeName is None:
@@ -197,7 +189,7 @@ class ProjectRunner(object):
         if workerName is None:
             raise Exception("missing any Worker in init file")
 
-        return (threadDictionary, loggerName, mqttBridgeName, workerName)
+        return (threadDictionary, loggerName, mqttBridgeName)
 
 
     @classmethod
@@ -215,6 +207,7 @@ class ProjectRunner(object):
         else:
             cls.executed = True
 
+        # set some command line parameters to the referring threads
         Logger.Logger.Logger.set_logLevel(logLevel)
         Logger.Logger.Logger.set_printAlways(printAlways)
 
@@ -222,25 +215,25 @@ class ProjectRunner(object):
 
         try:
             # validate init file content, load all classes and filter certain special classes (i.e. Logger, MqttBridge and Logger)
-            (threadDictionary, loggerName, mqttBridgeName, workerName) = cls.createThreadDictionary(configuration)
+            (threadDictionary, loggerName, mqttBridgeName) = cls.createThreadDictionary(configuration)
 
             # now threads will be instantiated and stared, if any exception happens now we have to tear them down again!
             try:
                 # now really setup all the threads
                 #print(threadDictionary)
-                cls.setupThreads(threadDictionary, loggerName, mqttBridgeName, workerName)
+                cls.setupThreads(threadDictionary, loggerName, mqttBridgeName)
                 cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
             except Exception:
                 print("INSTANTIATE/RUNNING EXCEPTION " + traceback.format_exc())
                 #logging.exception("INSTANTIATE EXCEPTION " + traceback.format_exc())
 
-            Base.ThreadInterface.ThreadInterface.stopAllThreads()
+            Base.ThreadBase.ThreadBase.stopAllThreads()
         except Exception:
             print("SETUP EXCEPTION " + traceback.format_exc())
             #logging.exception("SETUP EXCEPTION " + traceback.format_exc())
 
 
         # in error case try to write the log buffer content out to disk
-        if Base.ThreadInterface.ThreadInterface.get_exception() is not None or writeLogToDiskWhenEnds:
+        if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds:
             cls.projectLogger.writeLogBufferToDisk()
 

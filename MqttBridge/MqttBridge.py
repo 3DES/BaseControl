@@ -4,7 +4,7 @@ from queue import Queue
 
 from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
-from Base.MqttInterface import MqttInterface
+from Base.MqttBase import MqttBase
 from Base.Supporter import Supporter
 
 
@@ -14,7 +14,7 @@ class MqttBridge(ThreadObject):
     '''
 
 
-    __mqttListeners_always_use_getters_and_setters     = None       # collect queues and names of all registered listeners
+    __mqttListeners_always_use_getters_and_setters     = None       # collect queues and names of all registered listeners (this ensures MqttBridge is a singleton)
     __localSubscribers_always_use_getters_and_setters  = {}         # all subscriptions for local messages (all internal messages, even public published ones will be sent to these subscribers)
     __globalSubscribers_always_use_getters_and_setters = {}         # all subscriptions for global messages (all received from an external broker will be sent to these subscribers)
 
@@ -218,7 +218,7 @@ class MqttBridge(ThreadObject):
 
     def threadMethod(self):
         '''
-        MqttBridge worker method executed periodically from ThreadInterface.threadLoop()
+        MqttBridge worker method executed periodically from ThreadBase.threadLoop()
         '''
         self.logger.trace(self, "I am the MqttBridge thread = " + self.name)
 
@@ -236,36 +236,36 @@ class MqttBridge(ThreadObject):
             self.logger.debug(self, newMqttMessage)
 
             # handle type of received message
-            if newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.CONNECT.value:
+            if newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.CONNECT.value:
                 # "sender" is the sender's name
                 # "content" has to be a queue.Queue here!
                 self.add_mqttListeners(newMqttMessageDict["sender"], newMqttMessageDict["content"])
-            elif newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.DISCONNECT.value:
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.DISCONNECT.value:
                 # "sender" is the sender's name
                 self.disconnect_subscriber(newMqttMessageDict["sender"])
-            elif newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.BROADCAST.value:
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.BROADCAST.value:
                 # "sender" is the sender's name
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
                 self.broadcast_message(newMqttMessageDict["sender"], newMqttMessageDict["content"])
-            elif newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.PUBLISH.value:
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic 
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
-            elif newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.PUBLISH_LOCAL.value:
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic 
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
-            elif newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.SUBSCRIBE.value:
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
                 self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
-            elif newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.UNSUBSCRIBE.value:
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.UNSUBSCRIBE.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
                 self.remove_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
-            elif newMqttMessageDict["command"].value == MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
                 self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], globalSubscription = True)

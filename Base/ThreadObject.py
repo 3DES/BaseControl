@@ -1,13 +1,13 @@
 '''
 This is the main class for all threads except Logger!
 
-Logger has to inherit from the parent of this class (ThreadInterface) to prevent circular imports
+Logger has to inherit from the parent of this class (ThreadBase) to prevent circular imports
 '''
 from Logger.Logger import Logger
-from Base.ThreadInterface import ThreadInterface
+from Base.ThreadBase import ThreadBase
 
 
-class ThreadObject(ThreadInterface):
+class ThreadObject(ThreadBase):
     '''
     classdocs
     '''
