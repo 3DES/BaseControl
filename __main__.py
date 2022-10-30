@@ -22,10 +22,35 @@ ATTENTION:
 
 
 import argparse
+import sys
 
 
 from Base.ProjectRunner import ProjectRunner
 import Logger.Logger
+from Base.MqttInterface import MqttInterface
+
+
+#print(MqttInterface.validateTopicFilter("#"))
+#print(MqttInterface.validateTopicFilter("a/b/#"))
+#print(MqttInterface.validateTopicFilter("a/+/b"))
+#print(MqttInterface.validateTopicFilter("a/+/b/+/c"))
+#print(MqttInterface.validateTopicFilter("a/+/b/+"))
+#print(MqttInterface.validateTopicFilter(""))
+#print(MqttInterface.validateTopicFilter("/"))
+#print(MqttInterface.validateTopicFilter("a/+b#"))
+#print(MqttInterface.validateTopicFilter("a/##b"))
+#print(MqttInterface.validateTopicFilter("#/a/b"))
+#print(MqttInterface.validateTopicFilter("a/b/"))
+#print("---------")
+#for filter in ("a/b/#", "a/b/+", "a/+/c/+/e"):
+#    print(MqttInterface.matchTopic("a/b/c",     filter))
+#    print(MqttInterface.matchTopic("a/b",       filter))
+#    print(MqttInterface.matchTopic("a/b/c/d",   filter))
+#    print(MqttInterface.matchTopic("a/b/c/d/e", filter))
+#    print(MqttInterface.matchTopic("a/a/c/a/e", filter))
+#    print(MqttInterface.matchTopic("a",         filter))
+#    print("--")
+#sys.exit(255)
 
 
 '''

@@ -33,8 +33,16 @@ class Worker(ThreadObject):
         self.logger.info(self, "init (Worker)")
 
 
+    def threadInitMethod(self):
+        '''
+        Register needed topics here
+        '''
+        #self.mqttSubscribeTopic("WatchDog/#")
+        pass
+
+
     def threadMethod(self):
         self.logger.trace(self, "I am the Worker thread = " + self.name)
-        time.sleep(1)
+        time.sleep(0.1)
         #MqttInterface.simulateExcepitonError(self.name, 5)
 

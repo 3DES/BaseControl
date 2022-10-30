@@ -1,7 +1,7 @@
 {
     "PowerPlant":
     {
-        "class":   "Worker.Worker.Worker"
+        "class":   "Worker.PowerPlant.PowerPlant"
     },
 
     "MqttBridge":

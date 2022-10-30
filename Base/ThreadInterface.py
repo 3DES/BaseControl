@@ -101,6 +101,14 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         '''
         self.logger.trace(self, "thread loop started")
 
+        # first of all execute thread init method once
+        try:
+            self.threadInitMethod()             # call init method for the case the thread has sth. to set up
+        except Exception as exception:
+            # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
+            self.set_exception(exception)
+            self.logger.error(self, traceback.format_exc())
+
         # execute thread loop until thread gets killed
         try:
             # wait for getting started (or killed)
@@ -113,7 +121,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
         except Exception as exception:
-            # beside explicitly exceptions handled tread internally we also have to catch all implicite exceptions
+            # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
@@ -121,11 +129,20 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         try:
             self.tearDownMethod()               # call tear down method for the case the thread has sth. to clean up
         except Exception as exception:
-            # beside explicitly exceptions handled tread internally we also have to catch all implicite exceptions
+            # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
         self.logger.trace(self, "leaving thread loop")
+
+
+    def threadInitMethod(self):
+        '''
+        Will be called once when thread loop is started
+        
+        Should be overwritten when needed
+        '''
+        pass
 
 
     def threadMethod(self):
