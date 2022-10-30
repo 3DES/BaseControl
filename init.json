@@ -5,7 +5,7 @@
         "interfaces":
         {
             "Mosquitto" : {
-                "connection": "Interface.Ethernet.MqttBroker.MqttBroker",
+                "connection": "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
                 "server":     "192.168.168.23",
                 "port":       233
             }
@@ -19,7 +19,7 @@
         {
             "Uart" :
             {           # will be named WatchDog_Uart
-                "connection": "Interface.Uart.Uart.Uart",
+                "connection": "Interface.Uart.UartInterface.UartInterface",
                 "interface":  "/dev/ttyUSB0",
                 "settings":   "19200,8,N,1"
             }

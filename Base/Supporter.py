@@ -2,6 +2,7 @@
 '''
 import time
 import calendar
+import pydoc
 
 
 class Supporter(object):
@@ -73,4 +74,28 @@ class Supporter(object):
             return not singularTrue or nameSpace[counterName] == value 
         
         return False
+
+
+    @classmethod
+    def loadClassFromFile(cls, fullClassName : str):
+        '''
+        loads a class from a given file
+        no object will be created only the class will be loaded and given back to caller
+
+        :param fullClassName: name of the class including package and module to be loaded (e.g. Logger.Logger.Logger means Logger class contained in Logger.py contained in Logger folder)
+        :return: loaded but not yet instantiated class
+        :rtype: module
+        :raises Exception: if given module doesn't exist
+        '''
+        className = fullClassName.rsplit('.')[-1]
+        classType = ".".join(fullClassName.rsplit('.')[0:-1])
+        loadableModule = pydoc.locate(classType)
+
+        if loadableModule is None:
+            raise Exception("there is no module \"" + classType + "\"")
+
+        print("loading: module = " + str(loadableModule) + ", className = " + str(className) + ", classType = " + str(classType))
+        loadableClass = getattr(loadableModule, className)
+        return loadableClass
+
 

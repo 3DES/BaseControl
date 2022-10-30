@@ -15,7 +15,6 @@ class WatchDog(ThreadObject):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.threadList = None
 
         # check and prepare mandatory parameters 
         if "triggerTime" not in configuration:

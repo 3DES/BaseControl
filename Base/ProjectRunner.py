@@ -2,7 +2,6 @@
 '''
 
 
-import pydoc
 import json
 import re
 import traceback
@@ -36,29 +35,6 @@ class ProjectRunner(object):
         :raises Exception: if it is called even it shouldn't
         '''
         raise Exception("object " + self.name + " has already registered to an MqttBridge")("ProjectRunner __init__() should never be called")
-
-
-    @classmethod
-    def loadClassFromFile(cls, fullClassName : str):
-        '''
-        loads a class from a given file
-        no object will be created only the class will be loaded and given back to caller
-
-        :param fullClassName: name of the class including package and module to be loaded (e.g. Logger.Logger.Logger means Logger class contained in Logger.py contained in Logger folder)
-        :return: loaded but not yet instantiated class
-        :rtype: module
-        :raises Exception: if given module doesn't exist
-        '''
-        className = fullClassName.rsplit('.')[-1]
-        classType = ".".join(fullClassName.rsplit('.')[0:-1])
-        loadableModule = pydoc.locate(classType)
-
-        if loadableModule is None:
-            raise Exception("there is no module \"" + classType + "\"")
-
-        print("loading: module = " + str(loadableModule) + ", className = " + str(className) + ", classType = " + str(classType))
-        loadableClass = getattr(loadableModule, className)
-        return loadableClass
 
 
     @classmethod
@@ -148,7 +124,7 @@ class ProjectRunner(object):
                 threadConfiguration = configuration[threadName]                             # take configuration from init file
                 fullClassName = threadConfiguration["class"]                                # get class type
 
-                loadableClass = cls.loadClassFromFile(fullClassName)
+                loadableClass = Supporter.loadClassFromFile(fullClassName)
 
                 # search special threads and ensure there are not more than one of them, furthermore ensure all threads are sub classes of ThreadBase
                 if issubclass(loadableClass, Logger.Logger.Logger):
@@ -172,7 +148,6 @@ class ProjectRunner(object):
                 elif not issubclass(loadableClass, Base.ThreadBase.ThreadBase):
                     # init file error found
                     raise Exception("init file contained class [" + threadName + "] is not a sub class of [Base.ThreadBase.ThreadBase]")
-
 
                 # since a json object is a dict each thread name is unique (even if it isn't inside init file but duplicates will get lost!)
                 threadDictionary[threadName] = { "class" : loadableClass, "configuration" : configuration[threadName] }

@@ -25,13 +25,13 @@ class ThreadBase(Base.MqttBase.MqttBase):
         '''
         return ThreadBase._ThreadBase__setupThreadObjects_always_use_getters_and_setters
 
-
+    
     @classmethod
-    def set_setupThreadObjects(cls, threadObjects : list):
+    def add_setupThreadObjects(cls, thread):
         '''
         Setter for __setupThreadObjects variable
         '''
-        ThreadBase._ThreadBase__setupThreadObjects_always_use_getters_and_setters = threadObjects
+        cls.get_setupThreadObjects().append(thread)
 
 
     @classmethod
@@ -61,8 +61,10 @@ class ThreadBase(Base.MqttBase.MqttBase):
             
             self.logger.info(self, "init (ThreadBase)")
             
-            self.event = threading.Event()      # event is currently not used
+            self.event = threading.Event()                  # event is currently not used
             self.thread = threading.Thread(target = self.threadLoop, args=[self.event])
+
+            self.interfaceThreads = None                    # to collect interfaces setup during thread init phase
 
             self.threadNumber = self.addThread(self)        # register thread and receive uniq thread number (currently it's not used any further since all thread names are uniq, too)
             self.thread.start()                             # finally start new thread
@@ -76,10 +78,19 @@ class ThreadBase(Base.MqttBase.MqttBase):
         Adds a thread to __setupThreadObjects and increments __numberOfThreads
         '''
         with cls.get_threadLock():
-            threadNumber = cls.get_numberOfThreads()        # remember own thread number
-            cls.set_numberOfThreads(threadNumber + 1)       # ensure each thread has unique number
-            cls.get_setupThreadObjects().append(thread)     # remember new thread in global thread list for tearing them all down if necessary 
+            threadNumber = cls.get_numberOfThreads()    # remember own thread number
+            cls.set_numberOfThreads(threadNumber + 1)   # ensure each thread has unique number
+            cls.add_setupThreadObjects(thread)          # remember new thread in global thread list for tearing them all down if necessary 
         return threadNumber
+
+
+    def threadBreak(self):
+        '''
+        This is to ensure that each thread has at least a little sleep
+        
+        If the thread wants to handle this by itself it has to overwrite this method
+        '''
+        time.sleep(.1)
 
 
     def threadLoop(self, event):
@@ -112,7 +123,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 if self.watchDogTimeRemaining() <= 0:
                     self.mqttSendWatchdogAliveMessage()
 
-                time.sleep(0.1)    # be nice!
+                self.threadBreak()      # be nice!
 
         except Exception as exception:
             # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
@@ -121,7 +132,12 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         # final thread clean up
         try:
-            self.tearDownMethod()               # call tear down method for the case the thread has sth. to clean up
+            if self.interfaceThreads is not None:
+                for interface in self.interfaceThreads:                    interfaceThread = interface.killThread()    # send stop to thread containing object and get real thread back
+                for interface in self.interfaceThreads:
+                    interfaceThread.join()                      # join all stopped threads
+            
+            self.threadTearDownMethod()             # call tear down method for the case the thread has sth. to clean up
         except Exception as exception:
             # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -145,10 +161,10 @@ class ThreadBase(Base.MqttBase.MqttBase):
         
         To be overwritten in any case
         '''
-        self.logger.info(self, "thread method called")
+        self.logger.info(self, "thread method called, should be overwritten")
 
 
-    def tearDownMethod(self):
+    def threadTearDownMethod(self):
         '''
         Thread method called when a thread has been stopped via event
         
@@ -169,7 +185,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
     @classmethod
     def __stopAllThreadsLog(cls, loggerObject, level : int, sender, message : str):
         '''
-        Logger wrapper since it could happen that the locker died and we cannot log anymore so we should at least print somethin
+        Logger wrapper since it could happen that the locker died and we cannot log anymore so we should at least print something
         '''
         if loggerObject is not None:
             loggerObject.message(level, sender, message)

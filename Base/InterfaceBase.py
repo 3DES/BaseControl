@@ -1,7 +1,4 @@
-import time
-from Base.Supporter import Supporter
 from Base.ThreadObject import ThreadObject
-from Logger.Logger import Logger
 
 
 class InterfaceBase(ThreadObject):
@@ -14,4 +11,5 @@ class InterfaceBase(ThreadObject):
         '''
         Constructor
         '''
-        
+        super().__init__(threadName, configuration)
+

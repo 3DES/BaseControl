@@ -7,6 +7,7 @@ from queue import Queue
 
 
 from Base.Supporter import Supporter
+from Base.InterfaceFactory import InterfaceFactory
 
 
 class MqttBase(object):
@@ -170,6 +171,19 @@ class MqttBase(object):
         self.mqttConnect()                                              # send connect message
         self.mqttSubscribeTopic(self.masterTopic + "/#")                # subscribe to all topics with our name in it
 
+        if "interfaces" in configuration:
+            self.interfaceThreads = InterfaceFactory.createInterface(self.name, configuration["interfaces"])
+            for interface in self.interfaceThreads:
+                topic = interface.getMasterTopic()
+                self.mqttSubscribeTopic(topic + "/#")                   # subscribe to all topics of this interface
+
+
+    def getMasterTopic(self):
+        '''
+        Get master topic of thread
+        '''
+        return self.masterTopic
+    
 
     @classmethod
     def raiseException(cls, message : str):
