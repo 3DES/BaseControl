@@ -144,7 +144,14 @@ class Logger(ThreadInterface):
         self.setup_logQueue()
         self.logBuffer = collections.deque([], 500)         # length of 500 elements
         self.logCoutner = 0                                 # counts all logged messages
+
+        # check and prepare mandatory parameters
+        if "projectName" not in configuration:
+            raise Exception("Logger needs a projectName value in init file")  # self.raiseException
+        self.set_projectName(configuration["projectName"])
+
         super().__init__(threadName, configuration, self if logger is None else logger)
+
         self.logger.info(self, "init (Logger)")
 
 

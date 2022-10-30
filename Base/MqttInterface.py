@@ -7,13 +7,6 @@ from queue import Queue
 
 
 from Base.Supporter import Supporter
-from _ast import Or
-from pip._vendor.distlib.util import OR
-from win32evtlogutil import langid
-from _operator import or_
-from json.decoder import _decode_uXXXX
-#import Logger.Logger
-#import MqttBridge.MqttBridge
 
 
 class MqttInterface(object):
@@ -22,21 +15,25 @@ class MqttInterface(object):
     '''
 
 
-    __threadLock_always_use_getters_and_setters  = threading.Lock()     # class lock to access class variables
-    __exception_always_use_getters_and_setters   = None                 # will be set with first thrown exception but not overwritten anymore
-    __mqttTxQueue_always_use_getters_and_setters = Queue(100)           # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
+    __threadLock_always_use_getters_and_setters                 = threading.Lock()     # class lock to access class variables
+    __exception_always_use_getters_and_setters                  = None                 # will be set with first thrown exception but not overwritten anymore
+    __mqttTxQueue_always_use_getters_and_setters                = Queue(100)           # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
+    __projectName_always_use_getters_and_setters                = None                 # project name needed for MQTT's first level topic (i.e. <projectName>/<thread>/...)
+    __watchDogMinimumTriggerTime_always_use_getters_and_setters = 0                    # project wide minimum watch dog time (if more than one watch dogs are running in the system the shortest time will be stored here!)
 
 
     class MQTT_TYPE(Enum):
         CONNECT            = 0  # to register as listener own queue to MqttBridge 
         DISCONNECT         = 1  # will remove all subscriptions of the sender and the sender itself from listener list
 
-        PUBLISH            = 2  # send message to all subscribers
-        PUBLISH_LOCAL      = 3  # send message to local subscribers only
+        BROADCAST          = 2  # send broadcast message to all known listeners (independent from any subscriptions) 
 
-        SUBSCRIBE          = 4  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
-        UNSUBSCRIBE        = 5  # remove local and global subscriptions
-        SUBSCRIBE_GLOBAL   = 6  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
+        PUBLISH            = 3  # send message to all subscribers
+        PUBLISH_LOCAL      = 4  # send message to local subscribers only
+
+        SUBSCRIBE          = 5  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
+        UNSUBSCRIBE        = 6  # remove local and global subscriptions
+        SUBSCRIBE_GLOBAL   = 7  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
 
 
     @classmethod
@@ -99,6 +96,44 @@ class MqttInterface(object):
         cls._illegal_call()
 
 
+    @classmethod
+    def set_projectName(cls, projectName : str):
+        '''
+        Setter for __projectName
+        '''
+        with cls.get_threadLock():
+            if MqttInterface._MqttInterface__projectName_always_use_getters_and_setters is None:
+                MqttInterface._MqttInterface__projectName_always_use_getters_and_setters = projectName
+            else:
+                raise Exception("MqttInterface's project name already set")    # self.raiseException
+
+
+    @classmethod
+    def get_projectName(cls):
+        '''
+        Getter for __projectName
+        '''
+        return MqttInterface._MqttInterface__projectName_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_watchDogMinimumTime(cls, watchDogTime : int):
+        '''
+        Setter for __watchDogMinimumTime
+        '''
+        with cls.get_threadLock():
+            if (MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters == 0) or (MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters > watchDogTime):
+                MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters = watchDogTime
+
+
+    @classmethod
+    def get_watchDogMinimumTriggerTime(cls):
+        '''
+        Getter for __watchDogMinimumTime
+        '''
+        return MqttInterface._MqttInterface__watchDogMinimumTriggerTime_always_use_getters_and_setters
+
+
     def __init__(self, baseName : str, configuration : dict, logger):
         '''
         Constructor
@@ -108,9 +143,13 @@ class MqttInterface(object):
         self.configuration = configuration
         self.logger = logger
         self.logger.info(self, "init (MqttInterface)")
-        self.startupTime = Supporter.getTimeStamp()
-        self.mqttRxQueue = Queue(100)                   # create RX MQTT listener queue
-        self.mqttConnect()                              # send connect message
+        self.startupTime = Supporter.getTimeStamp()                     # remember startup time
+        self.watchDogTimer = Supporter.getTimeStamp()                   # remember time the watchdog has been contacted the last time, thread-wise!
+        self.mqttRxQueue = Queue(100)                                   # create RX MQTT listener queue
+        self.masterTopic = self.get_projectName() + "/" + self.name
+        self.watchDogTopic = self.get_projectName() + "/WatchDog"       # each watch dog has to subscribe to that topic, without any exceptions!!!
+        self.mqttConnect()                                              # send connect message
+        self.mqttSubscribeTopic(self.masterTopic + "/#")                # subscribe to all topics with our name in it
 
 
     @classmethod
@@ -277,26 +316,55 @@ class MqttInterface(object):
         self.mqttSendPackage(MqttInterface.MQTT_TYPE.PUBLISH if globalPublish else MqttInterface.MQTT_TYPE.PUBLISH_LOCAL,
                              topic = topic,
                              content = content)
+
+
+    def watchDogTimeRemaining(self):
+        '''
+        Time in milliseconds that is remaining until watch dog has to be contacted for the next time
+        If this value is negative watch dog already had to be informed
+        
+        In case self.get_watchDogMinimumTriggerTime() gives 0 the time has not yet set, therefore return a value > 0
+        '''
+        if self.get_watchDogMinimumTriggerTime():
+            return self.get_watchDogMinimumTriggerTime() - (Supporter.getTimeStamp() - self.watchDogTimer)
+        else:
+            return 1
+
+
+    def mqttSendWatchdogAliveMessage(self, content = None):
+        '''
+        Send alive message to watch dog
+        '''
+        self.watchDogTimer = Supporter.getTimeStamp()                               # reset watch dog time
+
+        # init content if necessary
+        if content is None:
+            content = {}
+        
+        content["sender"] = self.name                                               # in any case set the sender here!
+
+        self.mqttPublish(self.watchDogTopic, content, globalPublish = False)        # send alive message
         
 
-    def mqttSendPackage(self, mqttType : MQTT_TYPE, topic : str = None, content = None):
+
+    def mqttSendPackage(self, mqttCommand : MQTT_TYPE, topic : str = None, content = None):
         '''
         Universal send method to send all types of supported mqtt messages
         '''
         mqttMessageDict = {
             "sender"  : self.name,
-            "type"    : mqttType,
+            "command" : mqttCommand,
             "topic"   : topic,  
             "content" : content
         }
 
-        # validate mqttType
-        if (mqttType.value >= MqttInterface.MQTT_TYPE.CONNECT.value) and (mqttType.value <= MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
+        # validate mqttCommand
+        if (mqttCommand.value >= MqttInterface.MQTT_TYPE.CONNECT.value) and (mqttCommand.value <= MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
             # validate topic if necessary
-            if mqttType.value >= MqttInterface.MQTT_TYPE.SUBSCRIBE.value:
+            if mqttCommand.value >= MqttInterface.MQTT_TYPE.SUBSCRIBE.value:
                 if not self.validateTopicFilter(topic):
                     raise Exception(self.name + " tried to send invalid topic filter : " + str(mqttMessageDict)) 
-            elif mqttType.value >= MqttInterface.MQTT_TYPE.PUBLISH.value:
+            elif mqttCommand.value >= MqttInterface.MQTT_TYPE.PUBLISH.value:
                 if not self.validateTopic(topic):
                     raise Exception(self.name + " tried to send invalid topic : " + str(mqttMessageDict)) 
 

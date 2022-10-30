@@ -10,10 +10,7 @@ class PowerPlant(Worker):
     classdocs
     '''
     def threadInitMethod(self):
-        '''
-        Register topics here
-        '''
-        self.mqttSubscribeTopic("WatchDog/#")
+        pass
 
 
     def threadMethod(self):

@@ -100,7 +100,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         Finally threadMethod() will be called to give the thread the possibility to clean up
         '''
         self.logger.trace(self, "thread loop started")
-
+# @todo evtl. erst warten, dann init und dann loop aufrufen? dann waere der Init zeitlich naeher am ersten loop durchlauf!!!
         # first of all execute thread init method once
         try:
             self.threadInitMethod()             # call init method for the case the thread has sth. to set up
@@ -120,6 +120,13 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
                 self.threadMethod()
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
+
+                # @todo das hier wieder raus werfen, sollte in den echten Thread rein!!!
+                if self.watchDogTimeRemaining() <= 0:
+                    self.mqttSendWatchdogAliveMessage()
+
+                time.sleep(0.1)    # be nice!
+
         except Exception as exception:
             # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -142,7 +149,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         
         Should be overwritten when needed
         '''
-        pass
+        self.logger.info(self, "thread init method called")
 
 
     def threadMethod(self):
@@ -151,7 +158,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         
         To be overwritten in any case
         '''
-        raise Exception("abstract method \"threadMethod()\" has to be overwritten by " + self.__class__.__name__)    # self.raiseException
+        self.logger.info(self, "thread method called")
 
 
     def tearDownMethod(self):
@@ -160,8 +167,7 @@ class ThreadInterface(Base.MqttInterface.MqttInterface):
         
         To be overwritten if needed
         '''
-        self.logger.info(self, "tear down method called")
-        pass
+        self.logger.info(self, "thread tear down method called")
 
 
     def killThread(self):

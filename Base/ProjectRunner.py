@@ -74,7 +74,7 @@ class ProjectRunner(object):
         fileContent = ""
         for line in initFile:                                   # read line by line and remove comments
             line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
-            line = re.sub(r'#[^"\',]*$', r'', line)             # remove comments, will not remove comment from e.g. such a line: ["a" : "b"   # foo "bar"], since following characters are forbidden in comments ["',]
+            line = re.sub(r'#[^"\']*$', r'', line)             # remove comments, comments havn't to contain any quotation marks or apostrophes 
             line = re.sub(r'^ *#.*$', r'', line)                # remove line comments
             fileContent += line + "\n"                          # add filtered (or even empty line because of json error messages with line numbers) to overall json content
         initFile.close()
@@ -92,16 +92,13 @@ class ProjectRunner(object):
         Fourth all other threads are setup and all except WatchDogs are started
         Fifth all watchdogs will get started with a list of all the threads setup up so far
         '''
-        threadNamesList = []
-
         # setup logger thread first to enable logging as soon as possible
         cls.projectLogger     = threadDictionary[loggerName]["class"](
             loggerName,
             threadDictionary[loggerName]["configuration"])
         threadDictionary.pop(loggerName)
         cls.projectLogger.startThread()
-        threadNamesList.append(loggerName)
-
+# @todo hier aufraeumen, Sonderbehandlung nur noch fuer Logger
         # setup mqtt bridge thread
         cls.projectMqttBridge = threadDictionary[mqttBridgeName]["class"](
             mqttBridgeName,
@@ -109,7 +106,6 @@ class ProjectRunner(object):
             cls.projectLogger)
         threadDictionary.pop(mqttBridgeName)
         cls.projectMqttBridge.startThread()
-        threadNamesList.append(mqttBridgeName)
 
         # setup worker thread
         cls.projectWorker     = threadDictionary[workerName]["class"](
@@ -118,9 +114,6 @@ class ProjectRunner(object):
             cls.projectLogger)
         threadDictionary.pop(workerName)
         cls.projectWorker.startThread()
-        threadNamesList.append(workerName)
-
-        watchDogList = []
 
         for threadName in threadDictionary:
             thread = threadDictionary[threadName]["class"](
@@ -129,21 +122,9 @@ class ProjectRunner(object):
                 cls.projectLogger)
 
             # start all threads except workers (they expect a thread list we currently don't have)
-            if not issubclass(thread.__class__, WatchDog.WatchDog.WatchDog):
-                thread.startThread()
-            else:
-                # collect watchdogs
-                watchDogList.append(thread)
-            threadNamesList.append(threadName)                              # collect all (really all!) threads for the watch dogs
+            thread.startThread()
         cls.projectThreads = threadDictionary                               # remaining objects in threadDictionary are all just ordinary threads
-
-        # set thread names list to all watchdogs
-        for watchDog in watchDogList:
-            watchDog.setThreadList(threadNamesList)
-
-        # finally start all watchdogs
-        for watchDog in watchDogList:
-            watchDog.startThread()
+#@todo hier aufraeumen, einiges brauchen wir nicht mehr...
             
         cls.projectLogger.info(cls, "all threads up and running")
 
@@ -161,10 +142,6 @@ class ProjectRunner(object):
                 if Supporter.getTimeStamp() - startTime > stopAfterSeconds:
                     cls.projectLogger.info(cls, "overall stop since given running time is over")
                     running = False
-
-        # in error case try to write the log buffer content out to disk
-        if Base.ThreadInterface.ThreadInterface.get_exception() is not None:
-            cls.projectLogger.writeLogBufferToDisk()
 
 
     @classmethod
@@ -224,7 +201,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, stopAfterSeconds : int, printAlways : bool):
+    def executeProject(cls, initFileName : str, logLevel : int, stopAfterSeconds : int, printAlways : bool, writeLogToDiskWhenEnds : bool):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -262,4 +239,8 @@ class ProjectRunner(object):
             print("SETUP EXCEPTION " + traceback.format_exc())
             #logging.exception("SETUP EXCEPTION " + traceback.format_exc())
 
+
+        # in error case try to write the log buffer content out to disk
+        if Base.ThreadInterface.ThreadInterface.get_exception() is not None or writeLogToDiskWhenEnds:
+            cls.projectLogger.writeLogBufferToDisk()
 
