@@ -56,9 +56,10 @@ class Logger(ThreadInterface):
             raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))    # xxx.raiseException
 
 
-    __logQueue_always_use_getters_and_setters  = None                           # to be a "singleton"
-    __logLevel_always_use_getters_and_setters  = LOG_LEVEL.DEBUG                # will be overwritten in __init__
-    __logBuffer_always_use_getters_and_setters = collections.deque([], 500)     # length of 500 elements
+    __logQueue_always_use_getters_and_setters    = None                           # to be a "singleton"
+    __logLevel_always_use_getters_and_setters    = LOG_LEVEL.DEBUG                # will be overwritten in __init__
+    __logBuffer_always_use_getters_and_setters   = collections.deque([], 500)     # length of 500 elements
+    __printAlways_always_use_getters_and_setters = False                          # print log messages always even if level is not LOG_LEVEL.DEBUG
 
     @classmethod
     def get_logQueue(cls):
@@ -102,6 +103,23 @@ class Logger(ThreadInterface):
 
 
     @classmethod
+    def get_printAlways(cls):
+        '''
+        Getter for __logLevel variable
+        '''
+        return Logger.__printAlways_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_printAlways(cls, printAlways : bool):
+        '''
+        To change log level, e.g. during development to show debug information or in productive state to hide too many log information nobody needs
+        '''
+        with cls.get_threadLock():
+            Logger.__printAlways_always_use_getters_and_setters = printAlways
+
+
+    @classmethod
     def add_logMessage(cls, logEntry : str):
         '''
         To add a log message to log buffer
@@ -132,19 +150,21 @@ class Logger(ThreadInterface):
 
     def threadMethod(self):
         self.logger.trace(self, "I am the Logger thread = " + self.name)
-        logPrinted = False
+
+        printLine = False
         while not self.get_logQueue().empty():      # @todo ggf. sollten wir hier nur max. 100 Messages behandeln und danach die Loop verlassen, damit die threadLoop wieder dran kommt, andernfalls koennte diese komplett ausgehebelt werden
             self.logCoutner += 1;
             newLogEntry = self.get_logQueue().get(block = False)
 
             self.add_logMessage(newLogEntry)
             
-            if self.get_logLevel() == Logger.LOG_LEVEL.DEBUG:
+            if (self.get_logLevel() == Logger.LOG_LEVEL.DEBUG) or self.get_printAlways():
                 print("#" + str(self.logCoutner) + " " + newLogEntry)
-                logPrinted = True
-        
-        if logPrinted:
+                printLine = True
+
+        if printLine:
             print("--------------")
+
         time.sleep(1)
 
 

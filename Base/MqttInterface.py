@@ -28,15 +28,14 @@ class MqttInterface(object):
 
 
     class MQTT_TYPE(Enum):
-        CONNECT            = 0  # send this before fist subscriptions/publishing messages (@todo do we really need this?)
-        DISCONNECT         = 1  # will remove all subscriptions of the sender
+        DISCONNECT         = 0  # will remove all subscriptions of the sender
 
-        PUBLISH            = 2  # send message to all subscribers
-        PUBLISH_LOCAL      = 3  # send message to local subscribers only
+        PUBLISH            = 1  # send message to all subscribers
+        PUBLISH_LOCAL      = 2  # send message to local subscribers only
 
-        SUBSCRIBE          = 4  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
-        UNSUBSCRIBE        = 5  # remove local and global subscriptions
-        SUBSCRIBE_GLOBAL   = 6  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
+        SUBSCRIBE          = 3  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
+        UNSUBSCRIBE        = 4  # remove local and global subscriptions
+        SUBSCRIBE_GLOBAL   = 5  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
 
 
     @classmethod
@@ -128,7 +127,8 @@ class MqttInterface(object):
 
     def get_mqttRxQueue(self):
         '''
-        Return object mqtt Queue
+        Return object mqtt Queue but has to be called once by MqttBridge where this thread is connected to, a thread itself can directly use it via "self.mqttRxQueue"
+        
         There are two queues for mqtt:
         - one class wide mqttTxQueue only read by the singleton MqttBridge but written by all MqttInterfaces
         - one mqttRxQueue per instance only written by the MqttBridge and read only by its owner instance 
@@ -170,15 +170,19 @@ class MqttInterface(object):
     def splitTopic(cls, topic : str):
         '''
         Unique split routine makes it easy to change split if necessary
+        Splits topics as well as filters
         '''
         return topic.split("/")
 
 
     @classmethod
-    def matchTopic(cls, topic : str, topicFilter : str):
+    def matchTopic(cls, topic : str, topicFilterLevels : list):
         '''
         Check if a topic filter matches a given topic
         It guesses that given topic filter and given topic are both valid
+        
+        Filter is expected as list (because of performance reasons filters usually are stored that way!)
+        whereas topic usually is given as string
 
         Filters      possible tokens
         a         -> a
@@ -190,7 +194,6 @@ class MqttInterface(object):
         a/+/b     -> a/.+/b
         a/+/b/+/c -> a/.+/b/.+/c
         '''
-        topicFilterLevels = cls.splitTopic(topicFilter)
         topicLevels       = cls.splitTopic(topic)
 
         maxIndex = len(topicFilterLevels)
@@ -254,17 +257,34 @@ class MqttInterface(object):
         '''
         Subscribe to a certain topic (locally OR globally)
         '''
-        self.sendMqttMessage(MqttInterface.MQTT_TYPE.SUBSCRIBE if not globalSubscription else MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL, topic = topic)
+        self.mqttSendPackage(MqttInterface.MQTT_TYPE.SUBSCRIBE if not globalSubscription else MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL,
+                             topic = topic)
 
 
     def mqttUnSubscribeTopic(self, topic : str):
         '''
         Un-subscribe from a certain topic (locally AND globally)
         '''
-        self.sendMqttMessage(MqttInterface.MQTT_TYPE.UNSUBSCRIBE, topic = topic)
+        self.mqttSendPackage(MqttInterface.MQTT_TYPE.UNSUBSCRIBE, topic = topic)
 
 
-    def sendMqttMessage(self, mqttType : MQTT_TYPE, content : str = None, topic : str = None):
+    def mqttDisconnect(self):
+        '''
+        Un-subscribe from a certain topic (locally AND globally)
+        '''
+        self.mqttSendPackage(MqttInterface.MQTT_TYPE.DISCONNECT)
+
+
+    def mqttPublish(self, topic : str, content : str, globalPublish : bool = True):
+        '''
+        Publish some message locally or globally
+        '''
+        self.mqttSendPackage(MqttInterface.MQTT_TYPE.PUBLISH if globalPublish else MqttInterface.MQTT_TYPE.PUBLISH_LOCAL,
+                             topic = topic,
+                             content = content)
+        
+
+    def mqttSendPackage(self, mqttType : MQTT_TYPE, topic : str = None, content : str = None):
         '''
         Universal send method to send all types of supported mqtt messages
         '''
@@ -276,7 +296,7 @@ class MqttInterface(object):
         }
 
         # validate mqttType
-        if (mqttType.value >= MqttInterface.MQTT_TYPE.CONNECT.value) and (mqttType.value <= MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
+        if (mqttType.value >= MqttInterface.MQTT_TYPE.DISCONNECT.value) and (mqttType.value <= MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
             # validate topic if necessary
             if mqttType.value >= MqttInterface.MQTT_TYPE.SUBSCRIBE.value:
                 if not self.validateTopicFilter(topic):

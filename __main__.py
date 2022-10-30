@@ -43,6 +43,7 @@ from Base.MqttInterface import MqttInterface
 #print(MqttInterface.validateTopicFilter("a/b/"))
 #print("---------")
 #for filter in ("a/b/#", "a/b/+", "a/+/c/+/e"):
+#    filter = MqttInterface.splitTopic(filter)
 #    print(MqttInterface.matchTopic("a/b/c",     filter))
 #    print(MqttInterface.matchTopic("a/b",       filter))
 #    print(MqttInterface.matchTopic("a/b/c/d",   filter))
@@ -60,13 +61,15 @@ if __name__ == '__main__':
     initFileName = "init.json"
     logLevel     = Logger.Logger.Logger.LOG_LEVEL.INFO.value
     stopAfterSeconds = 0
+    printAlways = False
 
     # handle command line arguments
     argumentParser = argparse.ArgumentParser()
-    argumentParser.add_argument("-i", "--init",       default = initFileName,     dest = "initFileName",                 help = "use this init file instead of init.json")
-    argumentParser.add_argument("-l", "--loglevel",   default = logLevel,         dest = "logLevel",         type = int, help = "log level 5..0, 5 = all (default = 3)")
-    argumentParser.add_argument("-s", "--stop-after", default = stopAfterSeconds, dest = "stopAfterSeconds", type = int, help = "for development only, all threads will be teared down after this amount of seconds (default = -1 = endless)")
+    argumentParser.add_argument("-i", "--init",         default = initFileName,     dest = "initFileName",     type = str,                       help = "use this init file instead of init.json")
+    argumentParser.add_argument("-l", "--loglevel",     default = logLevel,         dest = "logLevel",         type = int,                       help = "log level 5..0, 5 = all (default = 3)")
+    argumentParser.add_argument("-s", "--stop-after",   default = stopAfterSeconds, dest = "stopAfterSeconds", type = int,                       help = "for development only, all threads will be teared down after this amount of seconds (default = -1 = endless)")
+    argumentParser.add_argument("-p", "--print-always", default = printAlways,      dest = "printAlways",                   action='store_true', help = "for development only, log messages will always be printed to screen, usually this will be done only in debug case")
     arguments = argumentParser.parse_args()
 
-    ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.stopAfterSeconds)
+    ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.stopAfterSeconds, arguments.printAlways)
 

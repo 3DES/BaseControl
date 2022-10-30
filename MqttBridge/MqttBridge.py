@@ -54,7 +54,7 @@ class MqttBridge(ThreadObject):
         with cls.get_threadLock():
             if listenerName in cls.get_mqttListeners():
                 raise Exception("listener " + listenerName + " already registered to MqttBridge")    # cls.raiseException
-            cls.get_mqttListeners()[listenerName] = { "queue" : listenerRxQueue , "subscriptions" : [] }
+            cls.get_mqttListeners()[listenerName] = { "queue" : listenerRxQueue }
 
 
     @classmethod
@@ -123,6 +123,7 @@ class MqttBridge(ThreadObject):
                     checkTopic = "/".join(topic)
                     if topicFilter != checkTopic:
                         newTopicsList.append(topic)
+                        # @todo da wir ja nur 1 topic loeschen waere es sicherlich performanter, dieses eine zu suchen und zu loeschen anstatt die ganze Liste zu kopieren!!!
                 unsubscribed = len(newTopicsList) < len(subscriberDict[subscriber])
                 if not len(newTopicsList):
                     del(subscriberDict[subscriber])
@@ -133,7 +134,62 @@ class MqttBridge(ThreadObject):
             self.logger.warning(self, Supporter.encloseString(subscriber) + " unsubscribed from not subscribed topic: " + Supporter.encloseString(topicFilter, "\"", "\""))
         else:
             self.logger.info(self, Supporter.encloseString(subscriber) + " unsubscribed from " + Supporter.encloseString(topicFilter))
-        
+
+
+    def disconnect_subscriber(self, subscriber : str):
+        '''
+        Remove a subscriber from the local and global subscriber lists
+        '''
+        if subscriber not in self.get_mqttListeners():
+            raise Exception("un-subscriber is not a registered MQTT listener : " + str(subscriber))
+
+        unsubscribed = False
+
+        # select local or global subscriber list
+        for subscriberDict in (self.get_globalSubscribers(), self.get_localSubscribers()):
+            if subscriber in subscriberDict:
+                del(subscriberDict[subscriber])
+                unsubscribed = True
+
+        if not unsubscribed:
+            self.logger.warning(self, Supporter.encloseString(subscriber) + " disconnected but haven't subscribed for anything so far")
+        else:
+            self.logger.info(self, Supporter.encloseString(subscriber) + " unsubscribed from all subscriptions")
+
+
+    def publish_message(self, sender : str, topic : str, content : str, globalPublishing : bool = True):
+        '''
+        Usually a topic is published globally, if it is necessary that it's not sent out to the rest of the world it can be published locally, too
+        '''
+        if sender not in self.get_mqttListeners():
+            raise Exception("sender is not a registered MQTT listener : " + str(sender))
+
+        # validate and split topic filter        
+        if not self.validateTopic(topic):
+            raise Exception("invalid topic given: " + Supporter.encloseString(topic, "\"", "\""))
+
+        recipients = { sender : 1 }     # remember sender to prevent echoing
+
+        # do we need global and local subscriber list or only local one?
+        subscriberDictList = []
+        if globalPublishing:
+            subscriberDictList.append(self.get_globalSubscribers())
+        subscriberDictList.append(self.get_localSubscribers())
+
+        # handle lists now        
+        for subscriberDict in subscriberDictList:
+            # handle all subscribers
+            for subscriber in subscriberDict:
+                # ignore already informed subscribers
+                if subscriber not in recipients:
+                    for topicFilterLevels in subscriberDict[subscriber]:
+                        # first matching filter stops handling of current subscriber
+                        if self.matchTopic(topic, topicFilterLevels):
+                            recipients[subscriber] = 1
+                            queue = self.get_mqttListeners()[subscriber]["queue"] 
+                            queue.put(content, block = False)
+                            break
+
 
     def __init__(self, threadName : str, configuration : dict, logger : Logger):
         self.setup_mqttListeners()
@@ -149,7 +205,7 @@ class MqttBridge(ThreadObject):
 
         while not self.get_mqttTxQueue().empty():
             newMqttMessageDict = self.get_mqttTxQueue().get(block = False)      # read a message
-            
+
             # log received message in a more readable form
             newMqttMessage = "message received: sender=" + newMqttMessageDict["sender"] + " type=" + str(newMqttMessageDict["type"])
             if newMqttMessageDict["topic"] is not None:
@@ -160,20 +216,18 @@ class MqttBridge(ThreadObject):
             self.logger.debug(self, newMqttMessage)
 
             # handle type of received message
-            if newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.CONNECT.value:
-                pass
-            elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.DISCONNECT.value:
-                pass
+            if newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.DISCONNECT.value:
+                self.disconnect_subscriber(newMqttMessageDict["sender"])
             elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.PUBLISH.value:
-                pass
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
             elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.PUBLISH_LOCAL.value:
-                pass
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
             elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.SUBSCRIBE.value:
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], False)
+                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
             elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.UNSUBSCRIBE.value:
                 self.remove_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
             elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], True)
+                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], globalSubscription = True)
             else:
                 raise Exception("unknown type found in message " + str(newMqttMessageDict))
 

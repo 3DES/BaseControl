@@ -12,6 +12,10 @@ class Supporter(object):
 
     @classmethod
     def encloseString(cls, string, leftEnclosing : str = "[", rightEnclosing : str = "]"):
+        '''
+        formats given string by enclosing it in given left and right enclosing string, e.g.
+            FOOBAR -->  [FOOBAR]
+        '''
         return leftEnclosing + str(string) + rightEnclosing
 
 
@@ -26,7 +30,19 @@ class Supporter(object):
 
 
     @classmethod
-    def counter(self, name : str, value : int, autoReset : bool = False, singularTrue : bool = False):
+    def getCounterValue(self, name : str):
+        counterName = "__counter_" + name
+
+        # setup counter in global namespace if necessary
+        nameSpace = globals()
+        if counterName not in nameSpace:
+            return 0
+        else:
+            return nameSpace[counterName]
+        
+
+    @classmethod
+    def counter(self, name : str, value : int = 0, freeRunning : bool = False, autoReset : bool = False, singularTrue : bool = False):
         '''
         Simple counter returns True if counter is equal to or greater than given value
         
@@ -34,10 +50,7 @@ class Supporter(object):
 
         autoReset will reset counter when given value has been reached
         singularTrue will return True only when the given value is equal to given counter but not if it is greater than it
-        
-        Reset a "non autoReset" counter with e.g.
-            counter(<name>, 0, True)        -->  this will set it to 0 and the next counter call will increment it again
-            counter(<name>, <value>, True)  -->  when it has already flown over
+        a freeRunning counter will never return with True but just count up, use getCounterValue to read value
         '''
         counterName = "__counter_" + name
 
@@ -47,11 +60,11 @@ class Supporter(object):
             nameSpace[counterName] = 0       # create local variable with name given in string
 
         # stop counting up when value + 1 has been reached (otherwise counter would count up endless)
-        if nameSpace[counterName] <= value:
+        if nameSpace[counterName] <= value or freeRunning:
             nameSpace[counterName] += 1
 
         # given value reached?
-        if nameSpace[counterName] >= value:
+        if nameSpace[counterName] >= value and not freeRunning:
             # auto reset value if given
             if autoReset:
                 value = 0

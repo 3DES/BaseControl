@@ -1,4 +1,8 @@
 {
+#    "numberOfObject" : 4,
+#
+#    "projectName"    : "AccuControl",
+
     "PowerPlant":
     {
         "class":   "Worker.PowerPlant.PowerPlant"
@@ -7,22 +11,27 @@
     "MqttBridge":
     {
         "class":     "MqttBridge.MqttBridge.MqttBridge",
-        "interface":
+        "interfaces":
         {
-            "connection": "Interface.Telnet.Telnet",
-            "server":     "192.168.168.23",
-            "port":       233
+            "Mosquitto" : {
+                "connection": "Interface.Ethernet.MqttBroker.MqttBroker",
+                "server":     "192.168.168.23",
+                "port":       233
+            }
         }
     },
 
     "WatchDog":
     {
         "class":     "WatchDog.WatchDog.WatchDog",
-        "interface":
+        "interfaces":
         {
-            "connection": "Interface.Uart.Uart",
-            "interface":  "/dev/tty/watchdog",
-            "settings":   "19200,8,N,1"
+            "Uart" :
+            {			# will be named WatchDog_Uart
+                "connection": "Interface.Uart.Uart.Uart",
+                "interface":  "/dev/ttyUSB0",
+                "settings":   "19200,8,N,1"
+            }
         },
         "timeout": "10"
     },

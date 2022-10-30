@@ -27,9 +27,19 @@ class WatchDog(ThreadObject):
         if self.threadList is None:
             raise Exception("no object list given")    # self.raiseException
 
+        # @todo thread aufraeumen, hier ist im Moment alles nur Spielerei
         deltaTime = Supporter.getDeltaTime(self.startupTime)
 
         self.logger.trace(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
+
+        if Supporter.counter("watchDogMessage", 4, autoReset = True):
+            Supporter.counter("watchDogMessageCounter", freeRunning = True);
+            counter = Supporter.getCounterValue("watchDogMessageCounter");
+            self.mqttPublish("WatchDog/request", "hello I'm the watch dog, sending message #" + str(counter))
+            self.logger.debug(self, "sent message out to WatchDog/request, message #" + str(counter))
+
+        self.logger.trace(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
+        
         time.sleep(0.5)
 
 

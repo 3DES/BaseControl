@@ -18,8 +18,10 @@ class PowerPlant(Worker):
 
     def threadMethod(self):
         self.logger.trace(self, "I am the PowerPlant thread = " + self.name)
+
         time.sleep(0.1)
 
-        if Supporter.counter("unsubscribe", 20, singularTrue = True):
-            self.mqttUnSubscribeTopic("WatchDog/#")
-            
+        while not self.mqttRxQueue.empty():
+            newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+            self.logger.debug(self, "received message :" + str(newMqttMessageDict))
+

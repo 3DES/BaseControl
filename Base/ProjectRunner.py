@@ -74,7 +74,8 @@ class ProjectRunner(object):
         fileContent = ""
         for line in initFile:                                   # read line by line and remove comments
             line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
-            line = re.sub(r'#[^"\',]*$', r'', line)             # remove comments
+            line = re.sub(r'#[^"\',]*$', r'', line)             # remove comments, will not remove comment from e.g. such a line: ["a" : "b"   # foo "bar"], since following characters are forbidden in comments ["',]
+            line = re.sub(r'^ *#.*$', r'', line)                # remove line comments
             fileContent += line + "\n"                          # add filtered (or even empty line because of json error messages with line numbers) to overall json content
         initFile.close()
         return json.loads(fileContent)                          # now handle read content and return it to caller
@@ -93,7 +94,7 @@ class ProjectRunner(object):
         '''
         threadNamesList = []
 
-        # setup logger thread
+        # setup logger thread first to enable logging as soon as possible
         cls.projectLogger     = threadDictionary[loggerName]["class"](
             loggerName,
             threadDictionary[loggerName]["configuration"])
@@ -227,15 +228,14 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, stopAfterSeconds : int):
+    def executeProject(cls, initFileName : str, logLevel : int, stopAfterSeconds : int, printAlways : bool):
         '''
-        Analyzes given init file and starts threds in well defined order
+        Analyzes given init file and starts threads in well defined order
 
         It ensures that only one Logger thread, one MqttBridge thread and one Worker thread (or a subclass) has been defined.
         Logger will be executed first since all other threads need it for logging
         MqttBridge will be the second one since all other threads need it for inter-thread communication
         '''
-
         # ensure this method is called only once!
         if cls.executed:
             raise Exception("don't call executeProject() more than once")
@@ -243,6 +243,7 @@ class ProjectRunner(object):
             cls.executed = True
 
         Logger.Logger.Logger.set_logLevel(logLevel)
+        Logger.Logger.Logger.set_printAlways(printAlways)
 
         configuration = cls.loadInitFile(initFileName)
 
