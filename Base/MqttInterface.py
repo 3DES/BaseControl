@@ -250,11 +250,18 @@ class MqttInterface(object):
         return True
 
 
-    def mqttSubscribeTopic(self, topic : str):
+    def mqttSubscribeTopic(self, topic : str, globalSubscription : bool = False):
         '''
-        Subscribe to a certain topic
+        Subscribe to a certain topic (locally OR globally)
         '''
-        self.sendMqttMessage(MqttInterface.MQTT_TYPE.SUBSCRIBE, topic = topic)
+        self.sendMqttMessage(MqttInterface.MQTT_TYPE.SUBSCRIBE if not globalSubscription else MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL, topic = topic)
+
+
+    def mqttUnSubscribeTopic(self, topic : str):
+        '''
+        Un-subscribe from a certain topic (locally AND globally)
+        '''
+        self.sendMqttMessage(MqttInterface.MQTT_TYPE.UNSUBSCRIBE, topic = topic)
 
 
     def sendMqttMessage(self, mqttType : MQTT_TYPE, content : str = None, topic : str = None):

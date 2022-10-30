@@ -2,6 +2,7 @@ import time
 from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
 from Worker.Worker import Worker
+from Base.Supporter import Supporter
 
 
 class PowerPlant(Worker):
@@ -19,3 +20,6 @@ class PowerPlant(Worker):
         self.logger.trace(self, "I am the PowerPlant thread = " + self.name)
         time.sleep(0.1)
 
+        if Supporter.counter("unsubscribe", 20, singularTrue = True):
+            self.mqttUnSubscribeTopic("WatchDog/#")
+            
