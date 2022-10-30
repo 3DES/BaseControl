@@ -28,14 +28,15 @@ class MqttInterface(object):
 
 
     class MQTT_TYPE(Enum):
-        DISCONNECT         = 0  # will remove all subscriptions of the sender
+        CONNECT            = 0  # to register as listener own queue to MqttBridge 
+        DISCONNECT         = 1  # will remove all subscriptions of the sender and the sender itself from listener list
 
-        PUBLISH            = 1  # send message to all subscribers
-        PUBLISH_LOCAL      = 2  # send message to local subscribers only
+        PUBLISH            = 2  # send message to all subscribers
+        PUBLISH_LOCAL      = 3  # send message to local subscribers only
 
-        SUBSCRIBE          = 3  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
-        UNSUBSCRIBE        = 4  # remove local and global subscriptions
-        SUBSCRIBE_GLOBAL   = 5  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
+        SUBSCRIBE          = 4  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
+        UNSUBSCRIBE        = 5  # remove local and global subscriptions
+        SUBSCRIBE_GLOBAL   = 6  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
 
 
     @classmethod
@@ -108,6 +109,8 @@ class MqttInterface(object):
         self.logger = logger
         self.logger.info(self, "init (MqttInterface)")
         self.startupTime = Supporter.getTimeStamp()
+        self.mqttRxQueue = Queue(100)                   # create RX MQTT listener queue
+        self.mqttConnect()                              # send connect message
 
 
     @classmethod
@@ -123,21 +126,6 @@ class MqttInterface(object):
 
         # finally rise exception to let task come to an end
         raise exception
-
-
-    def get_mqttRxQueue(self):
-        '''
-        Return object mqtt Queue but has to be called once by MqttBridge where this thread is connected to, a thread itself can directly use it via "self.mqttRxQueue"
-        
-        There are two queues for mqtt:
-        - one class wide mqttTxQueue only read by the singleton MqttBridge but written by all MqttInterfaces
-        - one mqttRxQueue per instance only written by the MqttBridge and read only by its owner instance 
-        '''
-        if not hasattr(self, "mqttRxQueue"):
-            self.mqttRxQueue = Queue(100)
-        else:
-            raise Exception("object " + self.name + " has already registered to an MqttBridge")    # self.raiseException
-        return self.mqttRxQueue
 
 
     def get_mqttListenerName(self):
@@ -268,14 +256,21 @@ class MqttInterface(object):
         self.mqttSendPackage(MqttInterface.MQTT_TYPE.UNSUBSCRIBE, topic = topic)
 
 
+    def mqttConnect(self):
+        '''
+        Register as listener
+        '''
+        self.mqttSendPackage(MqttInterface.MQTT_TYPE.CONNECT, content = self.mqttRxQueue)
+
+
     def mqttDisconnect(self):
         '''
-        Un-subscribe from a certain topic (locally AND globally)
+        Unregister as listener
         '''
         self.mqttSendPackage(MqttInterface.MQTT_TYPE.DISCONNECT)
 
 
-    def mqttPublish(self, topic : str, content : str, globalPublish : bool = True):
+    def mqttPublish(self, topic : str, content, globalPublish : bool = True):
         '''
         Publish some message locally or globally
         '''
@@ -284,7 +279,7 @@ class MqttInterface(object):
                              content = content)
         
 
-    def mqttSendPackage(self, mqttType : MQTT_TYPE, topic : str = None, content : str = None):
+    def mqttSendPackage(self, mqttType : MQTT_TYPE, topic : str = None, content = None):
         '''
         Universal send method to send all types of supported mqtt messages
         '''
@@ -296,7 +291,7 @@ class MqttInterface(object):
         }
 
         # validate mqttType
-        if (mqttType.value >= MqttInterface.MQTT_TYPE.DISCONNECT.value) and (mqttType.value <= MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
+        if (mqttType.value >= MqttInterface.MQTT_TYPE.CONNECT.value) and (mqttType.value <= MqttInterface.MQTT_TYPE.SUBSCRIBE_GLOBAL.value):
             # validate topic if necessary
             if mqttType.value >= MqttInterface.MQTT_TYPE.SUBSCRIBE.value:
                 if not self.validateTopicFilter(topic):

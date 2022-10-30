@@ -31,7 +31,7 @@ class MqttBridge(ThreadObject):
             else:
                 raise Exception("MqttBridge already instantiated, no further instances allowed")    # self.raiseException
 
-    
+
     @classmethod
     def get_mqttListeners(cls) -> list:
         '''
@@ -41,20 +41,27 @@ class MqttBridge(ThreadObject):
 
 
     @classmethod
-    def add_mqttListeners(cls, listener : MqttInterface):
+    def add_mqttListeners(cls, listenerName : str, listenerRxQueue : Queue):
         '''
         Add a listener to the listeners list
         Each mqtt listener has to register first before it can send subscribtions (for publishing only registering is not really necessary)
         '''
-        # get necessary listener information
-        listenerName = listener.get_mqttListenerName()
-        listenerRxQueue = listener.get_mqttRxQueue()
-
         # try to add new listener
         with cls.get_threadLock():
             if listenerName in cls.get_mqttListeners():
                 raise Exception("listener " + listenerName + " already registered to MqttBridge")    # cls.raiseException
             cls.get_mqttListeners()[listenerName] = { "queue" : listenerRxQueue }
+
+
+    @classmethod
+    def remove_mqttListeners(cls, listenerName : str):
+        '''
+        Remove given listener from __mqttListeners
+        '''
+        with cls.get_threadLock():
+            if listenerName not in cls.get_mqttListeners():
+                raise Exception("listener " + listenerName + " is not registered to MqttBridge")    # cls.raiseException
+            del(cls.get_mqttListeners()[listenerName])
 
 
     @classmethod
@@ -64,7 +71,7 @@ class MqttBridge(ThreadObject):
         '''
         return MqttBridge._MqttBridge__localSubscribers_always_use_getters_and_setters
 
-    
+
     @classmethod
     def get_globalSubscribers(cls) -> list:
         '''
@@ -151,6 +158,9 @@ class MqttBridge(ThreadObject):
                 del(subscriberDict[subscriber])
                 unsubscribed = True
 
+        # remove subscriber from listener list (so its queue is not known any longer!)
+        self.remove_mqttListeners(subscriber)
+
         if not unsubscribed:
             self.logger.warning(self, Supporter.encloseString(subscriber) + " disconnected but haven't subscribed for anything so far")
         else:
@@ -186,8 +196,7 @@ class MqttBridge(ThreadObject):
                         # first matching filter stops handling of current subscriber
                         if self.matchTopic(topic, topicFilterLevels):
                             recipients[subscriber] = 1
-                            queue = self.get_mqttListeners()[subscriber]["queue"] 
-                            queue.put(content, block = False)
+                            self.get_mqttListeners()[subscriber]["queue"].put(content, block = False)
                             break
 
 
@@ -195,6 +204,12 @@ class MqttBridge(ThreadObject):
         self.setup_mqttListeners()
         super().__init__(threadName, configuration, logger)
         self.logger.info(self, "init (MqttBridge)")
+
+
+    def threadInitMethod(self):
+        # register MqttBridge itself as its own listener
+        # @todo sollte ueberschrieben werden damit sich die MqttBridge dann selbst als ihr eigener Listener registrieren kann bevor irgend welche Messages behandelt werden
+        pass
 
 
     def threadMethod(self):
@@ -216,7 +231,9 @@ class MqttBridge(ThreadObject):
             self.logger.debug(self, newMqttMessage)
 
             # handle type of received message
-            if newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.DISCONNECT.value:
+            if newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.CONNECT.value:
+                self.add_mqttListeners(newMqttMessageDict["sender"], newMqttMessageDict["content"])
+            elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.DISCONNECT.value:
                 self.disconnect_subscriber(newMqttMessageDict["sender"])
             elif newMqttMessageDict["type"].value == MqttInterface.MQTT_TYPE.PUBLISH.value:
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])

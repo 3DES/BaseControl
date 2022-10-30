@@ -111,15 +111,12 @@ class ProjectRunner(object):
         cls.projectMqttBridge.startThread()
         threadNamesList.append(mqttBridgeName)
 
-        cls.projectMqttBridge.add_mqttListeners(cls.projectLogger)      # register logger to mqttBridge
-
         # setup worker thread
         cls.projectWorker     = threadDictionary[workerName]["class"](
             workerName,
             threadDictionary[workerName]["configuration"],
             cls.projectLogger)
         threadDictionary.pop(workerName)
-        cls.projectMqttBridge.add_mqttListeners(cls.projectWorker)      # register worker to mqttBridge
         cls.projectWorker.startThread()
         threadNamesList.append(workerName)
 
@@ -130,7 +127,6 @@ class ProjectRunner(object):
                 threadName,
                 threadDictionary[threadName]["configuration"],
                 cls.projectLogger)
-            cls.projectMqttBridge.add_mqttListeners(thread)             # register other thread to mqttBridge
 
             # start all threads except workers (they expect a thread list we currently don't have)
             if not issubclass(thread.__class__, WatchDog.WatchDog.WatchDog):
