@@ -24,15 +24,16 @@
                 "settings":   "19200,8,N,1"
             }
         },
-        "setupTime":       2,               # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout) 
+        "setupTime":       2,               # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
         "triggerTime":     2,               # after that time threads should start sending alive message to watch dog
         "timeout":         4,               # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
-        "warningTime":     4,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing 
-        "numberOfThreads": 3                # expected threads registering to watchdog
+        "warningTime":     2,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
+        "numberOfThreads": 5                # expected threads registering to watchdog
     },
 
     "Logger": {
         "class":       "Logger.Logger.Logger",      # optionally: Logger.LoggerOverwrite.LoggerOverwrite
+        "queueLength": 300,                         # log queue length is 100 per default but can be enlarged if it gets critically filled up
 
         # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
         "projectName": "AccuControl"        # project name for MQTT topics (<projectName>/<threadName>/...)

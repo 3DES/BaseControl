@@ -56,10 +56,28 @@ class Logger(ThreadBase):
             raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))    # xxx.raiseException
 
 
-    __logQueue_always_use_getters_and_setters    = None                           # to be a "singleton"
-    __logLevel_always_use_getters_and_setters    = LOG_LEVEL.DEBUG                # will be overwritten in __init__
-    __logBuffer_always_use_getters_and_setters   = collections.deque([], 500)     # length of 500 elements
-    __printAlways_always_use_getters_and_setters = False                          # print log messages always even if level is not LOG_LEVEL.DEBUG
+    __logQueue_always_use_getters_and_setters       = None                           # to be a "singleton"
+    __logQueueLength_always_use_getters_and_setters = 100                            # can be overwritten via ini file entry
+    __logLevel_always_use_getters_and_setters       = LOG_LEVEL.DEBUG                # will be overwritten in __init__
+    __logBuffer_always_use_getters_and_setters      = collections.deque([], 500)     # length of 500 elements
+    __printAlways_always_use_getters_and_setters    = False                          # print log messages always even if level is not LOG_LEVEL.DEBUG
+
+
+    @classmethod
+    def get_logQueueLength(cls):
+        '''
+        Getter for __logQueueLength variable
+        '''
+        return Logger._Logger__logQueueLength_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_logQueueLength(cls, length : int):
+        '''
+        Setter for __logQueueLength variable
+        '''
+        Logger._Logger__logQueueLength_always_use_getters_and_setters = length
+
 
     @classmethod
     def get_logQueue(cls):
@@ -76,7 +94,7 @@ class Logger(ThreadBase):
         '''
         with cls.get_threadLock():
             if Logger._Logger__logQueue_always_use_getters_and_setters is None:
-                Logger._Logger__logQueue_always_use_getters_and_setters = Queue(100)          # create logger queue
+                Logger._Logger__logQueue_always_use_getters_and_setters = Queue(cls.get_logQueueLength())          # create logger queue
             else:
                 raise Exception("Logger already instantiated, no further instances allowed")    # self.raiseException
 
@@ -146,15 +164,21 @@ class Logger(ThreadBase):
         the optional logger parameter is for the case that we have a sub class that inherited from us and is, therefore, the real logger!
         '''
         # are we the Logger or was our __init__ just called by a sub class?
-        self.setup_logQueue()                                   # setup log queue
-        self.logBuffer = collections.deque([], 500)             # buffer storing the last 500 elements (for emergency write)
-        self.logCoutner = 0                                     # counts all logged messages
-        self.set_logger(self if logger is None else logger)     # set project wide logger (since this is the base class for all loggers its it's job to set the project logger)
-
         # check and prepare mandatory parameters
         if "projectName" not in configuration:
             raise Exception("Logger needs a projectName value in init file")  # self.raiseException
         self.set_projectName(configuration["projectName"])
+
+        # check and prepare mandatory parameters
+        if "queueLength" in configuration:
+            configuration["queueLength"] = int(configuration["queueLength"])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
+            self.set_logQueueLength(configuration["queueLength"])
+        
+        self.setup_logQueue()                                   # setup log queue
+        self.logBuffer = collections.deque([], 500)             # buffer storing the last 500 elements (for emergency write)
+        self.logCoutner = 0                                     # counts all logged messages
+        self.set_logger(self if logger is None else logger)     # set project wide logger (since this is the base class for all loggers its it's job to set the project logger)
+        self.logQueueMaximumFilledLength = 0                    # to monitor queue fill length (for system stability)
 
         # now call super().__init() since all necessary pre-steps have been done
         super().__init__(threadName, configuration)
@@ -164,6 +188,9 @@ class Logger(ThreadBase):
 
     def threadMethod(self):
         self.logger.trace(self, "I am the Logger thread = " + self.name)
+
+        # get queue length for monitoring
+        queueLength = self.get_logQueue().qsize()
 
         printLine = False
         while not self.get_logQueue().empty():      # @todo ggf. sollten wir hier nur max. 100 Messages behandeln und danach die Loop verlassen, damit die threadLoop wieder dran kommt, andernfalls koennte diese komplett ausgehebelt werden
@@ -176,10 +203,18 @@ class Logger(ThreadBase):
                 print("#" + str(self.logCoutner) + " " + newLogEntry)
                 printLine = True
 
+        # after the queue handling loop has (hopefully) cleared the loop it's ok to send a warning message now
+        if self.logQueueMaximumFilledLength < queueLength:
+            self.logQueueMaximumFilledLength = queueLength
+            if self.logQueueMaximumFilledLength > .8 * self.get_logQueueLength():
+                self.logger.warning(self, "logger queue fill level is very high: " + str(queueLength) + " of " + str(self.get_logQueueLength())) 
+
         if printLine:
             print("--------------")
 
-        time.sleep(1)
+
+    def threadBreak(self):
+        time.sleep(.2)
 
 
     @classmethod

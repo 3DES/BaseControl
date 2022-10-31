@@ -101,6 +101,11 @@ class ProjectRunner(object):
                     cls.projectLogger.info(cls, "overall stop since given running time is over")
                     running = False
 
+        if Base.ThreadBase.ThreadBase.get_exception() is not None:
+            print("oh noooo")
+        elif not running:
+            print("finito")
+
 
     @classmethod
     def createThreadDictionary(cls, configuration : dict):
@@ -109,7 +114,7 @@ class ProjectRunner(object):
             #1 Logger
             #2 MqttBridge
         all others are started in the order they have been defined
-        
+
         The worker thread is only searched to ensure it exists and there is only one of them, but there is no further special handling done with it
         '''
         threadDictionary = {}
@@ -210,3 +215,4 @@ class ProjectRunner(object):
         if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds:
             cls.projectLogger.writeLogBufferToDisk()
 
+        

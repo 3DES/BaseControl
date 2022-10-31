@@ -67,7 +67,7 @@ class MqttBridge(ThreadObject):
     @classmethod
     def get_localSubscribers(cls) -> list:
         '''
-        Getter for __mqttListeners
+        Getter for __localSubscribers
         '''
         return MqttBridge._MqttBridge__localSubscribers_always_use_getters_and_setters
 
@@ -75,7 +75,7 @@ class MqttBridge(ThreadObject):
     @classmethod
     def get_globalSubscribers(cls) -> list:
         '''
-        Getter for __mqttListeners
+        Getter for __globalSubscribers
         '''
         return MqttBridge._MqttBridge__globalSubscribers_always_use_getters_and_setters
 
@@ -101,12 +101,12 @@ class MqttBridge(ThreadObject):
         if not self.validateTopicFilter(topicFilter):
             raise Exception("invalid topic filter given: " + Supporter.encloseString(topicFilter, "\"", "\""))
         topicFilterLevels = self.splitTopic(topicFilter)
-        
+
         # add split filter to subscriber list
         subscriberDict[subscriber].append(topicFilterLevels)
-        
+
         self.logger.info(self, Supporter.encloseString(subscriber) + " subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))
-        
+
 
     def remove_subscriber(self, subscriber : str, topicFilter : str):
         '''
@@ -125,17 +125,14 @@ class MqttBridge(ThreadObject):
         for subscriberDict in (self.get_globalSubscribers(), self.get_localSubscribers()):
             if subscriber in subscriberDict:
                 #newTopicsList = [topic for topic in subscriberDict[subscriber] if (topicFilter == "/".join(topic))]
-                newTopicsList = []
-                for topic in subscriberDict[subscriber]:
+                for index, topic in enumerate(subscriberDict[subscriber]):
                     checkTopic = "/".join(topic)
-                    if topicFilter != checkTopic:
-                        newTopicsList.append(topic)
-                        # @todo da wir ja nur 1 topic loeschen waere es sicherlich performanter, dieses eine zu suchen und zu loeschen anstatt die ganze Liste zu kopieren!!!
-                unsubscribed = len(newTopicsList) < len(subscriberDict[subscriber])
-                if not len(newTopicsList):
+                    if topicFilter == checkTopic:
+                        subscriberDict[subscriber].pop(index)
+                        unsubscribed = True
+                        break
+                if not len(subscriberDict[subscriber]):
                     del(subscriberDict[subscriber])
-                else:
-                    subscriberDict[subscriber] = newTopicsList
 
         if not unsubscribed:
             self.logger.warning(self, Supporter.encloseString(subscriber) + " unsubscribed from not subscribed topic: " + Supporter.encloseString(topicFilter, "\"", "\""))
@@ -272,5 +269,6 @@ class MqttBridge(ThreadObject):
             else:
                 raise Exception("unknown type found in message " + str(newMqttMessageDict))
 
-        time.sleep(.1)
 
+    #def threadBreak(self):
+    #    pass

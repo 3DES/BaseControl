@@ -105,5 +105,7 @@ class WatchDog(ThreadObject):
         deltaTime = Supporter.getDeltaTime(self.startupTime)
         self.logger.trace(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
 
+
+    def threadBreak(self):
         time.sleep(0.5)
 

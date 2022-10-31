@@ -8,7 +8,7 @@ class InterfaceFactory(object):
 
 
     @classmethod
-    def createInterface(cls, masterName : str, configuration : dict) -> list:
+    def createInterfaces(cls, masterName : str, configuration : dict) -> list:
         '''
         Creates an interface from given configuration
         '''
@@ -21,7 +21,6 @@ class InterfaceFactory(object):
                 raise Exception("interface definition needs key \"connection\" " + str(interfaceConfiguration)) 
 
             interfaceThreadName = masterName + "_" + interfaceName
-            
 
             # create interface and store it to return list so creator can subscribe to all of them
             fullClassName = interfaceConfiguration["connection"]

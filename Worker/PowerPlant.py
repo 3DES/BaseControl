@@ -16,9 +16,21 @@ class PowerPlant(Worker):
     def threadMethod(self):
         self.logger.trace(self, "I am the PowerPlant thread = " + self.name)
 
-        time.sleep(0.1)
-
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
             self.logger.debug(self, "received message :" + str(newMqttMessageDict))
+
+
+
+        # @todo nur zum spielen...
+        if Supporter.counter("A", 10, autoReset = True):
+            if Supporter.counter("B", 2, autoReset = True):
+                self.logger.debug(self, "UNSUBSCRIBE")
+                self.mqttUnSubscribeTopic("A/B/C")
+            else:
+                self.logger.debug(self, "SUBSCRIBE")
+                self.mqttSubscribeTopic("A/B/C")
+
+        if Supporter.timer("T", 3):
+            self.logger.debug(self, "TIMEOUT")
 

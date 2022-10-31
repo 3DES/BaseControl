@@ -172,7 +172,7 @@ class MqttBase(object):
         self.mqttSubscribeTopic(self.masterTopic + "/#")                # subscribe to all topics with our name in it
 
         if "interfaces" in configuration:
-            self.interfaceThreads = InterfaceFactory.createInterface(self.name, configuration["interfaces"])
+            self.interfaceThreads = InterfaceFactory.createInterfaces(self.name, configuration["interfaces"])
             for interface in self.interfaceThreads:
                 topic = interface.getMasterTopic()
                 self.mqttSubscribeTopic(topic + "/#")                   # subscribe to all topics of this interface

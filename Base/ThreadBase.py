@@ -86,7 +86,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
     def threadBreak(self):
         '''
-        This is to ensure that each thread has at least a little sleep
+        This is to ensure that each thread has at least a little sleep per loop run
         
         If the thread wants to handle this by itself it has to overwrite this method
         '''
@@ -133,7 +133,8 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # final thread clean up
         try:
             if self.interfaceThreads is not None:
-                for interface in self.interfaceThreads:                    interfaceThread = interface.killThread()    # send stop to thread containing object and get real thread back
+                for interface in self.interfaceThreads:                    
+                    interfaceThread = interface.killThread()    # send stop to thread containing object and get real thread back
                 for interface in self.interfaceThreads:
                     interfaceThread.join()                      # join all stopped threads
             
@@ -214,6 +215,8 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # join all stopped workers
         for thread in threadsToJoin:
             thread.join()                               # join all stopped threads
+
+        time.sleep(.1)                                  # without this short break the last logger messages won't be written to screen...
 
         # finally stop logger if available
         if tearDownLoggerObject is not None:
