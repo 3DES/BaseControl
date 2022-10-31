@@ -7,6 +7,8 @@ import re
 import traceback
 import time
 import logging
+from signal import signal
+from signal import SIGINT
 
 
 import Worker.Worker
@@ -15,6 +17,19 @@ import MqttBridge.MqttBridge
 import WatchDog.WatchDog
 import Base.ThreadBase
 from Base.Supporter import Supporter
+
+
+# install signal handler
+signalReceived = False
+ 
+# handle sigint
+def custom_handler(signum, frame):
+    print("Signal received, will stop working as soon as possible")
+    global signalReceived
+    signalReceived = True
+
+# register the signal handler for control-c
+signal(SIGINT, custom_handler)
 
 
 class ProjectRunner(object):
@@ -93,7 +108,7 @@ class ProjectRunner(object):
         running = True
 
         # loop until any thread throws an exception (and for debugging after 5 seconds)
-        while (Base.ThreadBase.ThreadBase.get_exception() is None) and running:
+        while (Base.ThreadBase.ThreadBase.get_exception() is None) and running and not signalReceived:
             time.sleep(1)
             cls.projectLogger.trace(cls, "alive")
             if stopAfterSeconds:
@@ -105,6 +120,8 @@ class ProjectRunner(object):
             print("oh noooo")
         elif not running:
             print("finito")
+        elif signalReceived:
+            print("stopped via signal")
 
 
     @classmethod
@@ -212,7 +229,7 @@ class ProjectRunner(object):
 
 
         # in error case try to write the log buffer content out to disk
-        if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds:
+        if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds or signalReceived:
             cls.projectLogger.writeLogBufferToDisk()
 
         

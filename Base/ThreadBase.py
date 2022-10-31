@@ -90,7 +90,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         
         If the thread wants to handle this by itself it has to overwrite this method
         '''
-        time.sleep(.1)
+        time.sleep(.1)          # give other threads a chance to run and ensure that a thread which writes to the logger doesn't flood it
 
 
     def threadLoop(self, event):
@@ -114,7 +114,8 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # execute thread loop until thread gets killed
         try:
             # execute thread loop until we get killed
-            while not self.killed:         # and not event.is_set():
+            while not self.killed:              # and not event.is_set():
+                self.threadBreak()              # be nice!
                 self.threadMethod()
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
@@ -122,8 +123,6 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 # @todo das hier wieder raus werfen, sollte in den echten Thread rein!!!
                 if self.watchDogTimeRemaining() <= 0:
                     self.mqttSendWatchdogAliveMessage()
-
-                self.threadBreak()      # be nice!
 
         except Exception as exception:
             # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
@@ -137,7 +136,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
                     interfaceThread = interface.killThread()    # send stop to thread containing object and get real thread back
                 for interface in self.interfaceThreads:
                     interfaceThread.join()                      # join all stopped threads
-            
+
             self.threadTearDownMethod()             # call tear down method for the case the thread has sth. to clean up
         except Exception as exception:
             # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
@@ -216,12 +215,11 @@ class ThreadBase(Base.MqttBase.MqttBase):
         for thread in threadsToJoin:
             thread.join()                               # join all stopped threads
 
-        time.sleep(.1)                                  # without this short break the last logger messages won't be written to screen...
+        time.sleep(0)                                   # give the logger task the chance to clear its queue content
 
         # finally stop logger if available
         if tearDownLoggerObject is not None:
             cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down logger " + Supporter.encloseString(tearDownLoggerObject.name))
             loggerThread = tearDownLoggerObject.killThread()
             loggerThread.join()
-
 

@@ -1,10 +1,11 @@
 {
     "MqttBridge":
     {
-        "class":     "MqttBridge.MqttBridge.MqttBridge",
+        "class":      "MqttBridge.MqttBridge.MqttBridge",
         "interfaces":
         {
-            "Mosquitto" : {
+            "Mosquitto":
+            {
                 "connection": "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
                 "server":     "localhost",
                 "port":       1883
@@ -14,10 +15,10 @@
 
     "WatchDog":
     {
-        "class":     "WatchDog.WatchDog.WatchDog",
+        "class":      "WatchDog.WatchDog.WatchDog",
         "interfaces":
         {
-            "Uart" :
+            "Uart":
             {           # will be named WatchDog_Uart
                 "connection": "Interface.Uart.UartInterface.UartInterface",
                 "interface":  "/dev/ttyUSB0",
@@ -31,7 +32,8 @@
         "numberOfThreads": 5                # expected threads registering to watchdog
     },
 
-    "Logger": {
+    "Logger":
+    {
         "class":       "Logger.Logger.Logger",      # optionally: Logger.LoggerOverwrite.LoggerOverwrite
         "queueLength": 300,                         # log queue length is 100 per default but can be enlarged if it gets critically filled up
 
@@ -41,7 +43,7 @@
 
     "PowerPlant":
     {
-        "class":       "Worker.PowerPlant.PowerPlant"
+        "class": "Worker.PowerPlant.PowerPlant"
     }
 }
 

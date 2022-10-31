@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
 from Worker.Worker import Worker
@@ -22,13 +23,13 @@ class PowerPlant(Worker):
 
 
         # @todo nur zum spielen...
-        if Supporter.counter("A", 10, autoReset = True):
-            if Supporter.counter("B", 2, autoReset = True):
-                self.logger.debug(self, "UNSUBSCRIBE")
-                self.mqttUnSubscribeTopic("A/B/C")
-            else:
-                self.logger.debug(self, "SUBSCRIBE")
-                self.mqttSubscribeTopic("A/B/C")
+        #if Supporter.counter("A", 10, autoReset = True):
+        #    if Supporter.counter("B", 2, autoReset = True):
+        #        #self.logger.debug(self, "UNSUBSCRIBE")
+        #        self.mqttUnSubscribeTopic("A/B/C")
+        #    else:
+        #        #self.logger.debug(self, "SUBSCRIBE")
+        #        self.mqttSubscribeTopic("A/B/C")
 
 
         if Supporter.counter("C", 3, autoReset = True):
@@ -36,6 +37,14 @@ class PowerPlant(Worker):
             #@todo den timer noch fertig implementieren
             self.mqttPublish(self.createInTopic(self.getObjectTopic()), "Selbstgespraech", globalPublish = True)
 
-        if Supporter.timer("T", 3):
-            self.logger.debug(self, "TIMEOUT")
+        if Supporter.timer("T1", timeout = 60, firstTimeTrue = True):
+            self.logger.info(self, "TIMING EVENT T1")
+
+        startTime = int(datetime.now().replace(hour=0,minute=0,second=0,microsecond=0).timestamp())
+
+        if Supporter.timer("T2", timeout = 60, startTime = startTime):
+            self.logger.info(self, "TIMING EVENT T2")
+
+
+
 

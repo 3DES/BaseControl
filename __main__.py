@@ -30,28 +30,29 @@ import Logger.Logger
 from Base.MqttBase import MqttBase
 
 
-#print(MqttBase.validateTopicFilter("#"))
-#print(MqttBase.validateTopicFilter("a/b/#"))
-#print(MqttBase.validateTopicFilter("a/+/b"))
-#print(MqttBase.validateTopicFilter("a/+/b/+/c"))
-#print(MqttBase.validateTopicFilter("a/+/b/+"))
-#print(MqttBase.validateTopicFilter(""))
-#print(MqttBase.validateTopicFilter("/"))
-#print(MqttBase.validateTopicFilter("a/+b#"))
-#print(MqttBase.validateTopicFilter("a/##b"))
-#print(MqttBase.validateTopicFilter("#/a/b"))
-#print(MqttBase.validateTopicFilter("a/b/"))
-#print("---------")
-#for filter in ("a/b/#", "a/b/+", "a/+/c/+/e"):
-#    filter = MqttBase.splitTopic(filter)
-#    print(MqttBase.matchTopic("a/b/c",     filter))
-#    print(MqttBase.matchTopic("a/b",       filter))
-#    print(MqttBase.matchTopic("a/b/c/d",   filter))
-#    print(MqttBase.matchTopic("a/b/c/d/e", filter))
-#    print(MqttBase.matchTopic("a/a/c/a/e", filter))
-#    print(MqttBase.matchTopic("a",         filter))
-#    print("--")
+#import time
+#from Base.Supporter import Supporter
+#
+#while True:
+#    value1 = Supporter.counter("B", 2, autoReset = True)
+#    value2 = Supporter.counter("B", 2, autoReset = True, dontCount = True)
+#    value3 = Supporter.counter("B", 2, autoReset = True, getValue = True, dontCount = True)
+#    print(str(value1) + " " + str(value2) + " " + str(value3) + " ")
+#
 #sys.exit(255)
+#startTime = Supporter.getTimeStamp()
+#for x in range(20):
+#    print(str(Supporter.getTimeStamp() - startTime) + " seconds: ", end = "")
+#    if (Supporter.timer(name = "A", timeout = 2, strict = True)):
+#        print("over now")
+#    else:
+#        print("not yet")
+#    time.sleep(3)
+#Supporter.timer(name = "A", timeout = 3)
+#Supporter.timer(name = "A")
+#Supporter.timer(name = "A", remove = True)
+#Supporter.timer(name = "A", timeout = 3)
+#Supporter.timer(name = "A")
 
 
 '''
