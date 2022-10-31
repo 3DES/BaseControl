@@ -22,6 +22,7 @@ class MqttBase(object):
     __projectName_always_use_getters_and_setters                = None                  # project name needed for MQTT's first level topic (i.e. <projectName>/<thread>/...)
     __watchDogMinimumTriggerTime_always_use_getters_and_setters = 0                     # project wide minimum watch dog time (if more than one watch dogs are running in the system the shortest time will be stored here!)
     __logger_always_use_getters_and_setters                     = None                  # project wide logger
+    __threadNames_always_use_getters_and_setters                = set()                 # collect object names and ensure that they are all unique
 
 
     class MQTT_TYPE(Enum):
@@ -61,6 +62,26 @@ class MqttBase(object):
         Setter for __threadLock variable
         '''
         cls._illegal_call()
+
+
+    @classmethod
+    def get_threadNames(cls):
+        '''
+        Getter for __threadNames variable
+        '''
+        return MqttBase._MqttBase__threadNames_always_use_getters_and_setters
+
+
+    @classmethod
+    def add_threadNames(cls, threadName : str):
+        '''
+        Setter for __threadNames variable
+        '''
+        with cls.get_threadLock():
+            if threadName in cls.get_threadNames():
+                raise Exception("Object " + Supporter.encloseString(threadName) + " defined twice but they have to be unique, please fix init file")
+            else:
+                cls.get_threadNames().add(threadName)
 
 
     @classmethod
@@ -160,30 +181,32 @@ class MqttBase(object):
         Constructor
         '''
         super().__init__()
-        self.name = baseName
-        self.configuration = configuration
+
+        self.name = baseName                                                # set name for this thread
+        self.add_threadNames(baseName)                                      # add thread name to thread names list to ensure they are unique (add method checks this!)
+        
+        self.configuration = configuration                                  # remember given configuration
         self.logger.info(self, "init (MqttBase)")
-        self.startupTime = Supporter.getTimeStamp()                     # remember startup time
-        self.watchDogTimer = Supporter.getTimeStamp()                   # remember time the watchdog has been contacted the last time, thread-wise!
-        self.mqttRxQueue = Queue(100)                                   # create RX MQTT listener queue
-        self.masterTopic = self.get_projectName() + "/" + self.name
-        self.watchDogTopic = self.get_projectName() + "/WatchDog"       # each watch dog has to subscribe to that topic, without any exceptions!!!
-        self.mqttConnect()                                              # send connect message
-        self.mqttSubscribeTopic(self.masterTopic + "/#")                # subscribe to all topics with our name in it
+        self.startupTime = Supporter.getTimeStamp()                         # remember startup time
+        self.watchDogTimer = Supporter.getTimeStamp()                       # remember time the watchdog has been contacted the last time, thread-wise!
+        self.mqttRxQueue = Queue(100)                                       # create RX MQTT listener queue
+
+        # thread topic handling
+        self.objectTopic = self.getObjectTopic()
+        self.classTopic  = self.getClassTopic()
+        self.watchDogTopic = self.createProjectTopic("WatchDog")            # each watch dog has to subscribe to that topic, without any exceptions!!!
+        self.mqttConnect()                                                  # send connect message
+        self.mqttSubscribeTopic(self.createInTopicFilter(self.objectTopic)) # subscribe to all topics with our name in it
+        self.mqttSubscribeTopic(self.createInTopicFilter(self.classTopic))  # subscribe to all topics with our name in it
 
         if "interfaces" in configuration:
+            self.interfaceTopics = []
             self.interfaceThreads = InterfaceFactory.createInterfaces(self.name, configuration["interfaces"])
             for interface in self.interfaceThreads:
-                topic = interface.getMasterTopic()
-                self.mqttSubscribeTopic(topic + "/#")                   # subscribe to all topics of this interface
+                topic = interface.getObjectTopic()
+                self.interfaceTopics.append(self.createInTopic(topic))                          # add IN topic of this interface to send messages
+                self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                       # subscribe to OUT topic of this interface to receive messages
 
-
-    def getMasterTopic(self):
-        '''
-        Get master topic of thread
-        '''
-        return self.masterTopic
-    
 
     @classmethod
     def raiseException(cls, message : str):
@@ -312,6 +335,59 @@ class MqttBase(object):
 
         return True
 
+    
+    def getObjectTopic(self):
+        '''
+        Create object topic for current object
+        '''
+        return self.createProjectTopic(self.name)
+
+
+    def getClassTopic(self):
+        '''
+        Create class topic for current object
+        '''
+        return self.createProjectTopic(self.__class__.__name__)
+
+
+    def createProjectTopic(self, objectName : str):
+        '''
+        Creates a topic for given objectName, objectName should be a class name or a thread name or a interface name
+        '''
+        return self.get_projectName() + "/" + objectName
+
+
+    @classmethod
+    def createInTopicFilter(cls, topic : str):
+        '''
+        Create topic filter for IN messages to given topic and children
+        '''
+        return cls.createInTopic(topic) + "/#"
+
+
+    @classmethod
+    def createInTopic(cls, topic : str):
+        '''
+        Create topic for IN messages
+        '''
+        return topic + "/in"
+
+
+    @classmethod
+    def createOutTopicFilter(cls, topic : str):
+        '''
+        Create topic filter for OUT messages to given topic and children
+        '''
+        return cls.createOutTopic(topic) + "/#"
+
+
+    @classmethod
+    def createOutTopic(cls, topic : str):
+        '''
+        Create topic for OUT messages
+        '''
+        return topic + "/out"
+
 
     def mqttSubscribeTopic(self, topic : str, globalSubscription : bool = False):
         '''
@@ -376,8 +452,7 @@ class MqttBase(object):
         
         content["sender"] = self.name                                               # in any case set the sender here!
 
-        self.mqttPublish(self.watchDogTopic, content, globalPublish = False)        # send alive message
-        
+        self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
     def mqttSendPackage(self, mqttCommand : MQTT_TYPE, topic : str = None, content = None):

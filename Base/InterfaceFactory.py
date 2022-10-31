@@ -20,12 +20,10 @@ class InterfaceFactory(object):
             if "connection" not in interfaceConfiguration:
                 raise Exception("interface definition needs key \"connection\" " + str(interfaceConfiguration)) 
 
-            interfaceThreadName = masterName + "_" + interfaceName
-
             # create interface and store it to return list so creator can subscribe to all of them
             fullClassName = interfaceConfiguration["connection"]
             loadableClass = Supporter.loadClassFromFile(fullClassName)
-            interfaceList.append(loadableClass(interfaceThreadName, configuration))
+            interfaceList.append(loadableClass(interfaceName, configuration))
 
         return interfaceList
 

@@ -6,6 +6,7 @@ from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
 from Base.MqttBase import MqttBase
 from Base.Supporter import Supporter
+from pickle import TRUE
 
 
 class MqttBridge(ThreadObject):
@@ -100,12 +101,20 @@ class MqttBridge(ThreadObject):
         # validate and split topic filter        
         if not self.validateTopicFilter(topicFilter):
             raise Exception("invalid topic filter given: " + Supporter.encloseString(topicFilter, "\"", "\""))
-        topicFilterLevels = self.splitTopic(topicFilter)
+
+        foundSubscription = False
+        for subscription in subscriberDict[subscriber]:
+            if "/".join(subscription) == topicFilter:   
+                foundSubscription = True
+                break
 
         # add split filter to subscriber list
-        subscriberDict[subscriber].append(topicFilterLevels)
-
-        self.logger.info(self, Supporter.encloseString(subscriber) + " subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))
+        if not foundSubscription:
+            topicFilterLevels = self.splitTopic(topicFilter)            # split filter topic for faster search
+            subscriberDict[subscriber].append(topicFilterLevels)
+            self.logger.info(self, Supporter.encloseString(subscriber) + " subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))
+        else:
+            self.logger.debug(self, Supporter.encloseString(subscriber) + " already subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))            
 
 
     def remove_subscriber(self, subscriber : str, topicFilter : str):
@@ -190,7 +199,7 @@ class MqttBridge(ThreadObject):
                         # first matching filter stops handling of current subscriber
                         if self.matchTopic(topic, topicFilterLevels):
                             recipients.add(subscriber)
-                            self.get_mqttListeners()[subscriber]["queue"].put(content, block = False)
+                            self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
                             break
 
 

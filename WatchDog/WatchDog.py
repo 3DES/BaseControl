@@ -39,7 +39,7 @@ class WatchDog(ThreadObject):
         self.set_watchDogMinimumTime(configuration["triggerTime"])
 
         # register to general watch dog topic since this is the watch dog super class
-        self.mqttSubscribeTopic(self.watchDogTopic + "/#")      # if this class is not overwritten then it has the same name as the default watch dog toppic and will register to "<projectName>/WatchDog/#" twice what is not a problem!
+        self.mqttSubscribeTopic(self.createInTopicFilter(self.watchDogTopic))      # if this class is not overwritten then it has the same name as the default watch dog toppic and will register to "<projectName>/WatchDog/#" twice what is not a problem!
 
         self.logger.info(self, "init (WatchDog)")
 
@@ -62,25 +62,27 @@ class WatchDog(ThreadObject):
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
 
-            if "sender" in newMqttMessageDict:
-                # ensure there is a timestamp for the sender of the actually received message (if not use startup timeout)
-                if newMqttMessageDict["sender"] not in self.watchDogLastInformedDict:
-                    self.watchDogLastInformedDict[newMqttMessageDict["sender"]] = self.watchDogLastInformedInitTime
-
-                # calculate remaining time and check if it is shorter as the current minimum remaining time
-                timeLeft = self.calculateRemainingTime(self.watchDogLastInformedDict[newMqttMessageDict["sender"]])
-                if timeLeft < self.minimumRemainingTime["remainingTime"]:
-                    self.minimumRemainingTime["remainingTime"] = timeLeft
-                    self.minimumRemainingTime["thread"] = newMqttMessageDict["sender"]
-
-                # finally set new timeout for current sender
-                self.watchDogLastInformedDict[newMqttMessageDict["sender"]] = self.calculateNextTimeoutTime()
+            if "content" in newMqttMessageDict:
+                if "sender" in newMqttMessageDict["content"]:
+                    sender = newMqttMessageDict["content"]["sender"]
+                    # ensure there is a timestamp for the sender of the actually received message (if not use startup timeout)
+                    if sender not in self.watchDogLastInformedDict:
+                        self.watchDogLastInformedDict[sender] = self.watchDogLastInformedInitTime
+    
+                    # calculate remaining time and check if it is shorter as the current minimum remaining time
+                    timeLeft = self.calculateRemainingTime(self.watchDogLastInformedDict[sender])
+                    if timeLeft < self.minimumRemainingTime["remainingTime"]:
+                        self.minimumRemainingTime["remainingTime"] = timeLeft
+                        self.minimumRemainingTime["thread"] = sender
+    
+                    # finally set new timeout for current sender
+                    self.watchDogLastInformedDict[sender] = self.calculateNextTimeoutTime()
 
             self.logger.debug(self, "received message :" +
                               str(newMqttMessageDict) +
                               ", shortest remaining time: " +
                               Supporter.encloseString(str(self.minimumRemainingTime)))
-            
+
             if self.minimumRemainingTime["remainingTime"] <= self.configuration["warningTime"]:
                 self.logger.warning(self, "minimum detected remaining time is very short: " + Supporter.encloseString(str(self.minimumRemainingTime)))
 

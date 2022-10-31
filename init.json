@@ -6,8 +6,8 @@
         {
             "Mosquitto" : {
                 "connection": "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-                "server":     "192.168.168.23",
-                "port":       233
+                "server":     "localhost",
+                "port":       1883
             }
         }
     },

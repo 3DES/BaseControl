@@ -21,7 +21,6 @@ class PowerPlant(Worker):
             self.logger.debug(self, "received message :" + str(newMqttMessageDict))
 
 
-
         # @todo nur zum spielen...
         if Supporter.counter("A", 10, autoReset = True):
             if Supporter.counter("B", 2, autoReset = True):
@@ -30,6 +29,12 @@ class PowerPlant(Worker):
             else:
                 self.logger.debug(self, "SUBSCRIBE")
                 self.mqttSubscribeTopic("A/B/C")
+
+
+        if Supporter.counter("C", 3, autoReset = True):
+            #@todo den counter namespace nochmals pruefen, wo sind wir da genau?
+            #@todo den timer noch fertig implementieren
+            self.mqttPublish(self.createInTopic(self.getObjectTopic()), "Selbstgespraech", globalPublish = True)
 
         if Supporter.timer("T", 3):
             self.logger.debug(self, "TIMEOUT")

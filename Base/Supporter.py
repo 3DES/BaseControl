@@ -40,7 +40,7 @@ class Supporter(object):
             return 0
         else:
             return nameSpace[counterName]
-        
+
 
     @classmethod
     def counter(cls, name : str, value : int = 0, freeRunning : bool = False, autoReset : bool = False, singularTrue : bool = False):
@@ -104,7 +104,7 @@ class Supporter(object):
         #                deltaTime = currentTime - startTime
         #                return startTime + (((deltaTime // timeout) + (deltaTime % timeout > 0)) * timeout)
         result = False
-        
+
         timerName = "__timer_" + name
 
         # setup counter in global namespace if necessary
@@ -117,7 +117,7 @@ class Supporter(object):
         currentTime = cls.getTimeStamp()
         if currentTime > nameSpace[timerName][0]:
             deltaTime = currentTime - nameSpace[timerName][0]
-            
+
             if currentTime < nameSpace[timerName][0] + nameSpace[timerName][1]:
                 nameSpace[timerName][0] += nameSpace[timerName][1]
             else:
