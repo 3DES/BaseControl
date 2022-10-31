@@ -4,6 +4,7 @@ from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
 from Worker.Worker import Worker
 from Base.Supporter import Supporter
+import Base
 
 
 class PowerPlant(Worker):
@@ -11,6 +12,7 @@ class PowerPlant(Worker):
     classdocs
     '''
     def threadInitMethod(self):
+        self.mqttSubscribeTopic(self.createInTopicFilter(self.getObjectTopic()), globalSubscription = True)
         pass
 
 
@@ -22,20 +24,21 @@ class PowerPlant(Worker):
             self.logger.debug(self, "received message :" + str(newMqttMessageDict))
 
 
-        # @todo nur zum spielen...
+        ## @todo nur zum spielen...
         #if Supporter.counter("A", 10, autoReset = True):
         #    if Supporter.counter("B", 2, autoReset = True):
-        #        #self.logger.debug(self, "UNSUBSCRIBE")
+        #        self.logger.debug(self, "UNSUBSCRIBE")
         #        self.mqttUnSubscribeTopic("A/B/C")
         #    else:
-        #        #self.logger.debug(self, "SUBSCRIBE")
+        #        self.logger.debug(self, "SUBSCRIBE")
         #        self.mqttSubscribeTopic("A/B/C")
 
 
         if Supporter.counter("C", 3, autoReset = True):
             #@todo den counter namespace nochmals pruefen, wo sind wir da genau?
             #@todo den timer noch fertig implementieren
-            self.mqttPublish(self.createInTopic(self.getObjectTopic()), "Selbstgespraech", globalPublish = True)
+            self.mqttPublish(self.createInTopic(self.getObjectTopic()), "monologue is not possible this way", globalPublish = True)
+            self.mqttSendPackage(Base.MqttBase.MqttBase.MQTT_TYPE.PUBLISH, self.createInTopic(self.getObjectTopic()), "monologue is only possible by sending message incocnito", incocnito = "IMustBeSomebodyElse")
 
         if Supporter.timer("T1", timeout = 60, firstTimeTrue = True):
             self.logger.info(self, "TIMING EVENT T1")

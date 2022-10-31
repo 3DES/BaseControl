@@ -183,11 +183,13 @@ class MqttBridge(ThreadObject):
 
         recipients = { sender }     # remember sender to prevent echoing
 
-        # do we need global and local subscriber list or only local one?
         subscriberDictList = []
         if globalPublishing:
+            # global subscribers receive global messages
             subscriberDictList.append(self.get_globalSubscribers())
-        subscriberDictList.append(self.get_localSubscribers())
+        else:
+            # local subscribers receive local messages
+            subscriberDictList.append(self.get_localSubscribers())
 
         # handle lists now        
         for subscriberDict in subscriberDictList:
@@ -275,6 +277,7 @@ class MqttBridge(ThreadObject):
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
                 self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], globalSubscription = True)
+                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])                                  # global subscribers subscribe for both lists
             else:
                 raise Exception("unknown type found in message " + str(newMqttMessageDict))
 

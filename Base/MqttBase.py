@@ -455,12 +455,12 @@ class MqttBase(object):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
-    def mqttSendPackage(self, mqttCommand : MQTT_TYPE, topic : str = None, content = None):
+    def mqttSendPackage(self, mqttCommand : MQTT_TYPE, topic : str = None, content = None, incocnito : str = None):
         '''
         Universal send method to send all types of supported mqtt messages
         '''
         mqttMessageDict = {
-            "sender"  : self.name,
+            "sender"  : self.name if incocnito is None else incocnito,    # incocnito sending is usually only useful for testing system behavior!
             "command" : mqttCommand,
             "topic"   : topic,  
             "content" : content
