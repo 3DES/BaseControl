@@ -15,6 +15,7 @@ class MqttBrokerInterface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
+        pass
 
 
     #def threadInitMethod(self):

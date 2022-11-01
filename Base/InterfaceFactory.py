@@ -23,7 +23,7 @@ class InterfaceFactory(object):
             # create interface and store it to return list so creator can subscribe to all of them
             fullClassName = interfaceConfiguration["connection"]
             loadableClass = Supporter.loadClassFromFile(fullClassName)
-            interfaceList.append(loadableClass(interfaceName, configuration))
+            interfaceList.append(loadableClass(interfaceName, interfaceConfiguration))
 
         return interfaceList
 

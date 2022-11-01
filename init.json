@@ -44,6 +44,11 @@
     "PowerPlant":
     {
         "class": "Worker.PowerPlant.PowerPlant"
+    },
+    
+    "SignalMessenger":
+    {
+        "class": "Messenger.SignalMessenger.SignalMessenger"
     }
 }
 

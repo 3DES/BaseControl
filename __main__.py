@@ -30,13 +30,13 @@ import Logger.Logger
 from Base.MqttBase import MqttBase
 
 
-import time
-from Base.Supporter import Supporter
-value1 = Supporter.counter("B", 2, autoReset = True)
-value1 = Supporter.counter("B", 2, autoReset = True)
-value1 = Supporter.counter("B", 2, autoReset = True)
-value1 = Supporter.counter("B", 2, autoReset = True)
-value1 = Supporter.counter("B", 2, autoReset = True)
+#import time
+#from Base.Supporter import Supporter
+#value1 = Supporter.counter("B", 2, autoReset = True)
+#value1 = Supporter.counter("B", 2, autoReset = True)
+#value1 = Supporter.counter("B", 2, autoReset = True)
+#value1 = Supporter.counter("B", 2, autoReset = True)
+#value1 = Supporter.counter("B", 2, autoReset = True)
 #
 #while True:
 #    value1 = Supporter.counter("B", 2, autoReset = True)
