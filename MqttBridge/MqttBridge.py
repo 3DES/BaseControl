@@ -30,7 +30,7 @@ class MqttBridge(ThreadObject):
             if MqttBridge._MqttBridge__mqttListeners_always_use_getters_and_setters is None:
                 MqttBridge._MqttBridge__mqttListeners_always_use_getters_and_setters = {}           # create listeners dictionary
             else:
-                raise Exception("MqttBridge already instantiated, no further instances allowed")    # self.raiseException
+                raise Exception("MqttBridge already instantiated, no further instances allowed")
 
 
     @classmethod
@@ -50,7 +50,7 @@ class MqttBridge(ThreadObject):
         # try to add new listener
         with cls.get_threadLock():
             if listenerName in cls.get_mqttListeners():
-                raise Exception("listener " + listenerName + " already registered to MqttBridge")    # cls.raiseException
+                raise Exception("listener " + listenerName + " already registered to MqttBridge")
             cls.get_mqttListeners()[listenerName] = { "queue" : listenerRxQueue }
 
 
@@ -61,7 +61,7 @@ class MqttBridge(ThreadObject):
         '''
         with cls.get_threadLock():
             if listenerName not in cls.get_mqttListeners():
-                raise Exception("listener " + listenerName + " is not registered to MqttBridge")    # cls.raiseException
+                raise Exception("listener " + listenerName + " is not registered to MqttBridge")
             del(cls.get_mqttListeners()[listenerName])
 
 
@@ -173,7 +173,7 @@ class MqttBridge(ThreadObject):
             self.logger.info(self, Supporter.encloseString(subscriber) + " unsubscribed from all subscriptions")
 
 
-    def publish_message(self, sender : str, topic : str, content : str, globalPublishing : bool = True):
+    def publish_message(self, sender : str, topic : str, content : str, globalPublishing : bool = True, suppressEcho : bool = True):
         '''
         Usually a topic is published globally, if it is necessary that it's not sent out to the rest of the world it can be published locally, too
         '''
@@ -181,7 +181,10 @@ class MqttBridge(ThreadObject):
         if not self.validateTopic(topic):
             raise Exception("invalid topic given: " + Supporter.encloseString(topic, "\"", "\""))
 
-        recipients = { sender }     # remember sender to prevent echoing
+        handledRecipients = set()         # never send a message twice to one and the same recipient
+
+        if suppressEcho:
+            handledRecipients.add(sender)
 
         subscriberDictList = []
         if globalPublishing:
@@ -196,11 +199,11 @@ class MqttBridge(ThreadObject):
             # handle all subscribers
             for subscriber in subscriberDict:
                 # ignore already informed subscribers
-                if subscriber not in recipients:
+                if subscriber not in handledRecipients:
                     for topicFilterLevels in subscriberDict[subscriber]:
                         # first matching filter stops handling of current subscriber
                         if self.matchTopic(topic, topicFilterLevels):
-                            recipients.add(subscriber)
+                            handledRecipients.add(subscriber)
                             self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
                             break
 
@@ -209,6 +212,7 @@ class MqttBridge(ThreadObject):
         '''
         This kind of message will be sent to any known listeners
         '''
+        # @todo das braucht vermutlich niemand... ersatzweise waere ein Broadcast topic zu ueberlegen, auf das jeder Interessierte subscribed...
         # add global and local subscriber list into a set with unique elements and remove the sender
         subscriberSet = set(list(self.get_globalSubscribers()))
         subscriberSet.update(set(list(self.get_localSubscribers())))
@@ -265,6 +269,16 @@ class MqttBridge(ThreadObject):
                 # "topic"  is a string containing the topic 
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO.value:
+                # "sender" is the sender's name
+                # "topic"  is a string containing the topic 
+                # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], suppressEcho = True)
+            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO.value:
+                # "sender" is the sender's name
+                # "topic"  is a string containing the topic 
+                # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False, suppressEcho = True)
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 

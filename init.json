@@ -35,7 +35,7 @@
     "Logger":
     {
         "class":       "Logger.Logger.Logger",      # optionally: Logger.LoggerOverwrite.LoggerOverwrite
-        "queueLength": 300,                         # log queue length is 100 per default but can be enlarged if it gets critically filled up
+        "queueLength": 500,                         # log queue length is 100 per default but can be enlarged if it gets critically filled up
 
         # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
         "projectName": "AccuControl"        # project name for MQTT topics (<projectName>/<threadName>/...)

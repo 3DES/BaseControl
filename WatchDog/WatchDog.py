@@ -18,19 +18,19 @@ class WatchDog(ThreadObject):
 
         # check and prepare mandatory parameters 
         if "triggerTime" not in configuration:
-            raise Exception("WatchDog needs a \"triggerTime\" value in init file")      # self.raiseException
+            raise Exception("WatchDog needs a \"triggerTime\" value in init file")
         configuration["triggerTime"] = int(configuration["triggerTime"])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
 
         if "timeout" not in configuration:
-            raise Exception("WatchDog needs a \"timeout\" value in init file")          # self.raiseException
+            raise Exception("WatchDog needs a \"timeout\" value in init file")
         configuration["timeout"] = int(configuration["timeout"])                        # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
 
         if "numberOfThreads" not in configuration:
-            raise Exception("WatchDog needs a \"numberOfThreads\" value in init file")  # self.raiseException
+            raise Exception("WatchDog needs a \"numberOfThreads\" value in init file")
         configuration["numberOfThreads"] = int(configuration["numberOfThreads"])        # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
 
         if "warningTime" not in configuration:
-            raise Exception("WatchDog needs a \"warningTime\" value in init file")      # self.raiseException
+            raise Exception("WatchDog needs a \"warningTime\" value in init file")
         configuration["warningTime"] = int(configuration["warningTime"])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
 
         self.minimumRemainingTime = { "thread" : "", "remainingTime" : configuration["triggerTime"] + configuration["timeout"] }     # to monitor system stability

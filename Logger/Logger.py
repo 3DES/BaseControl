@@ -6,6 +6,7 @@ from enum import Enum
 import queue
 from queue import Queue
 from datetime import datetime
+import Base
 
 
 from Base.ThreadBase import ThreadBase
@@ -28,32 +29,32 @@ class Logger(ThreadBase):
             if self.__class__ is other.__class__:
                 result = self.value < other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " < " + str(other.__class__))    # xxx.raiseException
+            raise Exception("cannot compare " + str(self.__class__) + " < " + str(other.__class__))
         def __le__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value <= other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " <= " + str(other.__class__))    # xxx.raiseException
+            raise Exception("cannot compare " + str(self.__class__) + " <= " + str(other.__class__))
         def __gt__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value > other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " > " + str(other.__class__))    # xxx.raiseException
+            raise Exception("cannot compare " + str(self.__class__) + " > " + str(other.__class__))
         def __ge__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value >= other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " >= " + str(other.__class__))    # xxx.raiseException
+            raise Exception("cannot compare " + str(self.__class__) + " >= " + str(other.__class__))
         def __eq__(self, other):
             if self.__class__ is other.__class__:
                 result = self.value == other.value
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " == " + str(other.__class__))    # xxx.raiseException
+            raise Exception("cannot compare " + str(self.__class__) + " == " + str(other.__class__))
         def __ne__(self, other):
             if self.__class__ is other.__class__:
                 result = not(self.value == other.value)
                 return result
-            raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))    # xxx.raiseException
+            raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))
 
 
     __logQueue_always_use_getters_and_setters       = None                           # to be a "singleton"
@@ -96,7 +97,7 @@ class Logger(ThreadBase):
             if Logger._Logger__logQueue_always_use_getters_and_setters is None:
                 Logger._Logger__logQueue_always_use_getters_and_setters = Queue(cls.get_logQueueLength())          # create logger queue
             else:
-                raise Exception("Logger already instantiated, no further instances allowed")    # self.raiseException
+                raise Exception("Logger already instantiated, no further instances allowed")
 
 
     @classmethod
@@ -145,8 +146,10 @@ class Logger(ThreadBase):
         with cls.get_threadLock():
             Logger._Logger__logBuffer_always_use_getters_and_setters.append(logEntry)
 # @todo diese Exception laesst sich nicht fangen!?!?
-#            if (len(Logger._Logger__logBuffer_always_use_getters_and_setters) > 20):
+#            if (len(Logger._Logger__logBuffer_always_use_getters_and_setters) > 100):
 #                raise Exception("test exception")
+# eine Loesung waere vor dem Schreiben in die Queue zu pruefen ob eine Exception ansteht und dann nicht mehr schreiben, dann klappt zwar das runterfahren, man erhaelt aber trotzdem keine Messages mehr...
+#         if not Base.ThreadBase.ThreadBase.get_exception():
 
 
     @classmethod
@@ -166,7 +169,7 @@ class Logger(ThreadBase):
         # are we the Logger or was our __init__ just called by a sub class?
         # check and prepare mandatory parameters
         if "projectName" not in configuration:
-            raise Exception("Logger needs a projectName value in init file")  # self.raiseException
+            raise Exception("Logger needs a projectName value in init file")
         self.set_projectName(configuration["projectName"])
 
         # check and prepare mandatory parameters
@@ -236,7 +239,7 @@ class Logger(ThreadBase):
         #elif hasattr(sender, "__name__"):
         #    return sender.__name__
         else:
-            raise Exception("unknown caller: " + str(sender))    # cls.raiseException
+            raise Exception("unknown caller: " + str(sender))
 
         return senderName
 
@@ -244,7 +247,7 @@ class Logger(ThreadBase):
     @classmethod
     def debug(cls, sender, message : str):
         '''
-    ....To log a debug message
+        To log a debug message
         '''
         cls.message(Logger.LOG_LEVEL.DEBUG, sender, message)
 
@@ -252,7 +255,7 @@ class Logger(ThreadBase):
     @classmethod
     def trace(cls, sender, message : str):
         '''
-    ....To log a trace message, usually to be used to see the steps through setup and tear down process as well as to see the threads working
+        To log a trace message, usually to be used to see the steps through setup and tear down process as well as to see the threads working
         '''
         cls.message(Logger.LOG_LEVEL.TRACE, sender, message)
 
@@ -260,7 +263,7 @@ class Logger(ThreadBase):
     @classmethod
     def info(cls, sender, message : str):
         '''
-    ....To log any information that could be from interest
+        To log any information that could be from interest
         '''
         cls.message(Logger.LOG_LEVEL.INFO, sender, message)
 
@@ -268,7 +271,7 @@ class Logger(ThreadBase):
     @classmethod
     def warning(cls, sender, message : str):
         '''
-    ....To log any warnings
+        To log any warnings
         '''
         cls.message(Logger.LOG_LEVEL.WARN, sender, message)
 
@@ -276,7 +279,7 @@ class Logger(ThreadBase):
     @classmethod
     def error(cls, sender, message : str):
         '''
-    ....To log an error, usually in case of exceptions, that's usually the highest error level for any problems in the script
+        To log an error, usually in case of exceptions, that's usually the highest error level for any problems in the script
         '''
         cls.message(Logger.LOG_LEVEL.ERROR, sender, message)
 
@@ -284,7 +287,7 @@ class Logger(ThreadBase):
     @classmethod
     def fatal(cls, sender, message : str):
         '''
-    ....To log an fatal errors, usually by detecting real critical hardware problems
+        To log an fatal errors, usually by detecting real critical hardware problems
         '''
         cls.message(Logger.LOG_LEVEL.FATAL, sender, message)
 

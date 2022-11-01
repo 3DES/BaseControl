@@ -117,11 +117,11 @@ class ProjectRunner(object):
                     running = False
 
         if Base.ThreadBase.ThreadBase.get_exception() is not None:
-            print("oh noooo")
+            return "oh noooo, we got an excepiton"
         elif not running:
-            print("finito")
+            return "running time is over"
         elif signalReceived:
-            print("stopped via signal")
+            return "stopped via signal"
 
 
     @classmethod
@@ -208,6 +208,8 @@ class ProjectRunner(object):
 
         configuration = cls.loadInitFile(initFileName)
 
+        stopReason = ""
+
         try:
             # validate init file content, load all classes and filter certain special classes (i.e. Logger, MqttBridge and Logger)
             (threadDictionary, loggerName, mqttBridgeName) = cls.createThreadDictionary(configuration)
@@ -217,7 +219,7 @@ class ProjectRunner(object):
                 # now really setup all the threads
                 #print(threadDictionary)
                 cls.setupThreads(threadDictionary, loggerName, mqttBridgeName)
-                cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
+                stopReason = cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
             except Exception:
                 print("INSTANTIATE/RUNNING EXCEPTION " + traceback.format_exc())
                 #logging.exception("INSTANTIATE EXCEPTION " + traceback.format_exc())
@@ -230,6 +232,8 @@ class ProjectRunner(object):
 
         # in error case try to write the log buffer content out to disk
         if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds or signalReceived:
+            print("write last log messages to disc")
             cls.projectLogger.writeLogBufferToDisk()
 
-        
+        return stopReason
+

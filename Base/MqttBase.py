@@ -26,18 +26,20 @@ class MqttBase(object):
 
 
     class MQTT_TYPE(Enum):
-        CONNECT            = 0  # to register as listener own queue to MqttBridge 
-        DISCONNECT         = 1  # will remove all subscriptions of the sender and the sender itself from listener list
+        CONNECT               = 0  # to register as listener own queue to MqttBridge 
+        DISCONNECT            = 1  # will remove all subscriptions of the sender and the sender itself from listener list
+        BROADCAST             = 2  # send broadcast message to all known listeners (independent from any subscriptions) 
 
-        BROADCAST          = 2  # send broadcast message to all known listeners (independent from any subscriptions) 
+        # PUBLISH  is the first type that needs a topic (this will be checked later, if you mess around with it please don't break it!)
+        PUBLISH               = 3  # send message to all subscribers
+        PUBLISH_LOCAL         = 4  # send message to local subscribers only
+        PUBLISH_NO_ECHO       = 5  # send message to all subscribers but never back to the sender
+        PUBLISH_LOCAL_NO_ECHO = 6  # send message to local subscribers only but never back to the sender
 
-        PUBLISH            = 3  # send message to all subscribers
-        PUBLISH_LOCAL      = 4  # send message to local subscribers only
-
-        SUBSCRIBE          = 5  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
-        UNSUBSCRIBE        = 6  # remove local and global subscriptions
-        SUBSCRIBE_GLOBAL   = 7  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
-
+        # SUBSCRIBE is the first type that needs a topic filter (this will be checked later, if you mess around with it please don't break it!)
+        SUBSCRIBE             = 7  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
+        UNSUBSCRIBE           = 8  # remove local and global subscriptions
+        SUBSCRIBE_GLOBAL      = 9  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
 
     @classmethod
     def _illegal_call(cls):
@@ -147,7 +149,7 @@ class MqttBase(object):
             if MqttBase._MqttBase__projectName_always_use_getters_and_setters is None:
                 MqttBase._MqttBase__projectName_always_use_getters_and_setters = projectName
             else:
-                raise Exception("MqttBase's project name already set")    # self.raiseException
+                raise Exception("MqttBase's project name already set")
 
 
     @classmethod
@@ -184,7 +186,7 @@ class MqttBase(object):
 
         self.name = baseName                                                # set name for this thread
         self.add_threadNames(baseName)                                      # add thread name to thread names list to ensure they are unique (add method checks this!)
-        
+
         self.configuration = configuration                                  # remember given configuration
         self.logger.info(self, "init (MqttBase)")
         self.startupTime = Supporter.getTimeStamp()                         # remember startup time
@@ -418,11 +420,16 @@ class MqttBase(object):
         self.mqttSendPackage(MqttBase.MQTT_TYPE.DISCONNECT)
 
 
-    def mqttPublish(self, topic : str, content, globalPublish : bool = True):
+    def mqttPublish(self, topic : str, content, globalPublish : bool = True, suppressEcho : bool = False):
         '''
         Publish some message locally or globally
         '''
-        self.mqttSendPackage(MqttBase.MQTT_TYPE.PUBLISH if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL,
+        if suppressEcho:
+            messageType = MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO
+        else:
+            messageType = MqttBase.MQTT_TYPE.PUBLISH if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL
+            
+        self.mqttSendPackage(messageType,
                              topic = topic,
                              content = content)
 

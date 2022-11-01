@@ -30,8 +30,13 @@ import Logger.Logger
 from Base.MqttBase import MqttBase
 
 
-#import time
-#from Base.Supporter import Supporter
+import time
+from Base.Supporter import Supporter
+value1 = Supporter.counter("B", 2, autoReset = True)
+value1 = Supporter.counter("B", 2, autoReset = True)
+value1 = Supporter.counter("B", 2, autoReset = True)
+value1 = Supporter.counter("B", 2, autoReset = True)
+value1 = Supporter.counter("B", 2, autoReset = True)
 #
 #while True:
 #    value1 = Supporter.counter("B", 2, autoReset = True)
@@ -74,5 +79,7 @@ if __name__ == '__main__':
     argumentParser.add_argument("-w", "--write-when-ends", default = writeLogToDiskWhenEnds, dest = "writeLogToDiskWhenEnds",             action='store_true', help = "always write log buffer to disk when program comes to an end not only in error case")
     arguments = argumentParser.parse_args()
 
-    ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.stopAfterSeconds, arguments.printAlways, arguments.writeLogToDiskWhenEnds)
+    stopReason = ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.stopAfterSeconds, arguments.printAlways, arguments.writeLogToDiskWhenEnds)
+
+    print("finito [" + Logger.Logger.Logger.get_projectName() + "]" + (" : " + stopReason) if len(stopReason) else "")
 
