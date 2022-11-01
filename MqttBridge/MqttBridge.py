@@ -173,7 +173,7 @@ class MqttBridge(ThreadObject):
             self.logger.info(self, Supporter.encloseString(subscriber) + " unsubscribed from all subscriptions")
 
 
-    def publish_message(self, sender : str, topic : str, content : str, globalPublishing : bool = True, suppressEcho : bool = True):
+    def publish_message(self, sender : str, topic : str, content : str, globalPublishing : bool = True, enableEcho : bool = False):
         '''
         Usually a topic is published globally, if it is necessary that it's not sent out to the rest of the world it can be published locally, too
         '''
@@ -183,7 +183,7 @@ class MqttBridge(ThreadObject):
 
         handledRecipients = set()         # never send a message twice to one and the same recipient
 
-        if suppressEcho:
+        if not enableEcho:
             handledRecipients.add(sender)
 
         subscriberDictList = []
@@ -263,22 +263,22 @@ class MqttBridge(ThreadObject):
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic 
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], enableEcho = True)
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic 
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False, enableEcho = True)
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic 
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], suppressEcho = True)
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic 
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False, suppressEcho = True)
+                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 

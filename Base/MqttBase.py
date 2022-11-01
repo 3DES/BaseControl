@@ -420,14 +420,14 @@ class MqttBase(object):
         self.mqttSendPackage(MqttBase.MQTT_TYPE.DISCONNECT)
 
 
-    def mqttPublish(self, topic : str, content, globalPublish : bool = True, suppressEcho : bool = False):
+    def mqttPublish(self, topic : str, content, globalPublish : bool = True, enableEcho : bool = False):
         '''
         Publish some message locally or globally
         '''
-        if suppressEcho:
-            messageType = MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO
-        else:
+        if enableEcho:
             messageType = MqttBase.MQTT_TYPE.PUBLISH if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL
+        else:
+            messageType = MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO
             
         self.mqttSendPackage(messageType,
                              topic = topic,

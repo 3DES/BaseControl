@@ -37,8 +37,9 @@ class PowerPlant(Worker):
         if Supporter.counter("C", 3, autoReset = True):
             #@todo den counter namespace nochmals pruefen, wo sind wir da genau?
             #@todo den timer noch fertig implementieren
-            self.mqttPublish(self.createInTopic(self.getObjectTopic()), "monologue is not possible this way", globalPublish = True)
-            self.mqttSendPackage(Base.MqttBase.MqttBase.MQTT_TYPE.PUBLISH, self.createInTopic(self.getObjectTopic()), "monologue is only possible by sending message incocnito", incocnito = "IMustBeSomebodyElse")
+            self.mqttPublish(self.createInTopic(self.getObjectTopic()), "usually monologue is not possible", globalPublish = True)
+            self.mqttSendPackage(Base.MqttBase.MqttBase.MQTT_TYPE.PUBLISH, self.createInTopic(self.getObjectTopic()), "monologue is possible by sending message incocnito", incocnito = "IMustBeSomebodyElse")
+            self.mqttPublish(self.createInTopic(self.getObjectTopic()), "monologue is also possible by enabling echoing", globalPublish = True, enableEcho = True)
 
         if Supporter.timer("T1", timeout = 60, firstTimeTrue = True):
             self.logger.info(self, "TIMING EVENT T1")
