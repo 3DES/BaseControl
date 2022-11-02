@@ -1,0 +1,11 @@
+    {
+        "class": "Messenger.SignalMessenger.SignalMessenger",
+        
+        "phone": "+0123456789012",
+        "trusted":
+        [
+            "+0123456789013",
+            "+0123456789014",
+            "+0123456789015"
+        ]
+    }

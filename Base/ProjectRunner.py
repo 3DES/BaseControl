@@ -2,8 +2,6 @@
 '''
 
 
-import json
-import re
 import traceback
 import time
 import logging
@@ -50,24 +48,6 @@ class ProjectRunner(object):
         :raises Exception: if it is called even it shouldn't
         '''
         raise Exception("object " + self.name + " has already registered to an MqttBridge")("ProjectRunner __init__() should never be called")
-
-
-    @classmethod
-    def loadInitFile(cls, initFileName : str):
-        '''
-        reads a json file and since json doesn't support any comments all detected comments will be removed, i.e.
-            # comment line                     -->   ""
-            "a" : "b",    # trailing comment   -->   "a" : "b",
-        '''
-        initFile = open(initFileName)                           # open init file
-        fileContent = ""
-        for line in initFile:                                   # read line by line and remove comments
-            line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
-            line = re.sub(r'#[^"\']*$', r'', line)             # remove comments, comments havn't to contain any quotation marks or apostrophes 
-            line = re.sub(r'^ *#.*$', r'', line)                # remove line comments
-            fileContent += line + "\n"                          # add filtered (or even empty line because of json error messages with line numbers) to overall json content
-        initFile.close()
-        return json.loads(fileContent)                          # now handle read content and return it to caller
 
 
     @classmethod
@@ -206,7 +186,7 @@ class ProjectRunner(object):
         Logger.Logger.Logger.set_logLevel(logLevel)
         Logger.Logger.Logger.set_printAlways(printAlways)
 
-        configuration = cls.loadInitFile(initFileName)
+        configuration = Supporter.loadInitFile(initFileName)
 
         stopReason = ""
 

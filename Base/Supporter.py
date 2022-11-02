@@ -3,15 +3,56 @@
 import time
 import calendar
 import pydoc
+import json
+import re
 
 
 class Supporter(object):
     '''
     classdocs
     '''
+    @classmethod
+    def loadInitFile(cls, initFileName : str):
+        '''
+        reads a json file and since json doesn't support any comments all detected comments will be removed, i.e.
+            # comment line                     -->   ""
+            "a" : "b",    # trailing comment   -->   "a" : "b",
+        '''
+        fileList = []      # needed to prevent recursive import of json files
+        def loadPseudoJsonFile(initFileName : str):
+            if not len(fileList) == len(set(fileList)):
+                raise Exception("recursive import of json file " + fileList[-1] + " detected")
+            initFile = open(initFileName)                           # open init file
+            fileContentWithImport = ""                              # file content with replaced @import tags
+            fileContent = ""                                        # for json validation, that's the only chance to get proper line numbers in case of error
+            for line in initFile:                                   # read line by line and remove comments
+                line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
+                line = re.sub(r'#[^"\']*$', r'', line)              # remove comments, comments havn't to contain any quotation marks or apostrophes 
+                line = re.sub(r'^ *#.*$', r'', line)                # remove line comments
 
+                fileContent += line + "\n"
+
+                regex = r"\"@import as ([^\"]+)\" *: *\"([^\"]+)\""
+                while matchResult := re.search(regex, line, re.MULTILINE):
+                    fileList.append(matchResult.group(2))
+                    substitution = loadPseudoJsonFile(matchResult.group(2))
+                    fileList.pop()
+                    line = re.sub(regex, "\"" + matchResult.group(1) + "\":" + substitution, line, 0, re.MULTILINE)
+
+                fileContentWithImport += line + "\n"                          # add filtered (or even empty line because of json error messages with line numbers) to overall json content
+            initFile.close()
+            
+            try:
+                json.loads(fileContent)
+            except Exception as exception:
+                raise Exception("error in json file " + initFileName + " -> " + str(exception))
+            return fileContentWithImport
+        fileContent = loadPseudoJsonFile(initFileName)
+        jsonDictionary = json.loads(fileContent)
+        return jsonDictionary
 
     @classmethod
+
     def encloseString(cls, string, leftEnclosing : str = "[", rightEnclosing : str = "]"):
         '''
         formats given string by enclosing it in given left and right enclosing string, e.g.

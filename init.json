@@ -29,7 +29,7 @@
         "triggerTime":     2,               # after that time threads should start sending alive message to watch dog
         "timeout":         4,               # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
         "warningTime":     2,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
-        "numberOfThreads": 5                # expected threads registering to watchdog
+        "numberOfThreads": 6                # expected threads registering to watchdog
     },
 
     "Logger":
@@ -45,10 +45,8 @@
     {
         "class": "Worker.PowerPlant.PowerPlant"
     },
-    
-    "SignalMessenger":
-    {
-        "class": "Messenger.SignalMessenger.SignalMessenger"
-    }
+
+    #"@import as SignalMessenger": "./secureDummy.json"
+    "@import as SignalMessenger": "./secure.json"
 }
 
