@@ -13,5 +13,6 @@
             "+0123456789014",
             "+0123456789015"
         ],
-        "aliveTime":  86400      # 24 * 60 * 60 = 86400 seconds = once a day
+        "aliveTime":  86400,     # 24 * 60 * 60 = 86400 seconds = once a day
+        "disabled":   1          # only supported by uncritical tasks!
     }

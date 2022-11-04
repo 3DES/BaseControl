@@ -62,7 +62,7 @@ class MqttBrokerInterface(InterfaceBase):
                 try:
                     self.client.publish(newMqttMessageDict["topic"], json.dumps(newMqttMessageDict["content"]), retain = False)
                 except:
-                    self.logger.error(self, "Could not send MQTT msg to broker: %s to %s" (newMqttMessageDict["content"], newMqttMessageDict["topic"]))
+                    self.logger.error(self, "Could not send MQTT msg to broker: %s to %s" % (newMqttMessageDict["content"], newMqttMessageDict["topic"]))
 
 
     #def threadBreak(self):

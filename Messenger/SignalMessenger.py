@@ -57,6 +57,8 @@ class SignalMessenger(ThreadObject):
         self.tagsIncluded(["executable", "phone", "emergency"])
         if not self.tagsIncluded(["aliveTime"], intIfy = True, optional = True):
             self.configuration["aliveTime"] = 0
+        if not self.tagsIncluded(["disabled"], intIfy = True, optional = True):
+            self.configuration["disabled"] = 0
 
 
     def readerMethod(self, readToReadFrom, bufferToWriteTo, semaphore):
@@ -121,7 +123,8 @@ class SignalMessenger(ThreadObject):
             # send message
             self.signalPipe.stdin.write(sendMessage)
             self.signalPipe.stdin.flush()
-            
+            #@todo error handling einbauen, falls pipe nicht OK, was passiert, wenn die konfigurierten Nummern falsch sind!!!
+
             # log message
             self.logger.info(self, "SENT: " + str(sendMessage))
         
@@ -142,7 +145,9 @@ class SignalMessenger(ThreadObject):
 
     def threadMethod(self):
         # initially give the signal-cli five seconds to come up
-        if not self.setupTimeOver:
+        if self.configuration["disabled"]:
+            pass
+        elif not self.setupTimeOver:
             if Supporter.timer(self.name + "_initTimer", timeout = 5):
                 self.setupTimeOver = True
                 Supporter.timer(self.name + "_initTimer", remove = True)
