@@ -44,5 +44,11 @@ class SignalMessenger(ThreadObject):
         Constructor
         '''
         super().__init__(threadName, configuration)
+        
+    def threadInitMethod(self):
+        pass
+        
+    def threadMethod(self):
+        pass
 
 
