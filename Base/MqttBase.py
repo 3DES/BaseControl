@@ -329,7 +329,7 @@ class MqttBase(object):
         '''
         topicLevels = cls.splitTopic(topic)
 
-        for index, level in enumerate(topicLevels):
+        for level in enumerate(topicLevels):
             if len(level) == 0:                                     # topic was /xxx or xxx//xxx or xxx/ or empty
                 return False
             if '+' in level or '#' in level:                        # topic contained '+' or '#'
