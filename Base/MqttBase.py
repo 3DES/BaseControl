@@ -178,6 +178,35 @@ class MqttBase(object):
         return MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters
 
 
+    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None):
+        '''
+        Checks if given parameters are contained in task configuration
+        
+        A dictionary with configuration can be given optionally for the case that configuration has to be checked before super().__init__() has been called
+        if intIfy is True it will be ensured that the value contains an integer
+        if optional is True no exception will be thrown if element is missed, in that case the return value will be True if all given tags have been included or False if at least one wansn't included
+        '''
+        success = True
+
+        # take given configuration or self.configuration, if none is available throw an exception
+        if configuration is None:
+            if not hasattr(self, "configuration"):
+                raise Exception("tagsIncluded called without a configuration dictionary and without self.configuration set")
+            else:
+                configuration = self.configuration
+
+        # check and prepare mandatory parameters
+        for tagName in tagNames:
+            if tagName not in configuration:
+                if not optional:
+                    raise Exception(self.get_threadNames() + " needs a \"" + tagName + "\" value in init file")
+                success = False         # remember there was at least one missing element
+            elif intIfy:
+                configuration[tagName] = int(configuration[tagName])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
+
+        return success
+
+
     def __init__(self, baseName : str, configuration : dict):
         '''
         Constructor

@@ -166,15 +166,10 @@ class Logger(ThreadBase):
         
         the optional logger parameter is for the case that we have a sub class that inherited from us and is, therefore, the real logger!
         '''
-        # are we the Logger or was our __init__ just called by a sub class?
         # check and prepare mandatory parameters
-        if "projectName" not in configuration:
-            raise Exception("Logger needs a projectName value in init file")
+        self.tagsIncluded(["projectName"], configuration = configuration)
         self.set_projectName(configuration["projectName"])
-
-        # check and prepare mandatory parameters
-        if "queueLength" in configuration:
-            configuration["queueLength"] = int(configuration["queueLength"])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
+        if self.tagsIncluded(["queueLength"], optional = True, configuration = configuration):
             self.set_logQueueLength(configuration["queueLength"])
         
         self.setup_logQueue()                                   # setup log queue

@@ -25,11 +25,12 @@
                 "settings":   "19200,8,N,1"
             }
         },
-        "setupTime":       2,               # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
-        "triggerTime":     2,               # after that time threads should start sending alive message to watch dog
-        "timeout":         4,               # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
-        "warningTime":     2,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
-        "numberOfThreads": 6                # expected threads registering to watchdog
+        "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
+        "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
+        "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
+        "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
+        "numberOfThreads": 6,               # expected threads registering to watchdog
+        "debug":           1                # with debug == 1 it is allowed that a process de-registers from monitoring what is useful during development and debugging since otherwise the watch dog always detects a timeout
     },
 
     "Logger":

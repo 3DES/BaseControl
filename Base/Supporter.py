@@ -28,15 +28,16 @@ class Supporter(object):
             for line in initFile:                                   # read line by line and remove comments
                 line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
                 line = re.sub(r'#[^"\']*$', r'', line)              # remove comments, comments havn't to contain any quotation marks or apostrophes 
-                line = re.sub(r'^ *#.*$', r'', line)                # remove line comments
+                line = re.sub(r'^\s*#.*$', r'', line)               # remove line comments
 
                 fileContent += line + "\n"
 
-                regex = r"\"@import as ([^\"]+)\" *: *\"([^\"]+)\""
+                regex = r"\"@import\s+as\s+([^\"]+)\"\s*:\s*\"([^\"]+)\""
                 while matchResult := re.search(regex, line, re.MULTILINE):
                     fileList.append(matchResult.group(2))
                     substitution = loadPseudoJsonFile(matchResult.group(2))
                     fileList.pop()
+                    # for "@import as XXX":"<file>" insert "XXX":"<file content>"
                     line = re.sub(regex, "\"" + matchResult.group(1) + "\":" + substitution, line, 0, re.MULTILINE)
 
                 fileContentWithImport += line + "\n"                          # add filtered (or even empty line because of json error messages with line numbers) to overall json content
@@ -95,7 +96,7 @@ class Supporter(object):
 
 
     @classmethod
-    def counter(cls, name : str, value : int = 0, autoReset : bool = False, singularTrue : bool = False, remove : bool = False, getValue : bool = False, dontCount : bool = False):
+    def counter(cls, name : str, value : int = 0, autoReset : bool = True, singularTrue : bool = False, remove : bool = False, getValue : bool = False, dontCount : bool = False, startWithOne : bool = False):
         '''
         Simple counter returns True if counter has called given amount of times whereby the setup call already counts as the first call!
         Each time it's called it counts up
@@ -104,6 +105,7 @@ class Supporter(object):
         if not given default value 0 will be taken, what is not allowed to set a timer up but what is fine if the timer is already set up
 
         autoReset will reset counter when given amount of calls have been reached
+        if autoReset is False a value is not necessary but in that case it will never become True, so it usually only makes sense to get the counter value instead of the boolean result
 
         singularTrue will return True only when the given value is equal to the counter but not if it is greater than the counter (for this feature autoReset and getValue must be False)
 
@@ -112,9 +114,9 @@ class Supporter(object):
         if getValue is set to True the counter value will be given back instead of True/False, in that case "value-1" is equivalent to True and depending on singularTrue all values greater than "value-1" are also True
         
         with dontCount set to True the current value can be read without changing the counter value
+        
+        if startWithOne is True counter counts [1..value], otherwise counter counts [0..value-1], this can only be set during setup, to change it counter has to be removed and set up again
         '''
-        result = False
-
         counterName = "__counter_" + name
         nameSpace = globals()
 
@@ -126,13 +128,22 @@ class Supporter(object):
         else:
             if counterName not in nameSpace:
                 if value < 1:
-                    raise Exception("A counter cannot be set up with any value less than 1")
-                nameSpace[counterName] = [1, value]             # create local variable with name given in string
+                    if not autoReset:
+                        # without autoReset a counter simply counts so no value is necessary
+                        value = 1
+                    else:
+                        # with autoReset a counter is necessary otherwise it's not decidible when counter flows over
+                        raise Exception("A counter cannot be set up with any value less than 1 except autoReset has been set to False")
+                # create local variable with name given in string (usually we could fill it with one array but by filling it value by value it's clear what element is used for what)
+                nameSpace[counterName] = [0, 0, 0]
+                nameSpace[counterName][0] = 1               # counter internally always starts with 1
+                nameSpace[counterName][1] = value           
+                nameSpace[counterName][2] = startWithOne    # only influences the value given back but not the internal counter value
             else:
                 if value < 1:
-                    value = nameSpace[counterName][1]           # take stored value instead of given one
+                    value = nameSpace[counterName][1]                   # take stored value instead of given one
                 else:
-                    nameSpace[counterName][1] = value           # change timer threshold
+                    nameSpace[counterName][1] = value                   # change timer threshold
 
                 if not dontCount:
                     # stop counting up when value + 1 has been reached (otherwise counter would count up endless)
@@ -140,17 +151,14 @@ class Supporter(object):
                         nameSpace[counterName][0] += 1
                     else:
                         # auto reset value if given
-                        nameSpace[counterName][0] = 1
-
-            # given value reached?
-            if nameSpace[counterName][0] >= value:
-                # return True if "counter == value" or in case "counter > value" only if singularTrue has not been given, otherwise return False
-                result = (not singularTrue) or (nameSpace[counterName][0] == value)
+                        nameSpace[counterName][0] = 1       # counter internally always is reset to 1
 
             if getValue:
-                return nameSpace[counterName][0]
+                # counter usually starts by one but it's possible to set "startWithOne = False" to get a counter start counting by zero, therefore decrease coutner value by one in that case  
+                return nameSpace[counterName][0] if nameSpace[counterName][2] else (nameSpace[counterName][0] - 1) 
             else:
-                return result
+                # return True if "counter == value" or in case "counter > value" only if singularTrue has not been given, otherwise return False
+                return (nameSpace[counterName][0] == value) or (nameSpace[counterName][0] > value and not singularTrue) 
 
 
     @classmethod
@@ -234,3 +242,14 @@ class Supporter(object):
                 else: 
                     return False or (setupTurn and firstTimeTrue)
 
+
+    @classmethod
+    def dictContains(cls, testDict : dict, *args):
+        for argument in args:
+            if argument not in testDict:
+                return None
+            else:
+                testDict = testDict[argument]
+        return testDict
+        
+        

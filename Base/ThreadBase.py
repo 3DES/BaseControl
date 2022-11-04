@@ -62,7 +62,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.logger.info(self, "init (ThreadBase)")
             
             self.event = threading.Event()                  # event is currently not used
-            self.thread = threading.Thread(target = self.threadLoop, args=[self.event])
+            self.thread = threading.Thread(target = self.threadLoop, args=[self.event], daemon = True)
 
             self.interfaceThreads = None                    # to collect interfaces setup during thread init phase
 
@@ -107,7 +107,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         try:
             self.threadInitMethod()             # call init method for the case the thread has sth. to set up
         except Exception as exception:
-            # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
+            # beside explicitly exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
@@ -125,7 +125,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
                     self.mqttSendWatchdogAliveMessage()
 
         except Exception as exception:
-            # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
+            # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
@@ -139,7 +139,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
             self.threadTearDownMethod()             # call tear down method for the case the thread has sth. to clean up
         except Exception as exception:
-            # beside explicitly exceptions handled tread internally we also have to catch all implicit exceptions
+            # beside explicitly exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 

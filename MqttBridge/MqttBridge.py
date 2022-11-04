@@ -151,20 +151,20 @@ class MqttBridge(ThreadObject):
 
     def disconnect_subscriber(self, subscriber : str):
         '''
-        Remove a subscriber from the local and global subscriber lists
+        Remove a subscriber from the local and the global subscriber lists
         '''
         if subscriber not in self.get_mqttListeners():
             raise Exception("un-subscriber is not a registered MQTT listener : " + str(subscriber))
 
         unsubscribed = False
 
-        # select local or global subscriber list
+        # remove subscriber from global and local list
         for subscriberDict in (self.get_globalSubscribers(), self.get_localSubscribers()):
             if subscriber in subscriberDict:
                 del(subscriberDict[subscriber])
                 unsubscribed = True
 
-        # remove subscriber from listener list (so its queue is not known any longer!)
+        # remove subscriber from listeners list (so its queue is not known any longer!)
         self.remove_mqttListeners(subscriber)
 
         if not unsubscribed:
@@ -176,6 +176,7 @@ class MqttBridge(ThreadObject):
     def publish_message(self, sender : str, topic : str, content : str, globalPublishing : bool = True, enableEcho : bool = False):
         '''
         Usually a topic is published globally, if it is necessary that it's not sent out to the rest of the world it can be published locally, too
+        The globalPublishing flag in each messages allows a global subscriber to check if the message is a local or a global one 
         '''
         # validate and split topic filter        
         if not self.validateTopic(topic):
@@ -266,7 +267,7 @@ class MqttBridge(ThreadObject):
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], enableEcho = True)
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL.value:
                 # "sender" is the sender's name
-                # "topic"  is a string containing the topic 
+                # "topic"  is a string containing the topic
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False, enableEcho = True)
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO.value:
@@ -276,7 +277,7 @@ class MqttBridge(ThreadObject):
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO.value:
                 # "sender" is the sender's name
-                # "topic"  is a string containing the topic 
+                # "topic"  is a string containing the topic
                 # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
                 self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
@@ -291,7 +292,7 @@ class MqttBridge(ThreadObject):
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
                 self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], globalSubscription = True)
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])                                  # global subscribers subscribe for both lists
+                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])                                  # global subscribers subscribe for local and global list
             else:
                 raise Exception("unknown type found in message " + str(newMqttMessageDict))
 
