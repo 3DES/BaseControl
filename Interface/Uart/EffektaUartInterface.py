@@ -96,9 +96,18 @@ class UartInterface(InterfaceBase):
     #def threadInitMethod(self):
     #    pass
 
-
     def threadMethod(self):
-        pass
+        while not self.mqttRxQueue.empty():
+            newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+            self.logger.info(self, " received global queue message :" + str(newMqttMessageDict))
+            # newMqttMessageDict["query"] = {"cmd":"filledfromSender", "response":"filledFromInterface"}
+            # newMqttMessageDict["setValue"] = {"cmd":"filledfromSender", "value":"filledfromSender"}
+            if "query" in newMqttMessageDict:
+                newMqttMessageDict["query"]["response"] = self.getEffektaData(newMqttMessageDict["query"]["cmd"])
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict, globalPublish = False, enableEcho = False)
+            elif "setValue" in newMqttMessageDict:
+                # Fire and forget. Errors will be logged in logbook
+                self.setEffektaData(newMqttMessageDict["setValue"]["cmd"], newMqttMessageDict["setValue"]["value"])
 
 
     #def threadBreak(self):
