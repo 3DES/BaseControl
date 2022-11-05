@@ -23,6 +23,10 @@ class WatchDog(ThreadObject):
         if "setupTime" not in configuration:
             configuration["setupTime"] = configuration["triggerTime"]                   # if (optional) setupTime is not given use triggerTime instead
 
+        # prepare optional value
+        if not self.tagsIncluded(["upTime"], intIfy = True, optional = True):
+            configuration["upTime"] = 0
+
         # ensure there is a "debug" element even if it wasn't defined in init file and ensure it's 0 except it has been defined as 1
         if not self.tagsIncluded(["debug"], intIfy = True, optional = True) or not (configuration["debug"] == 1):
             configuration["debug"] = 0
@@ -63,6 +67,9 @@ class WatchDog(ThreadObject):
         # if "debug" has been set to 1 allow threads to disable monitoring via message
         if self.configuration["debug"]:
             self.disableMonitoring = set()
+            
+        # init lastDeltaTime to be compared with current delta time to show proper up-time message 
+        self.lastDeltaTime = Supporter.getDeltaTime(self.startupTime)
 
 
     def threadMethod(self):
@@ -127,9 +134,12 @@ class WatchDog(ThreadObject):
                                     Supporter.encloseString(thread) +
                                     "timed out")
 
-        # log system running time
-        deltaTime = Supporter.getDeltaTime(self.startupTime)
-        self.logger.trace(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
+        # log system running time (except it has been deactivated by "upTime" == 0)
+        if self.configuration["upTime"]:
+            deltaTime = Supporter.getDeltaTime(self.startupTime)
+            if self.lastDeltaTime + self.configuration["upTime"] <= deltaTime:
+                self.logger.info(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
+                self.lastDeltaTime = deltaTime
 
 
     def threadBreak(self):

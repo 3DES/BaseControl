@@ -42,6 +42,6 @@ class Worker(ThreadObject):
 
 
     def threadMethod(self):
-        self.logger.trace(self, "I am the Worker thread = " + self.name)
         #MqttBase.simulateExcepitonError(self.name, 5)
+        pass
 

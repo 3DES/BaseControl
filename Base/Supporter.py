@@ -5,6 +5,9 @@ import calendar
 import pydoc
 import json
 import re
+from os.path import exists
+import Logger
+
 
 
 class Supporter(object):
@@ -12,48 +15,64 @@ class Supporter(object):
     classdocs
     '''
     @classmethod
-    def loadInitFile(cls, initFileName : str):
+    def loadInitFile(cls, initFileName : str, missingImportMeansError : bool):
         '''
-        reads a json file and since json doesn't support any comments all detected comments will be removed, i.e.
-            # comment line                     -->   ""
+        reads a json file and since json doesn't support any comments all detected comments will be removed,
+        a comment is either a line containing blanks followed by a # sign and any further characters
+        or a line conaining any stuff followed by a # sign and any further characters except quotation marks 
+        , i.e.
+            # comment 'line'                   -->   ""
             "a" : "b",    # trailing comment   -->   "a" : "b",
+            "x" : "y",    # not a 'comment'    -->   "x" : "y",    # not a 'comment'
         '''
-        fileList = []      # needed to prevent recursive import of json files
-        def loadPseudoJsonFile(initFileName : str):
-            if not len(fileList) == len(set(fileList)):
-                raise Exception("recursive import of json file " + fileList[-1] + " detected")
-            initFile = open(initFileName)                           # open init file
-            fileContentWithImport = ""                              # file content with replaced @import tags
-            fileContent = ""                                        # for json validation, that's the only chance to get proper line numbers in case of error
-            for line in initFile:                                   # read line by line and remove comments
-                line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
-                line = re.sub(r'#[^"\']*$', r'', line)              # remove comments, comments havn't to contain any quotation marks or apostrophes 
-                line = re.sub(r'^\s*#.*$', r'', line)               # remove line comments
+        loadFileStack = []      # needed to prevent recursive import of json files
+        def loadPseudoJsonFile(jsonDictionary : dict):
+            if "@import" in jsonDictionary:
+                fileNameList = jsonDictionary["@import"]
 
-                fileContent += line + "\n"
+                if isinstance(fileNameList, str):
+                    fileNameList = [fileNameList]
 
-                regex = r"\"@import\s+as\s+([^\"]+)\"\s*:\s*\"([^\"]+)\""
-                while matchResult := re.search(regex, line, re.MULTILINE):
-                    fileList.append(matchResult.group(2))
-                    substitution = loadPseudoJsonFile(matchResult.group(2))
-                    fileList.pop()
-                    # for "@import as XXX":"<file>" insert "XXX":"<file content>"
-                    line = re.sub(regex, "\"" + matchResult.group(1) + "\":" + substitution, line, 0, re.MULTILINE)
+                del(jsonDictionary["@import"])
 
-                fileContentWithImport += line + "\n"                          # add filtered (or even empty line because of json error messages with line numbers) to overall json content
-            initFile.close()
-            
-            try:
-                json.loads(fileContent)
-            except Exception as exception:
-                raise Exception("error in json file " + initFileName + " -> " + str(exception))
-            return fileContentWithImport
-        fileContent = loadPseudoJsonFile(initFileName)
-        jsonDictionary = json.loads(fileContent)
-        return jsonDictionary
+                for fileName in fileNameList:
+                    if not exists(fileName):
+                        message = "cannot import [" + fileName + "] since it doesn't exist"
+                        if missingImportMeansError:
+                            raise Exception(message)
+                        else:
+                            Logger.Logger.Logger.error(cls, message)
+                    else:
+                        # add file to loadFileStack for recursive import detection
+                        loadFileStack.append(fileName)
+                        if not len(loadFileStack) == len(set(loadFileStack)):
+                            raise Exception("recursive import of json file " + loadFileStack[-1] + " detected")
+        
+                        initFile = open(fileName)                               # open init file
+                        fileContent = ""                                        # for json validation, that's the only chance to get proper line numbers in case of error
+                        for line in initFile:                                   # read line by line and remove comments
+                            line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
+                            line = re.sub(r'#[^"\']*$', r'', line)              # remove comments, comments havn't to contain any quotation marks or apostrophes 
+                            line = re.sub(r'^\s*#.*$', r'', line)               # remove line comments
+                            fileContent += line + "\n"
+                        initFile.close()
+    
+                        # try to json-ize imported file to get error messages with correct line numbers                
+                        try:
+                            jsonDictionary.update(json.loads(fileContent))
+                        except Exception as exception:
+                            raise Exception("error in json file " + fileName + " -> " + str(exception))
+    
+                        jsonDictionary = loadPseudoJsonFile(jsonDictionary)
+    
+                        # remove current file from loadFileStack
+                        loadFileStack.pop()
+            return jsonDictionary
+
+        # return completely loaded init file
+        return loadPseudoJsonFile({ "@import" : initFileName })        # initial content to import given "init.json" file
 
     @classmethod
-
     def encloseString(cls, string, leftEnclosing : str = "[", rightEnclosing : str = "]"):
         '''
         formats given string by enclosing it in given left and right enclosing string, e.g.
@@ -90,7 +109,7 @@ class Supporter(object):
         if loadableModule is None:
             raise Exception("there is no module \"" + classType + "\"")
 
-        print("loading: module = " + str(loadableModule) + ", className = " + str(className) + ", classType = " + str(classType))
+        Logger.Logger.Logger.trace(cls, "loading: module = " + str(loadableModule) + ", className = " + str(className) + ", classType = " + str(classType))
         loadableClass = getattr(loadableModule, className)
         return loadableClass
 

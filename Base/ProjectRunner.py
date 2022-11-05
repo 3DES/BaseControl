@@ -15,6 +15,7 @@ import MqttBridge.MqttBridge
 import WatchDog.WatchDog
 import Base.ThreadBase
 from Base.Supporter import Supporter
+import Logger
 
 
 # install signal handler
@@ -22,7 +23,7 @@ signalReceived = False
  
 # handle sigint
 def custom_handler(signum, frame):
-    print("Signal received, will stop working as soon as possible")
+    Logger.Logger.Logger.fatal(self, "Signal received, will stop working as soon as possible")
     global signalReceived
     signalReceived = True
 
@@ -168,7 +169,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, stopAfterSeconds : int, printAlways : bool, writeLogToDiskWhenEnds : bool):
+    def executeProject(cls, initFileName : str, logLevel : int, stopAfterSeconds : int, printAlways : bool, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -186,7 +187,7 @@ class ProjectRunner(object):
         Logger.Logger.Logger.set_logLevel(logLevel)
         Logger.Logger.Logger.set_printAlways(printAlways)
 
-        configuration = Supporter.loadInitFile(initFileName)
+        configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
 
         stopReason = ""
 
@@ -201,18 +202,18 @@ class ProjectRunner(object):
                 cls.setupThreads(threadDictionary, loggerName, mqttBridgeName)
                 stopReason = cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
             except Exception:
-                print("INSTANTIATE/RUNNING EXCEPTION " + traceback.format_exc())
+                Logger.Logger.Logger.error(cls, "INSTANTIATE/RUNNING EXCEPTION " + traceback.format_exc())
                 #logging.exception("INSTANTIATE EXCEPTION " + traceback.format_exc())
 
             Base.ThreadBase.ThreadBase.stopAllThreads()
         except Exception:
-            print("SETUP EXCEPTION " + traceback.format_exc())
+            Logger.Logger.Logger.error(cls, "SETUP EXCEPTION " + traceback.format_exc())
             #logging.exception("SETUP EXCEPTION " + traceback.format_exc())
 
 
         # in error case try to write the log buffer content out to disk
         if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds or signalReceived:
-            print("write last log messages to disc")
+            Logger.Logger.Logger.error(cls, "write last log messages to disc before exit")
             cls.projectLogger.writeLogBufferToDisk()
 
         return stopReason

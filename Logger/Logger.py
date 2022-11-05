@@ -57,11 +57,12 @@ class Logger(ThreadBase):
             raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))
 
 
-    __logQueue_always_use_getters_and_setters       = None                           # to be a "singleton"
-    __logQueueLength_always_use_getters_and_setters = 100                            # can be overwritten via ini file entry
-    __logLevel_always_use_getters_and_setters       = LOG_LEVEL.DEBUG                # will be overwritten in __init__
-    __logBuffer_always_use_getters_and_setters      = collections.deque([], 500)     # length of 500 elements
-    __printAlways_always_use_getters_and_setters    = False                          # print log messages always even if level is not LOG_LEVEL.DEBUG
+    __logQueue_always_use_getters_and_setters       = None                          # to be a "singleton"
+    __logQueueLength_always_use_getters_and_setters = 100                           # can be overwritten via ini file entry
+    __logLevel_always_use_getters_and_setters       = LOG_LEVEL.DEBUG               # will be overwritten in __init__
+    __logBuffer_always_use_getters_and_setters      = collections.deque([], 500)    # length of 500 elements
+    __printAlways_always_use_getters_and_setters    = False                         # print log messages always even if level is not LOG_LEVEL.DEBUG
+    __preLogBuffer_always_use_getters_and_setters   = []                            # list to collect all log messages created before logger has been started up (they should be printed too for the case the logger will never come up!), if the logger comes up it will log all these messages first!
 
 
     @classmethod
@@ -160,6 +161,28 @@ class Logger(ThreadBase):
         return Logger._Logger__logBuffer_always_use_getters_and_setters
 
 
+    @classmethod
+    def add_preLogMessage(cls, logEntry : str):
+        '''
+        To add a log message before logger has been set up, logger should handle them first when it comes up
+        '''
+        print("(P) " + logEntry)        # (P) means pre logged message printed to STDOUT
+        with cls.get_threadLock():
+            Logger._Logger__preLogBuffer_always_use_getters_and_setters.append(logEntry)
+
+
+    @classmethod
+    def get_preLogMessage(cls) -> str:
+        '''
+        To add a log message before logger has been set up, logger should handle them first when it comes up
+        '''
+        with cls.get_threadLock():
+            if len(Logger._Logger__preLogBuffer_always_use_getters_and_setters):
+                return Logger._Logger__preLogBuffer_always_use_getters_and_setters.pop(0)
+            else:
+                return None
+
+
     def __init__(self, threadName : str, configuration : dict, logger = None):
         '''
         Logger constructor
@@ -174,7 +197,7 @@ class Logger(ThreadBase):
         
         self.setup_logQueue()                                   # setup log queue
         self.logBuffer = collections.deque([], 500)             # buffer storing the last 500 elements (for emergency write)
-        self.logCoutner = 0                                     # counts all logged messages
+        self.logCounter = 0                                     # counts all logged messages
         self.set_logger(self if logger is None else logger)     # set project wide logger (since this is the base class for all loggers its it's job to set the project logger)
         self.logQueueMaximumFilledLength = 0                    # to monitor queue fill length (for system stability)
 
@@ -184,22 +207,34 @@ class Logger(ThreadBase):
         self.logger.info(self, "init (Logger)")
 
 
-    def threadMethod(self):
-        self.logger.trace(self, "I am the Logger thread = " + self.name)
+    def _handleMessage(self, newLogEntry : str):
+        '''
+        Handles the given log entry and returns True in case it has been logged or False in case it has been ignored because of log level
+        '''
+        self.logCounter += 1;
 
+        self.add_logMessage(newLogEntry)
+        
+        if (self.get_logLevel() == Logger.LOG_LEVEL.DEBUG) or self.get_printAlways():
+            print("#" + str(self.logCounter) + " " + newLogEntry)   # print is OK here!
+            return True
+        
+        return False
+
+
+    def threadInitMethod(self):
+        while (newLogEntry := self.get_preLogMessage()) is not None:
+            self._handleMessage(newLogEntry)
+
+
+    def threadMethod(self):
         # get queue length for monitoring
         queueLength = self.get_logQueue().qsize()
 
         printLine = False
         while not self.get_logQueue().empty():      # @todo ggf. sollten wir hier nur max. 100 Messages behandeln und danach die Loop verlassen, damit die threadLoop wieder dran kommt, andernfalls koennte diese komplett ausgehebelt werden
-            self.logCoutner += 1;
             newLogEntry = self.get_logQueue().get(block = False)
-
-            self.add_logMessage(newLogEntry)
-            
-            if (self.get_logLevel() == Logger.LOG_LEVEL.DEBUG) or self.get_printAlways():
-                print("#" + str(self.logCoutner) + " " + newLogEntry)
-                printLine = True
+            printLine = self._handleMessage(newLogEntry)
 
         # after the queue handling loop has (hopefully) cleared the loop it's ok to send a warning message now
         if self.logQueueMaximumFilledLength < queueLength:
@@ -208,7 +243,7 @@ class Logger(ThreadBase):
                 self.logger.warning(self, "logger queue fill level is very high: " + str(queueLength) + " of " + str(self.get_logQueueLength())) 
 
         if printLine:
-            print("--------------")
+            print("--------------")     # print is OK here
 
 
     def threadBreak(self):
@@ -293,22 +328,31 @@ class Logger(ThreadBase):
         Overall log method, all log methods have to end up here
         '''
         if level <= cls.get_logLevel():
-            senderName = cls.getSenderName(sender)
+            if isinstance(sender, str):
+                senderName = sender
+            else:
+                senderName = cls.getSenderName(sender)
             timeStamp = datetime.now()
             levelText = "{:<18}".format("[" + str(level) + "]")
             logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
 
+            preLogged = False       # in case logger is not running message is prelogged and in case of error or fatal it is additionally printed to STDOUT!
             if cls.get_logQueue() is not None:
+                # send message to log
                 cls.get_logQueue().put(logMessage, block = False)
             else:
-                print(logMessage)           # Logger not yet set up so print message to STDOUT meanwhile
+                # Queue is not yet available so log message into prelog buffer instead
+                cls.add_preLogMessage(logMessage)
+                preLogged = True
 
             if level == cls.LOG_LEVEL.ERROR:
                 logging.error(logMessage)
-                pass
+                if not preLogged:     # only print if not prelogged to suppress double printing
+                    print("(E) " + logMessage)      # (E) means error printed to STDOUT
             elif level == cls.LOG_LEVEL.FATAL:
                 logging.critical(logMessage)
-                pass
+                if not preLogged:     # only print if not prelogged to suppress double printing
+                    print("(F) " + logMessage)      # (W) means fatal error printed to STDOUT
 
 
     @classmethod

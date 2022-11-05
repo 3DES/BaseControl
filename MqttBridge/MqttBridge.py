@@ -233,8 +233,6 @@ class MqttBridge(ThreadObject):
         '''
         MqttBridge worker method executed periodically from ThreadBase.threadLoop()
         '''
-        self.logger.trace(self, "I am the MqttBridge thread = " + self.name)
-
         # first of all handle the system wide TX Queue where MqttBridge is the only reader
         while not self.get_mqttTxQueue().empty():
             newMqttMessageDict = self.get_mqttTxQueue().get(block = False)      # read a message

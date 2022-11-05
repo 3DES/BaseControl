@@ -116,6 +116,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
             # execute thread loop until we get killed
             while not self.killed:              # and not event.is_set():
                 self.threadBreak()              # be nice!
+                self.threadTraceMethod()        # print tracing info
                 self.threadMethod()
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
@@ -155,6 +156,10 @@ class ThreadBase(Base.MqttBase.MqttBase):
         self.logger.info(self, "thread init method called")
 
 
+    def threadTraceMethod(self):
+        self.logger.trace(self, self.name + " : loop turn")
+
+
     def threadMethod(self):
         '''
         Thread method should not contain an endless loop
@@ -190,7 +195,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         if loggerObject is not None:
             loggerObject.message(level, sender, message)
         else:
-            print("no logger found in tear down process: " + message)
+            Logger.Logger.Logger.message(level, sender, message)
 
 
     @classmethod

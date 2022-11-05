@@ -17,8 +17,6 @@ class PowerPlant(Worker):
 
 
     def threadMethod(self):
-        self.logger.trace(self, "I am the PowerPlant thread = " + self.name)
-
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
             self.logger.debug(self, "received message :" + str(newMqttMessageDict))

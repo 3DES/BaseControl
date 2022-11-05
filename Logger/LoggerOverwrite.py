@@ -14,7 +14,7 @@ class LoggerOverwrite(Logger):
 
 
     def threadMethod(self):
-        self.logger.trace(self, "I am the LoggerOverwrite thread = " + self.name)
+        pass
 
         
     def threadBreak(self):
@@ -23,6 +23,5 @@ class LoggerOverwrite(Logger):
 
     @classmethod
     def message(cls, level : Logger.LOG_LEVEL, sender, data : str):
-        print("LoggerOverwrite : " + sender + " [" + str(level) + "] " + data)
-        # @todo wenn super.message fertig ist, dann diese Methode entsprechend anpassen!!!
+        super().message(cls, level, "LoggerOverwrite : " + sender + " [" + str(level) + "] " + data)
 

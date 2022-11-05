@@ -30,6 +30,7 @@
         "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
         "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
         "numberOfThreads": 6,               # expected threads registering to watchdog
+        "upTime":          60,              # every 60 seconds create up time message
         "debug":           1                # with debug == 1 it is allowed that a process de-registers from monitoring what is useful during development and debugging since otherwise the watch dog always detects a timeout
     },
 
@@ -47,7 +48,27 @@
         "class": "Worker.PowerPlant.PowerPlant"
     },
 
-    #"@import as SignalMessenger": "./secureDummy.json"
-    "@import as SignalMessenger": "./secure.json"
+    "SignalMessenger":
+    {
+        "class": "Messenger.SignalMessenger.SignalMessenger",
+        
+        "executable": ".\\\\signal-cli-0.11.4\\\\bin\\\\signal-cli.bat",             # from https://github.com/AsamK/signal-cli
+        "phone":      "+0111111111111",
+        "emergency":  "+0222222222222",
+        "trusted":
+        [
+            "+0222222222222",    # it makes sense that emergency number is also contained in trusted numbers but it is not necessary
+            "+0333333333333",
+            "+0444444444444"
+        ],
+        "aliveTime":  86400,     # 24 * 60 * 60 = 86400 seconds = once a day
+        "disabled":   1          # only supported by uncritical tasks!
+    },
+
+    # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
+    # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
+    "@import": [
+        "./secure.json"
+    ]
 }
 
