@@ -18,8 +18,8 @@
         "class":      "WatchDog.WatchDog.WatchDog",
         "interfaces":
         {
-            "Uart":
-            {           # will be named WatchDog_Uart
+            "WatchDogUart":
+            {
                 "connection": "Interface.Uart.UartInterface.UartInterface",
                 "interface":  "/dev/ttyUSB0",
                 "settings":   "19200,8,N,1"
@@ -29,9 +29,20 @@
         "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
         "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
         "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
-        "numberOfThreads": 6,               # expected threads registering to watchdog
-        "upTime":          60,              # every 60 seconds create up time message
-        "debug":           1                # with debug == 1 it is allowed that a process de-registers from monitoring what is useful during development and debugging since otherwise the watch dog always detects a timeout
+        "expectThreads":                    # expected threads
+        [
+            "MqttBridge",
+            "Logger",
+            "PowerPlant",
+            "Mosquitto",
+            "WatchDogUart",
+            "SignalMessenger"
+        ],
+        "ignoreThreads":                    # no timeout monitoring for these ones...
+        [
+            "WatchDogUart"                  
+        ],
+        "upTime":          60               # every 60 seconds create up time message
     },
 
     "Logger":
@@ -52,8 +63,13 @@
     {
         "class": "Messenger.SignalMessenger.SignalMessenger",
         
-        "executable": ".\\\\signal-cli-0.11.4\\\\bin\\\\signal-cli.bat",             # from https://github.com/AsamK/signal-cli
-        "phone":      "+0111111111111",
+        "executable":
+        [
+            ".\\\\signal-cli-0.11.4\\\\bin\\\\signal-cli.bat",             # from https://github.com/AsamK/signal-cli
+            "-u",
+            "+0111111111111",
+            "jsonRpc"
+        ],
         "emergency":  "+0222222222222",
         "trusted":
         [

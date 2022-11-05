@@ -199,7 +199,7 @@ class MqttBase(object):
         for tagName in tagNames:
             if tagName not in configuration:
                 if not optional:
-                    raise Exception(self.get_threadNames() + " needs a \"" + tagName + "\" value in init file")
+                    raise Exception(self.name() + " needs a \"" + tagName + "\" value in init file")
                 success = False         # remember there was at least one missing element
             elif intIfy:
                 configuration[tagName] = int(configuration[tagName])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
@@ -228,7 +228,7 @@ class MqttBase(object):
         self.watchDogTopic = self.createProjectTopic("WatchDog")            # each watch dog has to subscribe to that topic, without any exceptions!!!
         self.mqttConnect()                                                  # send connect message
         self.mqttSubscribeTopic(self.createInTopicFilter(self.objectTopic)) # subscribe to all topics with our name in it
-        self.mqttSubscribeTopic(self.createInTopicFilter(self.classTopic))  # subscribe to all topics with our name in it
+        self.mqttSubscribeTopic(self.createInTopicFilter(self.classTopic))  # subscribe to all topics with our class in it
 
         if "interfaces" in configuration:
             self.interfaceTopics = []
