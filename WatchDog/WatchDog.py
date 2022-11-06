@@ -2,7 +2,6 @@ import time
 from Base.Supporter import Supporter
 from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
-from _ast import Or
 
 
 class WatchDog(ThreadObject):
@@ -117,11 +116,11 @@ class WatchDog(ThreadObject):
                     if expectedThread not in self.watchDogLastInformedDict:
                         missedThreads.append(expectedThread)
                 # @todo ggf. besser noch den HW-Watchdog informieren und danach die exception schmeissen
-                raise Exception("watch dog expects " +
+                raise Exception("watch dog expects [" +
                                 str(len(self.configuration["expectThreads"])) +
-                                " but got only " +          # we know we have less since unknown threads are handled somewhere else and not stored in known thread list!
+                                "] but got only " +          # we know we have less since unknown threads are handled somewhere else and not stored in known thread list!
                                 Supporter.encloseString(str(len(self.watchDogLastInformedDict))) +
-                                " within timeout time:\n" + "\n".join(missedThreads))
+                                " within timeout time, missing:\n" + "\n".join(missedThreads))
 
         # now check all (already stored) timeout times
         for thread in self.watchDogLastInformedDict:

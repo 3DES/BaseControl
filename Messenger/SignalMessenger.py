@@ -5,6 +5,8 @@ import threading
 import re
 from datetime import datetime
 from queue import Queue
+import sys
+import gc
 
 
 from Base.Supporter import Supporter
@@ -56,6 +58,7 @@ class SignalMessenger(ThreadObject):
 
         # check and prepare mandatory parameters
         self.tagsIncluded(["executable", "emergency"])
+        self.tagsIncluded(["restartLimit", "restartTime"], intIfy = True)
         if not self.tagsIncluded(["aliveTime"], intIfy = True, optional = True):
             self.configuration["aliveTime"] = 0
         if not self.tagsIncluded(["disabled"], intIfy = True, optional = True):
@@ -64,39 +67,43 @@ class SignalMessenger(ThreadObject):
             raise Exception(self.name() + " needs a \"executable\" value in init file that is a list")
 
 
-    def readSignalMessengerThread(self, pipe, queue):
+    def readSignalMessengerThread(self, pipe : subprocess.PIPE, partner : subprocess.Popen, queue : Queue = None, stdErrReader : bool = False):
         '''
         Thread method can block while reading from signal-cli without any watch dog problems since it's not monitored
         '''
         while True:
-            message = pipe.readline().decode().strip()        # blocking read
-            queue.put(message)
-            #if (value := pipe.poll()) is not None:
-            #    raise Exception("external process died")
+            if partner.poll() is None:
+                pipe.flush()
+                message = pipe.readline()               # blocking read
+                print("msg: " + str(message) + "\nhex:" + Supporter.hexDump(str(message)) + "\nlen:" + str(len(message)) + "\n")
+
+                # ignore empty lines
+                if not len(message):
+                    continue
+
+                message = message.decode().strip()
+                # reading on STDERR or on STDOUT?
+                if stdErrReader:
+                    self.logger.warning(self, "signal-cli stderr: " + message)
+                else:
+                    self.logger.info(self, "signal-cli stdout: " + message)
+                    queue.put(message)
+                
+                time.sleep(.1)          # be nice
+            else:
+                self.logger.error(self, "signal-cli died " + ("(stderr)" if stdErrReader else "(stdout)"))
+                return
 
 
     def setupReaders(self):
-        self.RESTART_TIME_THRESHOLD    = 10 * 60    # every 10 minutes we try to start signal if it is not running
-        self.RESTART_COUNTER_THRESHOLD = 3          # stop after 3 tries, don't try again before self.RESTART_TIME_THRESHOLD
-        if not hasattr(self, "lastSignalStartTime"):
-            self.lastSignalStartTime = Supporter.getTimeStamp()
-        elif not hasattr(self, "lastSignalStartCounter"):
-            self.lastSignalStartCounter = 1
-        else:
-            deltaTime = Supporter.getDeltaTime(self.lastSignalStartTime)            
-            if deltaTime > self.RESTART_TIME_THRESHOLD:
-                # more than one hour since last restart try, start restart try again
-                self.lastSignalStartCounter = 1
-                self.lastSignalStartTime = Supporter.getTimeStamp()
-            elif self.lastSignalStartCounter < 3:
-                self.lastSignalStartCounter += 1    # count up until threshold has been reached
-            else:
-                return False                        # threshhold reached
-
+        '''
+        Try to startup signal messenger interface
+        '''
         self.logger.info(self, "signal-cli start handler started")
 
-        self.signalReadQueue = Queue()                  # data from signal messenger's STDOUT
-        self.signalReadErrQueue = Queue()               # data from signal messenger's STDERR
+        if not hasattr(self, "signalReadQueue"):
+            self.signalReadErrQueue = Queue()               # data from signal messenger's STDERR
+            self.signalReadQueue = Queue()                  # data from signal messenger's STDOUT
         self.setupTimeOver = False                      # after a view seconds this value will be set to True and never set back to False, this is used that our reader sub thread has time to come up
 
         # setup pipes to and from signal-cli, see https://github.com/AsamK/signal-cli/discussions/679
@@ -104,13 +111,22 @@ class SignalMessenger(ThreadObject):
                                            stdout = subprocess.PIPE,
                                            stderr = subprocess.PIPE,
                                            stdin  = subprocess.PIPE,
-                                           shell = True)
+                                           shell = True,
+                                           close_fds = 'posix' in sys.builtin_module_names)
 
         # set up and start reader task
-        self.readStdErrThread = threading.Thread(target = self.readSignalMessengerThread, args = (self.signalPipe.stderr, self.signalReadErrQueue), daemon = True)
+        self.readStdErrThread = threading.Thread(target = self.readSignalMessengerThread, args = (
+            self.signalPipe.stderr,
+            self.signalPipe,
+            None,
+            True), daemon = True)
         self.readStdErrThread.start()
-
-        self.readStdOutThread = threading.Thread(target = self.readSignalMessengerThread, args = (self.signalPipe.stdout, self.signalReadQueue), daemon = True)
+        
+        self.readStdOutThread = threading.Thread(target = self.readSignalMessengerThread, args = (
+            self.signalPipe.stdout,
+            self.signalPipe,
+            self.signalReadQueue,
+            False), daemon = True)
         self.readStdOutThread.start()
 
         self.logger.info(self, "signal-cli start handler finished")
@@ -186,89 +202,88 @@ class SignalMessenger(ThreadObject):
         else:
             # main part when setup has been finished
             # anything received?
-                while not self.mqttRxQueue.empty():
-                    newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
-                    self.logger.debug(self, "received message :" + str(newMqttMessageDict))
-                    # @todo do sth. with messages received from any thread here...
+            while not self.mqttRxQueue.empty():
+                newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+                self.logger.debug(self, "received message :" + str(newMqttMessageDict))
+                # @todo do sth. with messages received from any thread here...
 
-                # handle all received errors
-                while not self.signalReadErrQueue.empty():
-                    errorMessage = self.signalReadErrQueue.get(block = False)
+            # handle all received errors
+            if (value := self.signalPipe.poll()) is not None:
+                if not hasattr(self, "signalRestarted") or self.signalRestarted:
+                    self.logger.error(self, "signal-cli died (thread)")
+                    self.signalRestarted = False         # event logged, don't log it again until signal-cli hasn't been started again
 
-                    if not hasattr(self, "signalRestartTryActive") or self.signalRestartTryActive:
-                        self.logger.error(self, "signal-cli stopped: " + errorMessage)
-                        self.signalRestartTryActive = False         # event logged, don't log it again until signal-cli hasn't been started again
+                self.initialMessageSent = False         # startup message will be sent again!
+
+                if self.setupReaders():
+                    self.logger.info(self, "signal-cli re-started")
+                    self.signalRestarted = True          # signal-cli started again, enable event logging again in case it dies again
+
+                return  # leave loop again and let "not self.setupTimeOver" part run again
+
+            # send initial message via signal
+            if not hasattr(self, "initialMessageSent") or not self.initialMessageSent:
+                self.initialMessageSent = True
+                self.sendMessage(self.get_projectName() + " is up and running... [" + str(datetime.now()) + "]")
+
+            # send alive message if configured and alive time is over
+            if self.configuration["aliveTime"] > 0:
+                if Supporter.timer(self.name + "_aliveTimer", timeout = self.configuration["aliveTime"]):
+                    self.sendMessage(self.get_projectName() + " is still alive... [" + str(datetime.now()) + "]")
+
+
+            # handle all received signal messages
+            while not self.signalReadQueue.empty():
+                message = self.signalReadQueue.get(block = False)
+
+                # message handling enabled? (in emergency case message handling can be disabled!)
+                if not self.stopMessageHandling:
+                    jsonMessage = json.loads(str(message))
+                    self.logger.info(self, "message received: " + str(jsonMessage))
                     
-                    self.initialMessageSent = False         # startup message will be sent again!
+                    # contains source number and contains message?
+                    if (sourceNumber := Supporter.dictContains(jsonMessage, "params", "envelope", "sourceNumber")) and (message := Supporter.dictContains(jsonMessage, "params", "envelope", "dataMessage", "message")):
+                        self.logger.info(self, "valid message from [" + sourceNumber + "] : [" + message + "]")
 
-                    if self.setupReaders():
-                        self.logger.info(self, "signal-cli started again")
-                        self.signalRestartTryActive = True          # signal-cli started again, enable event logging again in case it dies again
-                    
-                    return  # leave loop again and let "not self.setupTimeOver" part run again
+                        # send info to emergency number if request was from another trusted number
+                        if not sourceNumber == self.configuration["emergency"]:
+                            self.sendMessage("from [" + sourceNumber + "]: " + message)
 
-                # send initial message via signal
-                if not hasattr(self, "initialMessageSent") or not self.initialMessageSent:
-                    self.initialMessageSent = True
-                    self.sendMessage(self.get_projectName() + " is up and running... [" + str(datetime.now()) + "]")
+                        # only support trusted senders
+                        if sourceNumber in self.configuration["trusted"]:
 
-                # alive message configured and alive time over?
-                if self.configuration["aliveTime"] > 0:
-                    if Supporter.timer(self.name + "_aliveTimer", timeout = self.configuration["aliveTime"]):
-                        self.sendMessage(self.get_projectName() + " is still alive... [" + str(datetime.now()) + "]")
+                            # for performance reasons only take messages start with @
+                            if re.search(r"@", message):
+                                self.logger.info(self, "command from [" + sourceNumber + "] : [" + message + "]")
 
-                # handle all received signal messages
-                while not self.signalReadQueue.empty():
-                    message = self.signalReadQueue.get(block = False)
-
-                    # message handling enabled? (in emergency case message handling can be disabled!)
-                    if not self.stopMessageHandling:
-                        jsonMessage = json.loads(str(message))
-                        self.logger.info(self, "message received: " + str(jsonMessage))
-                        
-                        # contains source number and contains message?
-                        if (sourceNumber := Supporter.dictContains(jsonMessage, "params", "envelope", "sourceNumber")) and (message := Supporter.dictContains(jsonMessage, "params", "envelope", "dataMessage", "message")):
-                            self.logger.info(self, "valid message from [" + sourceNumber + "] : [" + message + "]")
-
-                            # send info to emergency number if request was from another trusted number
-                            if not sourceNumber == self.configuration["emergency"]:
-                                self.sendMessage("from [" + sourceNumber + "]: " + message)
-
-                            # only support trusted senders
-                            if sourceNumber in self.configuration["trusted"]:
-    
-                                # for performance reasons only take messages start with @
-                                if re.search(r"@", message):
-                                    self.logger.info(self, "command from [" + sourceNumber + "] : [" + message + "]")
-
-                                    # check if there was a command included and handle it
-                                    if matches := re.search(r"^@echo\s+(.*)", message, re.MULTILINE):
-                                        self.sendMessage(message, recipient = sourceNumber)
-                                    elif matches := re.search(r"^@help$", message, re.MULTILINE):
-                                        self.sendMessage("@help\n" +
-                                                         "@cmd <cmd>\n" +
-                                                         "@echo <echo message>\n" +
-                                                         "@get <value>\n" +
-                                                         "@stop\n" +
-                                                         "@exception"
-                                                         , recipient = sourceNumber)
-                                    elif matches := re.search(r"^@stop$", message, re.MULTILINE):
-                                        self.sendMessage(message, recipient = sourceNumber)
-                                        self.stopMessageHandling = True
-                                    elif matches := re.search(r"^@exception$", message, re.MULTILINE):
-                                        self.sendMessage(message, recipient = sourceNumber)
-                                        self.stopMessageHandling = True
-                                        raise Exception("initiated via signal message by [" + sourceNumber + "]")
-                                    else:
-                                        self.logger.info(self, "unknown command: [" + message + "]")
-                                        self.sendMessage("unknown command, please try @help", recipient = sourceNumber)
+                                # check if there was a command included and handle it
+                                if matches := re.search(r"^@echo\s+(.*)", message, re.MULTILINE):
+                                    self.sendMessage(message, recipient = sourceNumber)
+                                elif matches := re.search(r"^@help$", message, re.MULTILINE):
+                                    self.sendMessage("@help\n" +
+                                                     "@cmd <cmd>\n" +
+                                                     "@echo <echo message>\n" +
+                                                     "@get <value>\n" +
+                                                     "@stop\n" +
+                                                     "@exception"
+                                                     , recipient = sourceNumber)
+                                elif matches := re.search(r"^@stop$", message, re.MULTILINE):
+                                    self.sendMessage(message, recipient = sourceNumber)
+                                    self.stopMessageHandling = True
+                                elif matches := re.search(r"^@exception$", message, re.MULTILINE):
+                                    self.sendMessage(message, recipient = sourceNumber)
+                                    self.stopMessageHandling = True
+                                    raise Exception("initiated via signal message by [" + sourceNumber + "]")
                                 else:
-                                    self.logger.warning(self, "not a command message")
+                                    self.logger.info(self, "unknown command: [" + message + "]")
                                     self.sendMessage("unknown command, please try @help", recipient = sourceNumber)
                             else:
-                                self.logger.warning(self, "not allowed sender [" + sourceNumber + "]")
+                                self.logger.warning(self, "not a command message")
+                                self.sendMessage("unknown command, please try @help", recipient = sourceNumber)
                         else:
-                            self.logger.info(self, "message ignored")
+                            self.logger.warning(self, "not allowed sender [" + sourceNumber + "]")
+                    else:
+                        self.logger.info(self, "message ignored")
 
 
     #def threadBreak(self):

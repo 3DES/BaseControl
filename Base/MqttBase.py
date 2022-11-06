@@ -235,8 +235,8 @@ class MqttBase(object):
             self.interfaceThreads = InterfaceFactory.createInterfaces(self.name, configuration["interfaces"])
             for interface in self.interfaceThreads:
                 topic = interface.getObjectTopic()
-                self.interfaceTopics.append(self.createInTopic(topic))                          # add IN topic of this interface to send messages
-                self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                       # subscribe to OUT topic of this interface to receive messages
+                self.interfaceTopics.append(self.createInTopic(topic))      # add IN topic of this interface to send messages
+                self.mqttSubscribeTopic(self.createOutTopicFilter(topic))   # subscribe to OUT topic of this interface to receive messages
 
 
     @classmethod

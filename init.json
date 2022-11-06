@@ -38,7 +38,7 @@
             "WatchDogUart",
             "SignalMessenger"
         ],
-        "ignoreThreads":                    # no timeout monitoring for these ones...
+        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
         [
             "WatchDogUart"                  
         ],
@@ -77,8 +77,10 @@
             "+0333333333333",
             "+0444444444444"
         ],
-        "aliveTime":  86400,     # 24 * 60 * 60 = 86400 seconds = once a day
-        "disabled":   1          # only supported by uncritical tasks!
+        "restartLimit":     3,          # if singal-cli dies a restart cycle will contain these numbers of restart tries
+        "restartTime":      600,        # if singal-cli dies a restart cycle will be initiated, if the restart cycle was not successful the next one will be started after this time in seconds
+        "aliveTime":        86400,      # 24 * 60 * 60 = 86400 seconds = once a day
+        "disabled":         1
     },
 
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!

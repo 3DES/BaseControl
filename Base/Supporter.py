@@ -7,7 +7,11 @@ import json
 import re
 from os.path import exists
 import Logger
-
+import sys
+import Base
+from gc import get_referents
+import psutil
+import os
 
 
 class Supporter(object):
@@ -271,4 +275,59 @@ class Supporter(object):
                 testDict = testDict[argument]
         return testDict
         
+
+    # @todo
+    ###@classmethod
+    ###def memCheck(self):
+    ####    def getsize(obj):
+    ####        """sum size of object & members."""
+    ####        BLACKLIST = type
+    ####        if isinstance(obj, BLACKLIST):
+    ####            raise TypeError('getsize() does not take argument of type: '+ str(type(obj)))
+    ####        seen_ids = set()
+    ####        size = 0
+    ####        objects = [obj]
+    ####        while objects:
+    ####            need_referents = []
+    ####            for obj in objects:
+    ####                if not isinstance(obj, BLACKLIST) and id(obj) not in seen_ids:
+    ####                    seen_ids.add(id(obj))
+    ####                    size += sys.getsizeof(obj)
+    ####                    need_referents.append(obj)
+    ####            objects = get_referents(*need_referents)
+    ####        return size
+    ####
+    ####        
+    ####    print(getsize(Base.ThreadBase.ThreadBase.get_setupThreadObjects()))
+    ###    print("----------------------------------")
+    ###    print(psutil.cpu_percent())
+    ###    print(psutil.virtual_memory())  # physical memory usage
+    ###    print('memory % used:', psutil.virtual_memory()[2])
+    ###    pid = os.getpid()
+    ###    print("PID: " + str(pid))
+    ###    python_process = psutil.Process(pid)
+    ###    memoryUse = python_process.memory_info()[0]/2.**30  # memory use in GB...I think
+    ###    print('memory use:', memoryUse)        
+    ###    print("----------------------------------")
+    ###    pass
+
+
         
+        
+        #for name, size in sorted(((name, sys.getsizeof(value)) for name, value in globals().items()),
+        #                         key= lambda x: -x[1])[:10]:
+        #    print("{:>30}: {:>8}".format(name, sizeof_fmt(size)))
+
+
+    @classmethod
+    def hexDump(cls, string):
+        '''
+        Create hex dump from given string (supports unicode strings, too)
+        '''
+        hexString = ""
+        for unicodeChar in string:
+            chars = str(unicodeChar)
+            for char in chars:
+                hexString += ":{:02x}".format(ord(char))
+        return hexString
+

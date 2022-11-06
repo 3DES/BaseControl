@@ -54,13 +54,11 @@ class ProjectRunner(object):
     @classmethod
     def setupThreads(cls, threadDictionary : dict, loggerName : str, mqttBridgeName : str):
         '''
-        Setups up all threads in correct order
-
-        First a Logger will be set up since all other threads need it
-        Second a MqttBridge will be set up  since all other threads need it, since logger was already created it gets the MqttBridge set afterwards
-        Third a Worker will be set up since it's the master thread (maybe the worker should be the last one that is started?!)
-        Fourth all other threads are setup and all except WatchDogs are started
-        Fifth all watchdogs will get started with a list of all the threads setup up so far
+        Setups up all threads in necessary order
+          1) a Logger will be set up since all other threads need it
+          2) a MqttBridge will be set up  since all other threads need it, since logger was already created it gets the MqttBridge set afterwards
+          3) all other threads are setup and all except WatchDogs are started
+          4) all watchdogs will get started with a list of all the threads setup up so far
         '''
         # setup logger thread first to enable logging as soon as possible
         cls.projectLogger     = threadDictionary[loggerName]["class"](
@@ -90,7 +88,8 @@ class ProjectRunner(object):
 
         # loop until any thread throws an exception (and for debugging after 5 seconds)
         while (Base.ThreadBase.ThreadBase.get_exception() is None) and running and not signalReceived:
-            time.sleep(1)
+            time.sleep(1)     # that's fast enough!
+
             cls.projectLogger.trace(cls, "alive")
             if stopAfterSeconds:
                 if Supporter.getTimeStamp() - startTime > stopAfterSeconds:
@@ -217,4 +216,5 @@ class ProjectRunner(object):
             cls.projectLogger.writeLogBufferToDisk()
 
         return stopReason
+
 

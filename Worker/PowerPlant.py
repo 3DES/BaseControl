@@ -5,6 +5,8 @@ from Logger.Logger import Logger
 from Worker.Worker import Worker
 from Base.Supporter import Supporter
 import Base
+import subprocess
+
 
 
 class PowerPlant(Worker):
@@ -47,6 +49,5 @@ class PowerPlant(Worker):
         if Supporter.timer("T2", timeout = 60, startTime = startTime):
             self.logger.info(self, "TIMING EVENT T2")
 
-
-
+        #Supporter.memCheck()
 
