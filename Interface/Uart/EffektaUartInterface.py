@@ -106,9 +106,8 @@ class UartInterface(InterfaceBase):
                 newMqttMessageDict["query"]["response"] = self.getEffektaData(newMqttMessageDict["query"]["cmd"])
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict, globalPublish = False, enableEcho = False)
             elif "setValue" in newMqttMessageDict:
-                # Fire and forget. Errors will be logged in logbook
-                self.setEffektaData(newMqttMessageDict["setValue"]["cmd"], newMqttMessageDict["setValue"]["value"])
-
+                newMqttMessageDict["setValue"]["success"] = self.setEffektaData(newMqttMessageDict["setValue"]["cmd"], newMqttMessageDict["setValue"]["value"])
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict, globalPublish = False, enableEcho = False)
 
     #def threadBreak(self):
     #    pass
