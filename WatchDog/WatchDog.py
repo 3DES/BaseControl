@@ -19,16 +19,9 @@ class WatchDog(ThreadObject):
         # check and prepare mandatory parameters
         self.tagsIncluded(["triggerTime", "timeout", "warningTime"], intIfy = True) 
         self.tagsIncluded(["expectThreads"])
-        if not self.tagsIncluded(["ignoreThreads"], optional = True):
-            configuration["ignoreThreads"] = []                                         # empty list in that case for easier handling
-
-        # setupTime is identical with triggerTime if it hasn't been given
-        if "setupTime" not in configuration:
-            configuration["setupTime"] = configuration["triggerTime"]                   # if (optional) setupTime is not given use triggerTime instead
-
-        # prepare optional value
-        if not self.tagsIncluded(["upTime"], intIfy = True, optional = True):
-            configuration["upTime"] = 0
+        self.tagsIncluded(["ignoreThreads"], optional = True, default = [])                         # empty list in that case for easier handling
+        self.tagsIncluded(["setupTime"], optional = True, default = configuration["triggerTime"])   # if (optional) setupTime is not given use triggerTime instead
+        self.tagsIncluded(["logUpTime"], intIfy = True, optional = True, default = 0)
 
         self.minimumRemainingTime = { "thread" : "", "remainingTime" : configuration["triggerTime"] + configuration["timeout"] }     # to monitor system stability remember shortest ever seen remaining trigger time
 
@@ -132,10 +125,10 @@ class WatchDog(ThreadObject):
                                     Supporter.encloseString(thread) +
                                     "timed out")
 
-        # log system running time (except it has been deactivated by "upTime" == 0)
-        if self.configuration["upTime"]:
+        # log system running time (except it has been deactivated by "logUpTime" == 0)
+        if self.configuration["logUpTime"]:
             deltaTime = Supporter.getDeltaTime(self.startupTime)
-            if self.lastDeltaTime + self.configuration["upTime"] <= deltaTime:
+            if self.lastDeltaTime + self.configuration["logUpTime"] <= deltaTime:
                 self.logger.info(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
                 self.lastDeltaTime = deltaTime
 

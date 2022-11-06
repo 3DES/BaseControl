@@ -178,7 +178,7 @@ class MqttBase(object):
         return MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters
 
 
-    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None):
+    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None, default = None):
         '''
         Checks if given parameters are contained in task configuration
         
@@ -198,8 +198,13 @@ class MqttBase(object):
         # check and prepare mandatory parameters
         for tagName in tagNames:
             if tagName not in configuration:
+                # in case of not optional throw an exception
                 if not optional:
                     raise Exception(self.name() + " needs a \"" + tagName + "\" value in init file")
+
+                # if there was only one element to check and it doesn't exist, set default value
+                if len(tagNames) == 1:
+                    configuration[tagName] = default
                 success = False         # remember there was at least one missing element
             elif intIfy:
                 configuration[tagName] = int(configuration[tagName])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)

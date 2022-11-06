@@ -7,6 +7,7 @@ import queue
 from queue import Queue
 from datetime import datetime
 import Base
+import re
 
 
 from Base.ThreadBase import ThreadBase
@@ -216,8 +217,9 @@ class Logger(ThreadBase):
         self.add_logMessage(newLogEntry)
         
         if (self.get_logLevel() == Logger.LOG_LEVEL.DEBUG) or self.get_printAlways():
-            print("#" + str(self.logCounter) + " " + newLogEntry)   # print is OK here!
-            return True
+            if (not "messageFilter" in self.configuration) or re.search(self.configuration["messageFilter"], newLogEntry):
+                print("#" + str(self.logCounter) + " " + newLogEntry)   # print is OK here!
+                return True
         
         return False
 

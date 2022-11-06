@@ -59,10 +59,8 @@ class SignalMessenger(ThreadObject):
         # check and prepare mandatory parameters
         self.tagsIncluded(["executable", "emergency"])
         self.tagsIncluded(["restartLimit", "restartTime"], intIfy = True)
-        if not self.tagsIncluded(["aliveTime"], intIfy = True, optional = True):
-            self.configuration["aliveTime"] = 0
-        if not self.tagsIncluded(["disabled"], intIfy = True, optional = True):
-            self.configuration["disabled"] = 0
+        self.tagsIncluded(["aliveTime"], intIfy = True, optional = True, default = 0)
+        self.tagsIncluded(["disabled"], intIfy = True, optional = True, default = 0)
         if not isinstance(self.configuration["executable"], list):
             raise Exception(self.name() + " needs a \"executable\" value in init file that is a list")
 

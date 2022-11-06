@@ -29,6 +29,19 @@ class Supporter(object):
             "a" : "b",    # trailing comment   -->   "a" : "b",
             "x" : "y",    # not a 'comment'    -->   "x" : "y",    # not a 'comment'
         '''
+        def dictMerge(targetDict : dict, sourceDict : dict):
+            '''
+            Merges two dicts by adding elements from one into the other.
+            If elements in source and in target dict are also dicts it will recursively merge them.
+            If one or both elements aren't dicts the element in the target dict will be replaced by the one in the source dict, this means that e.g. lists will be replaced and list elements from target list will get lost.
+            '''
+            for sourceElement in sourceDict:
+                if sourceElement in targetDict and (type(targetDict[sourceElement]) is dict) and (type(sourceDict[sourceElement]) is dict):
+                    dictMerge(targetDict[sourceElement], sourceDict[sourceElement])
+                else:
+                    targetDict[sourceElement] = sourceDict[sourceElement]
+
+
         loadFileStack = []      # needed to prevent recursive import of json files
         def loadPseudoJsonFile(jsonDictionary : dict):
             if "@import" in jsonDictionary:
@@ -63,7 +76,7 @@ class Supporter(object):
     
                         # try to json-ize imported file to get error messages with correct line numbers                
                         try:
-                            jsonDictionary.update(json.loads(fileContent))
+                            dictMerge(jsonDictionary, json.loads(fileContent))
                         except Exception as exception:
                             raise Exception("error in json file " + fileName + " -> " + str(exception))
     

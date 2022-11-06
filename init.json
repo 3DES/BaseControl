@@ -20,9 +20,16 @@
         {
             "WatchDogUart":
             {
-                "connection": "Interface.Uart.UartInterface.UartInterface",
-                "interface":  "/dev/ttyUSB0",
-                "settings":   "19200,8,N,1"
+                "connection":  "Interface.Uart.UartInterface.UartInterface",
+                #"interface":   "/dev/ttyUSB0",
+                "interface":   "COM6",
+                "baudrate":    9600, 
+                "bytesize":    8,               # 5, 6, 7, 8
+                "parity":      "N",             # [N]one, [O]dd, [E]ven, [M]ark, [S]pace
+                "stopbits":    1.5              # 1, 1.5, 2
+                #"xonxoff":    1,               # on = 1, off = 0
+                #"rtscts":     1,               # on = 1, off = 0
+                #"timeout":    1,               # read timeout in seconds
             }
         },
         "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
@@ -42,16 +49,17 @@
         [
             "WatchDogUart"                  
         ],
-        "upTime":          60               # every 60 seconds create up time message
+        "logUpTime":          60            # every 60 seconds create up time message
     },
 
     "Logger":
     {
-        "class":       "Logger.Logger.Logger",      # optionally: Logger.LoggerOverwrite.LoggerOverwrite
-        "queueLength": 500,                         # log queue length is 100 per default but can be enlarged if it gets critically filled up
+        "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
+        "queueLength":   500,                       # log queue length is 100 per default but can be enlarged if it gets critically filled up
+        #"messageFilter": "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
 
         # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
-        "projectName": "AccuControl"        # project name for MQTT topics (<projectName>/<threadName>/...)
+        "projectName":   "AccuControl"              # project name for MQTT topics (<projectName>/<threadName>/...)
     },
 
     "PowerPlant":
