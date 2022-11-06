@@ -75,9 +75,9 @@ class SignalMessenger(ThreadObject):
             if partner.poll() is None:
                 pipe.flush()
                 message = pipe.readline()               # blocking read
-                print("msg: " + str(message) + "\nhex:" + Supporter.hexDump(str(message)) + "\nlen:" + str(len(message)) + "\n")
+                #print("msg: " + str(message) + "\nhex:" + Supporter.hexDump(str(message)) + "\nlen:" + str(len(message)) + "\n")
 
-                # ignore empty lines
+                # ignore empty lines (and lines like b'' = 0x62,0x27,0x27)
                 if not len(message):
                     continue
 
@@ -175,6 +175,7 @@ class SignalMessenger(ThreadObject):
 
 
         # send message to recipient
+        timeStamp = "[" + str(datetime.now()) + "] "
         header = ""     # onyl used in case recipient is not emergency contact
         if recipient is not None and not recipient == self.configuration["emergency"]:
             # prepare message
@@ -183,7 +184,7 @@ class SignalMessenger(ThreadObject):
             header = "to ["+ recipient +"]: "       # add a header for message to emergency contact to get some extra information
 
         # always send message to emergency contact even if recipient was sb. else
-        sendMessage = self.prepareSingalMessage(self.configuration["emergency"], header + message)
+        sendMessage = self.prepareSingalMessage(self.configuration["emergency"], timeStamp + header + message)
         sendPreparedMessage(sendMessage)
 
         return self.messageCounter
@@ -224,12 +225,12 @@ class SignalMessenger(ThreadObject):
             # send initial message via signal
             if not hasattr(self, "initialMessageSent") or not self.initialMessageSent:
                 self.initialMessageSent = True
-                self.sendMessage(self.get_projectName() + " is up and running... [" + str(datetime.now()) + "]")
+                self.sendMessage(self.get_projectName() + " is up and running...")
 
             # send alive message if configured and alive time is over
             if self.configuration["aliveTime"] > 0:
                 if Supporter.timer(self.name + "_aliveTimer", timeout = self.configuration["aliveTime"]):
-                    self.sendMessage(self.get_projectName() + " is still alive... [" + str(datetime.now()) + "]")
+                    self.sendMessage(self.get_projectName() + " is still alive...")
 
 
             # handle all received signal messages
@@ -292,6 +293,6 @@ class SignalMessenger(ThreadObject):
 
     def threadTearDownMethod(self):
         # try to send a last message out!
-        self.sendMessage(self.get_projectName() + " shut down... [" + str(datetime.now()) + "]")
+        self.sendMessage(self.get_projectName() + " shut down...")
         time.sleep(1)       # give message some time to be sent out
 
