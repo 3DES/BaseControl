@@ -8,7 +8,12 @@
             {
                 "connection": "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
                 "server":     "localhost",
-                "port":       1883
+                "port":       1883,
+                "user":       "user",
+                "password":   "password"                
+            }
+        }
+    },
             }
         }
     },
