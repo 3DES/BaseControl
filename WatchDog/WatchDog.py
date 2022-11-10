@@ -1,4 +1,5 @@
 import time
+import json
 from Base.Supporter import Supporter
 from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
@@ -71,7 +72,7 @@ class WatchDog(ThreadObject):
             # handle received message, if newMqttMessageDict["content"]["sender"] is included this thread must be still alive
             if "content" in newMqttMessageDict:
                 if "sender" in newMqttMessageDict["content"]:
-                    sender = newMqttMessageDict["content"]["sender"]
+                    sender = json.loads(newMqttMessageDict["content"])["sender"]
 
                     # do we expect a thread with this name?
                     if sender not in self.configuration["expectThreads"]:

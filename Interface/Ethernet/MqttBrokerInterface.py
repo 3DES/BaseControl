@@ -66,10 +66,9 @@ class MqttBrokerInterface(InterfaceBase):
             if newMqttMessageDict["global"]:
                 self.logger.info(self, " received global queue message :" + str(newMqttMessageDict))
                 try:
-                    tempMsg = json.dumps(newMqttMessageDict["content"])
-                    self.client.publish(newMqttMessageDict["topic"], tempMsg, retain = True)
+                    self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = True)
                     # we remember the msg to ignore incomming own msg
-                    self.dontCareList[newMqttMessageDict["topic"]] = tempMsg
+                    self.dontCareList[newMqttMessageDict["topic"]] = newMqttMessageDict["content"]
                 except:
                     self.logger.error(self, "Could not send MQTT msg to broker: "  + str(newMqttMessageDict))
             elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):

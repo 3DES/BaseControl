@@ -204,6 +204,10 @@ class SignalMessenger(ThreadObject):
             while not self.mqttRxQueue.empty():
                 newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
                 self.logger.debug(self, "received message :" + str(newMqttMessageDict))
+                try:
+                    newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
+                except:
+                    pass
                 # @todo do sth. with messages received from any thread here...
 
             # handle all received errors

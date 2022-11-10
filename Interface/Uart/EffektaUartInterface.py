@@ -2,6 +2,7 @@ import time
 import serial
 import crc16
 
+import json
 from Base.InterfaceBase import InterfaceBase
 
 
@@ -108,6 +109,10 @@ class UartInterface(InterfaceBase):
             elif "setValue" in newMqttMessageDict:
                 newMqttMessageDict["setValue"]["success"] = self.setEffektaData(newMqttMessageDict["setValue"]["cmd"], newMqttMessageDict["setValue"]["value"])
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict, globalPublish = False, enableEcho = False)
+            try:
+                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
+            except:
+                self.logger.error(self, f'Cannot convert {newMqttMessageDict["content"]} to dict')
 
     #def threadBreak(self):
     #    pass

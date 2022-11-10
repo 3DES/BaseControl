@@ -81,8 +81,13 @@ class EffektaController(ThreadBase):
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
-            
+
+            newMqttMessageDict = self.mqttRxQueue.get(block = False)
+
+            try:
+                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
+            except:
+                pass
             self.sendeGlobalMqtt = False
             
             # First we check if the msg is from extern

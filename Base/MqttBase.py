@@ -457,7 +457,10 @@ class MqttBase(object):
     def mqttPublish(self, topic : str, content, globalPublish : bool = True, enableEcho : bool = False):
         '''
         Publish some message locally or globally
+        If content is a dict, we dump it to a string
         '''
+        if type(content) == dict:
+            content = json.dumps(content)
         if enableEcho:
             messageType = MqttBase.MQTT_TYPE.PUBLISH if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL
         else:
