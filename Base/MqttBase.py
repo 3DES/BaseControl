@@ -1,5 +1,6 @@
 import time
 import calendar
+import json
 import threading
 import inspect
 from enum import Enum
@@ -236,11 +237,13 @@ class MqttBase(object):
         self.mqttSubscribeTopic(self.createInTopicFilter(self.classTopic))  # subscribe to all topics with our class in it
 
         if "interfaces" in configuration:
-            self.interfaceTopics = []
+            self.interfaceInTopics = []
+            self.interfaceOutTopics = []
             self.interfaceThreads = InterfaceFactory.createInterfaces(self.name, configuration["interfaces"])
             for interface in self.interfaceThreads:
                 topic = interface.getObjectTopic()
-                self.interfaceTopics.append(self.createInTopic(topic))      # add IN topic of this interface to send messages
+                self.interfaceInTopics.append(self.createInTopic(topic))      # add IN topic of this interface to send messages
+                self.interfaceOutTopics.append(self.createOutTopic(topic))      # add OUT topic of this interface to send messages
                 self.mqttSubscribeTopic(self.createOutTopicFilter(topic))   # subscribe to OUT topic of this interface to receive messages
 
 
