@@ -14,9 +14,20 @@
             }
         }
     },
-            }
-        }
-    },
+
+#    "WrEffektaWest":
+#    {
+#        "class":        "Inverter.EffektaController.EffektaController",
+#        "interfaces":
+#        {
+#            "UartWrEffektaWest":
+#            {
+#                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+#                "interface":    "COM4",
+#                "baudrate":     2400
+#            }
+#        }
+#    },
 
     "WatchDog":
     {
