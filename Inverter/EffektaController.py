@@ -1,5 +1,6 @@
 import time
 import datetime
+import json
 from Base.ThreadBase import ThreadBase
 
 
@@ -41,9 +42,12 @@ class EffektaController(ThreadBase):
             return False
 
     def threadInitMethod(self):
-        self.EffektaData["EffektaWerte"] = {"timeStamp": 0, "Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "DailyCharge": 0.0, "DailyDischarge": 0.0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}
+        self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "DailyCharge": 0.0, "DailyDischarge": 0.0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
         self.tempDailyProduction = 0.0
+        self.timeStamp = time.time()
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
+        self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()) + "/#", globalSubscription = True)
+        #self.mqttSubscribeTopic(self.createInTopic(self.getClassTopic()) + "/#", globalSubscription = True)
 
     def threadMethod(self):
         '''
@@ -68,16 +72,15 @@ class EffektaController(ThreadBase):
         # possible msg
         # queryTemplate["query"] = {"cmd":"filledfromSender", "response":"filledFromInterface"}
         # setValueTemplate["setValue"] = {"cmd":"filledfromSender", "value":"filledfromSender", "success": filledFromInterface, "extern":filledfromSender}
-        self.queryDict["query"] = {"cmd":"", "response":"", "extern":False}
-        self.setValueDict["setValue"] = {"cmd":"", "value":"", "success": False, "extern":False}
-        
-        if self.EffektaData["EffektaWerte"]["timeStamp"] + effekta_Query_Cycle < time.time():
-            self.EffektaData["EffektaWerte"]["timeStamp"] = time.time()
-            self.queryDict["query"]["extern"] = False
-            self.queryDict["query"]["cmd"] = "QPIGS" # Device general status parameters inquiry
-            self.mqttPublish(self.interfaceTopics[0], self.queryDict, globalPublish = False, enableEcho = False)
-            self.queryDict["query"]["cmd"] = "QMOD" # Device mode parameters inquiry
-            self.mqttPublish(self.interfaceTopics[0], self.queryDict, globalPublish = False, enableEcho = False)
+        self.queryDict = {"query":{"cmd":"", "response":"", "extern":False}}
+        self.setValueDict = {"setValue": {"cmd":"", "value":"", "success": False, "extern":False}}
+
+        if self.timeStamp + effekta_Query_Cycle < time.time():
+            self.timeStamp = time.time()
+            self.queryDict = {"query":{"cmd":"QPIGS", "response":"", "extern":False}} # Device general status parameters inquiry
+            self.mqttPublish(self.interfaceInTopics[0], self.queryDict, globalPublish = False, enableEcho = False)
+            self.queryDict = {"query":{"cmd":"QMOD", "response":"", "extern":False}} # Device mode parameters inquiry
+            self.mqttPublish(self.interfaceInTopics[0], self.queryDict, globalPublish = False, enableEcho = False)
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
@@ -88,44 +91,44 @@ class EffektaController(ThreadBase):
                 newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
             except:
                 pass
+
             self.sendeGlobalMqtt = False
-            
+
             # First we check if the msg is from extern
-            if not (newMqttMessageDict["topic"] in self.interfaceTopics):
+            if not (newMqttMessageDict["topic"] in self.interfaceOutTopics):
                 # if the ..Extern is not from interface we will send it to the interface  
                 # from extern we only need the sting of parameter
                 if "queryExtern" in newMqttMessageDict["topic"]:
-                    self.queryDict["query"]["extern"] = True
-                    self.queryDict["query"]["cmd"] = newMqttMessageDict["content"]
-                    self.mqttPublish(self.interfaceTopics[0], self.queryDict, globalPublish = False, enableEcho = False)
-                if "setValueExtern" in newMqttMessageDict["topic"]:
+                    self.queryDict = {"query":{"cmd": newMqttMessageDict["content"], "response":"", "extern":True}}
+                    self.mqttPublish(self.interfaceInTopics[0], self.queryDict, globalPublish = False, enableEcho = False)
+                elif "setValueExtern" in newMqttMessageDict["topic"]:
                     self.setValueDict["setValue"]["extern"] = True
                     self.setValueDict["setValue"]["cmd"] = newMqttMessageDict["content"]
                     #self.setValueDict["setValue"]["value"] can be emty. realCmd = cmd concat value
-                    self.mqttPublish(self.interfaceTopics[0], self.setValueDict, globalPublish = False, enableEcho = False)                    
+                    self.mqttPublish(self.interfaceInTopics[0], self.setValueDict, globalPublish = False, enableEcho = False)
+                elif "Netzspannung" in newMqttMessageDict["content"]:
+                    # if we get our own Data will overwrite internal data. For initial settings like ...Production
+                    self.EffektaData["EffektaWerte"] = newMqttMessageDict["content"]
+                    self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
             else:
                 # The msg is from our interface
-                if "EffektaWerte" in newMqttMessageDict["content"]:
-                    # if we get our own Data will overwrite internal data. For initial settings like ...Production
-                    self.EffektaData = newMqttMessageDict["content"]
-                    self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
-                elif "setValue" in newMqttMessageDict["content"]:
+                if "setValue" in newMqttMessageDict["content"]:
                     if newMqttMessageDict["content"]["setValue"]["extern"]:
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
-                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict, globalPublish = True, enableEcho = False)                
+                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["setValue"]["success"], globalPublish = True, enableEcho = False)
                 elif "query" in newMqttMessageDict["content"]:
                     if newMqttMessageDict["content"]["query"]["extern"]:
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
-                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict, globalPublish = True, enableEcho = False)
+                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"]["response"], globalPublish = True, enableEcho = False)
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
                             self.sendeGlobalMqtt = True
                             self.EffektaData["EffektaWerte"]["ActualMode"] = newMqttMessageDict["content"]["query"]["response"]
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QPIGS" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         (Netzspannung, Netzfrequenz, AcOutSpannung, AcOutFrequenz, AcOutPowerVA, AcOutPower, AcOutLoadProz, BusVoltage, BattSpannung, BattCharge, BattCapacity, InverterTemp, PvCurrent, PvVoltage, BattVoltageSCC, BattDischarge, DeviceStatus1, BattOffset, EeVersion, PvPower, DeviceStatus2) = newMqttMessageDict["content"]["query"]["response"].split()
-            
+
                         self.EffektaData["EffektaWerte"]["AcOutSpannung"] = float(AcOutSpannung)
-                        
+
                         if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["Netzspannung"], int(float(Netzspannung)), 3, -1, 10000):
                             self.EffektaData["EffektaWerte"]["Netzspannung"] = int(float(Netzspannung))
                             self.sendeGlobalMqtt = True                
@@ -150,12 +153,12 @@ class EffektaController(ThreadBase):
                         if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["BattCapacity"], int(BattCapacity), 1, -1, 101) or self.sendeGlobalMqtt:
                             self.EffektaData["EffektaWerte"]["BattCapacity"] = int(BattCapacity)
                             self.sendeGlobalMqtt = True
-                            
+
                         self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
                         self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
-                        
+
                         if self.sendeGlobalMqtt:
-                            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData, globalPublish = True, enableEcho = False)
+                            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = True, enableEcho = False)
                         else:
                             pass
                             # @todo send aktual values here
