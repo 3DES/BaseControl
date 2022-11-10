@@ -15,7 +15,7 @@ class MqttBrokerInterface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.tagsIncluded(["user"], ["password"], ["server"], ["port"])
+        self.tagsIncluded(["user", "password", "server", "port"])
 
     def connectMqtt(self):
         self.client = mqtt.Client()
