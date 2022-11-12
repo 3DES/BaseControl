@@ -15,6 +15,14 @@ class EffektaController(ThreadBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
+        self.VerbraucherNetz = "POP00"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
+        self.VerbraucherAkku = "POP02"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
+        self.BattLeer = "PSDV43.0"
+        self.BattWiederEntladen = "PBDV48.0"
+        self.NetzSchnellLadestrom = "MUCHGC030"
+        self.NetzErhaltungsLadestrom = "MUCHGC002"
+        self.chargePrioNetzPV = "PCP02"             # charge prio 02=Netz und pv, 03=pv
+        self.chargePrioPV = "PCP03"             # charge prio 02=Netz und pv, 03=pv
 
     def checkWerteSprung(self, newValue, oldValue, percent, minVal, maxVal, minAbs = 0):
         
@@ -41,12 +49,103 @@ class EffektaController(ThreadBase):
             #myPrint("wert wird nicht uebernommen")
             return False
 
+    """
+    schalteAlleWrAufAkku()              Schaltet alle Wr auf Akku, setzt die Unterspannungserkennung des Wr ausser Kraft
+    schalteAlleWrNetzLadenAus()         Schaltet das Laden auf PV
+    schalteAlleWrNetzLadenEin()         Schaltet das Laden auf PV+Netz, schaltet die Verbraucher auf Netz, setzt den Netz Ladstrom auf NetzErhaltungsLadestrom
+    schalteAlleWrNetzSchnellLadenEin()  Schaltet das Laden auf PV+Netz, schaltet die Verbraucher auf Netz, setzt den Netz Ladstrom auf NetzSchnellLadestrom, schaltet das Skript auf Manuell
+    schalteAlleWrAufNetzOhneNetzLaden() Schaltet alle Wr auf Netz, setzt die Unterspannungserkennung des Wr ausser Kraft
+    schalteAlleWrAufNetzMitNetzladen()  Schaltet alle Wr auf Netz, setzt die Unterspannungserkennung des Wr auf aktiv
+    """
+
+    def getParamterTopic(self, EffektaName):
+        """
+        Je nach Paramter wird da Klassentopic oder effektaTopic gebildet
+        """
+        if EffektaName == self.__class__.__name__:
+            return self.createInTopic(self.getClassTopic())
+        else:
+            return self.createInTopic(self.getObjectTopic())
 
     def getSetValueDict(self, cmd, value = "", extern = False):
         return {"setValue": {"cmd":cmd, "value":value, "success": False, "extern":extern}}
 
     def getQueryDict(self, cmd, extern = False):
         return {"query":{"cmd":cmd, "response":"", "extern":extern}}
+
+    def schalteAlleWrAufAkku(self, Effektas):
+        """
+        Schalte alle Effektas (List) auf Akku. In Effektas darf der Class Name oder Objekt Name stehen.
+        """
+        for effektaName in Effektas:
+            topic = self.getParamterTopic(effektaName)
+            self.mqttPublish(topic, self.getSetValueDict(self.BattLeer), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.BattWiederEntladen), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.VerbraucherAkku), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.chargePrioPV), globalPublish = False, enableEcho = False)
+
+
+    def schalteAlleWrNetzLadenAus(self, Effektas):
+        """
+        Schalte alle Effektas (List) auf Pv Ladeprio -> Netz laden aus. In Effektas darf der Class Name oder Objekt Name stehen.
+        """
+        for effektaName in Effektas:
+            topic = self.getParamterTopic(effektaName)
+            self.mqttPublish(topic, self.getSetValueDict(self.chargePrioPV), globalPublish = False, enableEcho = False)
+
+
+    def schalteAlleWrNetzLadenEin(self, Effektas):
+        """
+        Schalte alle Effektas (List) auf Netzbetrieb mit Erhaltungsladen. In Effektas darf der Class Name oder Objekt Name stehen.
+        """
+        for effektaName in Effektas:
+            topic = self.getParamterTopic(effektaName)
+            self.mqttPublish(topic, self.getSetValueDict(self.chargePrioNetzPV), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.VerbraucherNetz), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.NetzErhaltungsLadestrom), globalPublish = False, enableEcho = False)
+
+    def schalteAlleWrNetzSchnellLadenEin(self, Effektas):
+        """
+        Schalte alle Effektas (List) auf Netzbetrieb mit Schnellladen. In Effektas darf der Class Name oder Objekt Name stehen.
+        """
+        for effektaName in Effektas:
+            topic = self.getParamterTopic(effektaName)
+            self.mqttPublish(topic, self.getSetValueDict(self.chargePrioNetzPV), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.VerbraucherNetz), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.NetzSchnellLadestrom), globalPublish = False, enableEcho = False)
+
+
+    def schalteAlleWrAufNetzOhneNetzLaden(self, Effektas):
+        """
+        Schalte alle Effektas (List) auf Netzbetrieb. In Effektas darf der Class Name oder Objekt Name stehen.
+        """
+        for effektaName in Effektas:
+            topic = self.getParamterTopic(effektaName)
+            self.mqttPublish(topic, self.getSetValueDict(self.VerbraucherNetz), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.BattLeer), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.BattWiederEntladen), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.chargePrioPV), globalPublish = False, enableEcho = False)
+
+
+    def schalteAlleWrAufNetzMitNetzladen(self, Effektas):
+        """
+        Schalte alle Effektas (List) auf Netz mit Laden. In Effektas darf der Class Name oder Objekt Name stehen.
+
+        Diese Funktion setzt den Wr in einen Modus wo er auch selbst die Unterspannung überwacht. Sollten wir diese erreichen schaltet er komplett ab.
+        Dies ist nötig wenn die Anlage aufgrund tiefer entladung auf Netz geschaltet wurde.
+        Test:
+        Funktion aufrufen, wr schaltet dann auf netz, netz ausschalten, wr schaltet auf akku, akku entladen <48V, wr schaltet komplett ab, strom aus akku: 0A
+        ergebnis ok
+        wr schaltet sofort auf netz wenn zusätzlich dann der netz ausfällt schaltet er wieder auf batt bis diese <48V hat
+        bei wieder einschaltetn läd er mit netz wenn kein pv da ist. wenn pv dann kommt läd er damit zusätzlich
+        """
+        for effektaName in Effektas:
+            topic = self.getParamterTopic(effektaName)
+            self.mqttPublish(topic, self.getSetValueDict(self.VerbraucherNetz), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict("PBDV52.0"), globalPublish = False, enableEcho = False)                # redischarge voltage auf Grösste Spannugn setzen
+            self.mqttPublish(topic, self.getSetValueDict("PSDV48.0"), globalPublish = False, enableEcho = False)                # Batt undervoltage auf Grösste Spannugn setzen
+            self.mqttPublish(topic, self.getSetValueDict(self.NetzErhaltungsLadestrom), globalPublish = False, enableEcho = False)
+            self.mqttPublish(topic, self.getSetValueDict(self.chargePrioNetzPV), globalPublish = False, enableEcho = False)
 
     def threadInitMethod(self):
         self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "DailyCharge": 0.0, "DailyDischarge": 0.0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
