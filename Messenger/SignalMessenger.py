@@ -7,6 +7,8 @@ from datetime import datetime
 from queue import Queue
 import sys
 import gc
+import os
+import signal
 
 
 from Base.Supporter import Supporter
@@ -294,4 +296,8 @@ class SignalMessenger(ThreadObject):
         # try to send a last message out!
         self.sendMessage(self.get_projectName() + " shut down...")
         time.sleep(1)       # give message some time to be sent out
+        if "killpg" in dir(os):
+            os.killpg(os.getpgid(self.signalPipe.pid), signal.SIGTERM)
+        else:
+            os.kill(self.signalPipe.pid, signal.SIGTERM)
 
