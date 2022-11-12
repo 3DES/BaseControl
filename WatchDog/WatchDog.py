@@ -11,16 +11,20 @@ class WatchDog(ThreadObject):
     '''
 
 
-    def __init__(self, threadName : str, configuration : dict):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
         '''
         Constructor
         '''
-        super().__init__(threadName, configuration)
+        super().__init__(threadName, configuration, interfaceQueues)
 
         # check and prepare mandatory parameters
         self.tagsIncluded(["triggerTime", "timeout", "warningTime"], intIfy = True) 
         self.tagsIncluded(["expectThreads"])
-        self.tagsIncluded(["ignoreThreads"], optional = True, default = [])                         # empty list in that case for easier handling
+        if self.tagsIncluded(["ignoreThreads"], optional = True, default = []):     # empty list in that case for easier handling
+            self.configuration["expectThreads"].extend(self.configuration["ignoreThreads"])             # add ignoreThreads to expectedThreads now so they don't have to be given in both lists
+            self.configuration["ignoreThreads"] = list(set(self.configuration["ignoreThreads"]))        # ensure each thread is contained only once
+            self.configuration["expectThreads"] = list(set(self.configuration["expectThreads"]))        # ensure each thread is contained only once
+
         self.tagsIncluded(["setupTime"], optional = True, default = configuration["triggerTime"])   # if (optional) setupTime is not given use triggerTime instead
         self.tagsIncluded(["logUpTime"], intIfy = True, optional = True, default = 0)
 

@@ -50,11 +50,11 @@ class SignalMessenger(ThreadObject):
     '''
 
 
-    def __init__(self, threadName : str, configuration : dict):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
         '''
         Constructor
         '''
-        super().__init__(threadName, configuration)
+        super().__init__(threadName, configuration, interfaceQueues)
 
         # check and prepare mandatory parameters
         self.tagsIncluded(["executable", "emergency"])
@@ -79,7 +79,8 @@ class SignalMessenger(ThreadObject):
                 if not len(message):
                     continue
 
-                message = message.decode().strip()
+                #print(Supporter.hexAsciiDump(message))
+                message = Supporter.decode(message).strip()
                 # reading on STDERR or on STDOUT?
                 if stdErrReader:
                     self.logger.warning(self, "signal-cli stderr: " + message)
@@ -152,7 +153,7 @@ class SignalMessenger(ThreadObject):
         '''
         self.messageCounter += 1
         sendData = {"jsonrpc":"2.0","method":"send","params":{"recipient":[recipient],"message":message},"id":self.messageCounter}
-        sendData = ((json.dumps(sendData)) + "\n").encode('utf-8')
+        sendData = Supporter.encode((json.dumps(sendData)) + "\n")
         return sendData
 
 
@@ -175,7 +176,7 @@ class SignalMessenger(ThreadObject):
         # send message to recipient
         timeStamp = "[" + str(datetime.now()) + "] "
         header = ""     # onyl used in case recipient is not emergency contact
-        if recipient is not None and not recipient == self.configuration["emergency"]:
+        if (recipient is not None) and (recipient != self.configuration["emergency"]):
             # prepare message
             sendMessage = self.prepareSingalMessage(recipient, message)
             sendPreparedMessage(sendMessage)
@@ -195,19 +196,15 @@ class SignalMessenger(ThreadObject):
                 self.disableWarningSent = True
                 self.logger.warning(self, self.name + " is disabled via init file")
         elif not self.setupTimeOver:
-            if Supporter.timer(self.name + "_initTimer", timeout = 5):
+            if self.timer("initTimer", timeout = 5):
                 self.setupTimeOver = True
-                Supporter.timer(self.name + "_initTimer", remove = True)
+                self.timer("initTimer", remove = True)
         else:
             # main part when setup has been finished
             # anything received?
             while not self.mqttRxQueue.empty():
                 newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
                 self.logger.debug(self, "received message :" + str(newMqttMessageDict))
-                try:
-                    newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-                except:
-                    pass
                 # @todo do sth. with messages received from any thread here...
 
             # handle all received errors
@@ -231,7 +228,7 @@ class SignalMessenger(ThreadObject):
 
             # send alive message if configured and alive time is over
             if self.configuration["aliveTime"] > 0:
-                if Supporter.timer(self.name + "_aliveTimer", timeout = self.configuration["aliveTime"]):
+                if self.timer("aliveTimer", timeout = self.configuration["aliveTime"]):
                     self.sendMessage(self.get_projectName() + " is still alive...")
 
 
@@ -249,7 +246,7 @@ class SignalMessenger(ThreadObject):
                         self.logger.info(self, "valid message from [" + sourceNumber + "] : [" + message + "]")
 
                         # send info to emergency number if request was from another trusted number
-                        if not sourceNumber == self.configuration["emergency"]:
+                        if sourceNumber != self.configuration["emergency"]:
                             self.sendMessage("from [" + sourceNumber + "]: " + message)
 
                         # only support trusted senders

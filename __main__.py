@@ -16,6 +16,41 @@ ATTENTION:
 @todo alle xxxxx suchen
 
 
+
+
+
+object
++---Crc
++---InterfaceFactory
++---ProjectRunner
++---Supporter
++---Base
+    +---MqttBase
+        +---ThreadBase
+            +---ThreadObject
+            |   +---InterfaceBase
+            |   |   +---DummyInterface                  (to be used as template to create interfaces)
+            |   |   +---MqttBrokerInterface
+            |   |   +---TcpInterface
+            |   |   |   +---EasyMeterTcpInterface
+            |   |   +---EffektaUartInterface
+            |   |   +---UartInterface
+            |   +---EasyMeter
+            |   +---SignalMessenger
+            |   +---MqttBridge
+            |   +---WatchDog
+            |   +---Worker                              (to be used as template for an own worker thread)
+            |       +---PowerPlant
+            +---EffektaController                       ?????
+            +---Logger
+                +---LoggerOverwrite                     (to be used as template to overwrite Logger)
+                
+
+
+
+
+
+
 '''
 
 
@@ -26,36 +61,6 @@ import sys
 from Base.ProjectRunner import ProjectRunner
 import Logger.Logger
 from Base.MqttBase import MqttBase
-
-
-#import time
-#from Base.Supporter import Supporter
-#value1 = Supporter.counter("B", 2, autoReset = True)
-#value1 = Supporter.counter("B", 2, autoReset = True)
-#value1 = Supporter.counter("B", 2, autoReset = True)
-#value1 = Supporter.counter("B", 2, autoReset = True)
-#value1 = Supporter.counter("B", 2, autoReset = True)
-#
-#while True:
-#    value1 = Supporter.counter("B", 2, autoReset = True)
-#    value2 = Supporter.counter("B", 2, autoReset = True, dontCount = True)
-#    value3 = Supporter.counter("B", 2, autoReset = True, getValue = True, dontCount = True)
-#    print(str(value1) + " " + str(value2) + " " + str(value3) + " ")
-#
-#sys.exit(255)
-#startTime = Supporter.getTimeStamp()
-#for x in range(20):
-#    print(str(Supporter.getTimeStamp() - startTime) + " seconds: ", end = "")
-#    if (Supporter.timer(name = "A", timeout = 2, strict = True)):
-#        print("over now")
-#    else:
-#        print("not yet")
-#    time.sleep(3)
-#Supporter.timer(name = "A", timeout = 3)
-#Supporter.timer(name = "A")
-#Supporter.timer(name = "A", remove = True)
-#Supporter.timer(name = "A", timeout = 3)
-#Supporter.timer(name = "A")
 
 
 '''

@@ -3,6 +3,8 @@ import paho.mqtt.client as mqtt
 import json 
 
 from Base.InterfaceBase import InterfaceBase
+from Base.Supporter import Supporter
+
 
 class MqttBrokerInterface(InterfaceBase):
     '''
@@ -29,13 +31,15 @@ class MqttBrokerInterface(InterfaceBase):
 
     def on_connect(self, client, userdata, flags, rc):
         self.logger.info(self, f"MQTT connected with result code " + str(rc))
-        
+
         # Subscribe to projectName/# 
         self.client.subscribe(f"{self.get_projectName()}/#")
 
     def on_message(self, client, userdata, msg):
         tempTopic = str(msg.topic)
-        tempMsg = str(msg.payload.decode())
+        #print(Supporter.hexAsciiDump(msg.payload))
+        #print(Supporter.hexAsciiDump(tempTopic))
+        tempMsg = str(Supporter.decode(msg.payload))
         self.logger.info(self, f"MQTT message received: {tempMsg} from {tempTopic}")
         # if topic and msg is in dontCareList we will ignore the msg
         # we have to check first if topic is in the list

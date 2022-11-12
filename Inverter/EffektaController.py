@@ -9,12 +9,11 @@ class EffektaController(ThreadBase):
     classdocs
     '''
 
-
-    def __init__(self, threadName : str, configuration : dict):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
         '''
         Constructor
         '''
-        super().__init__(threadName, configuration)
+        super().__init__(threadName, configuration, interfaceQueues)
         self.VerbraucherNetz = "POP00"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
         self.VerbraucherAkku = "POP02"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
         self.BattLeer = "PSDV43.0"

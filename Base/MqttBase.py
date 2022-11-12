@@ -9,9 +9,10 @@ from queue import Queue
 
 from Base.Supporter import Supporter
 from Base.InterfaceFactory import InterfaceFactory
+from Base.Base import Base
 
 
-class MqttBase(object):
+class MqttBase(Base):
     '''
     classdocs
     '''
@@ -213,28 +214,28 @@ class MqttBase(object):
         return success
 
 
-    def __init__(self, baseName : str, configuration : dict):
+    def __init__(self, baseName : str, configuration : dict, interfaceQueues : dict = None):
         '''
         Constructor
         '''
-        super().__init__()
+        super().__init__(baseName, configuration)
 
-        self.name = baseName                                                # set name for this thread
         self.add_threadNames(baseName)                                      # add thread name to thread names list to ensure they are unique (add method checks this!)
 
-        self.configuration = configuration                                  # remember given configuration
         self.logger.info(self, "init (MqttBase)")
         self.startupTime = Supporter.getTimeStamp()                         # remember startup time
         self.watchDogTimer = Supporter.getTimeStamp()                       # remember time the watchdog has been contacted the last time, thread-wise!
         self.mqttRxQueue = Queue(100)                                       # create RX MQTT listener queue
 
         # thread topic handling
-        self.objectTopic = self.getObjectTopic()
-        self.classTopic  = self.getClassTopic()
+        self.objectTopic = self.getObjectTopic()                            # e.g. AccuControl/PowerPlant
+        self.classTopic  = self.getClassTopic()                             # e.g. AccuControl/Worker
         self.watchDogTopic = self.createProjectTopic("WatchDog")            # each watch dog has to subscribe to that topic, without any exceptions!!!
         self.mqttConnect()                                                  # send connect message
         self.mqttSubscribeTopic(self.createInTopicFilter(self.objectTopic)) # subscribe to all topics with our name in it
         self.mqttSubscribeTopic(self.createInTopicFilter(self.classTopic))  # subscribe to all topics with our class in it
+
+        self.interfaceQueues = interfaceQueues                              # remember interface queues, maybe we will need it later somewhere 
 
         if "interfaces" in configuration:
             self.interfaceInTopics = []
@@ -242,9 +243,13 @@ class MqttBase(object):
             self.interfaceThreads = InterfaceFactory.createInterfaces(self.name, configuration["interfaces"])
             for interface in self.interfaceThreads:
                 topic = interface.getObjectTopic()
-                self.interfaceInTopics.append(self.createInTopic(topic))      # add IN topic of this interface to send messages
-                self.interfaceOutTopics.append(self.createOutTopic(topic))      # add OUT topic of this interface to send messages
-                self.mqttSubscribeTopic(self.createOutTopicFilter(topic))   # subscribe to OUT topic of this interface to receive messages
+                self.interfaceInTopics.append(self.createInTopic(topic))    # add IN topic of this interface to send messages
+                self.interfaceOutTopics.append(self.createOutTopic(topic))  # add OUT topic of this interface to send messages
+                if interfaceQueues is not None:
+                    if interface in interfaceQueues:
+                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[interface])   # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
+                    else:
+                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                                       # subscribe to OUT topic of this interface to receive messages
 
 
     @classmethod
@@ -428,12 +433,13 @@ class MqttBase(object):
         return topic + "/out"
 
 
-    def mqttSubscribeTopic(self, topic : str, globalSubscription : bool = False):
+    def mqttSubscribeTopic(self, topic : str, globalSubscription : bool = False, queue : Queue = None):
         '''
         Subscribe to a certain topic (locally OR globally)
         '''
         self.mqttSendPackage(MqttBase.MQTT_TYPE.SUBSCRIBE if not globalSubscription else MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL,
-                             topic = topic)
+                             topic = topic,
+                             content = queue)
 
 
     def mqttUnSubscribeTopic(self, topic : str):
@@ -460,9 +466,10 @@ class MqttBase(object):
     def mqttPublish(self, topic : str, content, globalPublish : bool = True, enableEcho : bool = False):
         '''
         Publish some message locally or globally
-        If content is a dict, we dump it to a string
+        If content is a dict, it's dumped to a string
         '''
         if type(content) == dict:
+            # @todo ist das wirklich sinnvoll, was ist der genaue Grund und geht das evtl. irgendwie anders, so wird nur das dict gesondert behandelt!
             content = json.dumps(content)
         if enableEcho:
             messageType = MqttBase.MQTT_TYPE.PUBLISH if globalPublish else MqttBase.MQTT_TYPE.PUBLISH_LOCAL
@@ -507,10 +514,11 @@ class MqttBase(object):
         Universal send method to send all types of supported mqtt messages
         '''
         mqttMessageDict = {
-            "sender"  : self.name if incocnito is None else incocnito,    # incocnito sending is usually only useful for testing system behavior!
-            "command" : mqttCommand,
-            "topic"   : topic,  
-            "content" : content
+            "sender"    : self.name if incocnito is None else incocnito,    # incocnito sending is usually only useful for testing system behavior!
+            "command"   : mqttCommand,
+            "topic"     : topic,  
+            "content"   : content,
+            "timestamp" : Supporter.getTimeStamp()
         }
 
         # validate mqttCommand

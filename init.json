@@ -58,12 +58,11 @@
             "Logger",
             "PowerPlant",
             "Mosquitto",
-            "WatchDogUart",
             "SignalMessenger"
         ],
         "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
         [
-            "WatchDogUart"                  
+            "WatchDogUart"
         ],
         "logUpTime":          60            # every 60 seconds create up time message
     },
@@ -107,9 +106,30 @@
         "disabled":         1
     },
 
+#    "EasyMeter":
+#    {
+#        "class":             "GridLoad.EasyMeter.EasyMeter",
+#        "loadCycle":         900,                                   # new grid load information every 15 minutes
+#        "messageInterval":   60,                                    # EasyMeter will send a message every 60 seconds (the one where the cycle has been changed will be marked with the flag updatePowerValue = True)
+#        "gridLossThreshold": 120,                                   # no message for 120 seconds means grid loss
+#        "conservativeDelta": 1000,                                  # if previous delivered energy delta was larger  than current one (delivered energy level is decreasing) decrement current calculated power by this to ensure not to take too much energy from grid
+#        "progressiveDelta":  500,                                   # if previous delivered energy delta was smaller than current one (delivered energy level is increasing) decrement current calculated power by this to ensure not to take too much energy from grid
+#        "interfaces":
+#        {
+#            "EasyMeterInterface":
+#            {
+#                "connection": "Interface.Ethernet.EasyMeterTcpInterface.EasyMeterTcpInterface",
+#                "messageLength":     2000,                                  # if more than that amount of data has been collected without a message found in it, simply throw it away to save some memory
+#                "server":            "192.168.168.8",
+#                "port":              4001
+#            }
+#        }
+#    },
+
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
     "@import": [
+        "./project.json",
         "./secure.json"
     ]
 }

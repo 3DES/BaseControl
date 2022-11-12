@@ -13,3 +13,5 @@ class InterfaceBase(ThreadObject):
         '''
         super().__init__(threadName, configuration)
 
+        self.mqttSendWatchdogAliveMessage()     # send watch dog message immediately since interfaces can block
+

@@ -24,12 +24,12 @@ class Worker(ThreadObject):
                 raise Exception("Worker already instantiated, no further instances allowed")
 
 
-    def __init__(self, threadName : str, configuration : dict):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
         '''
         Constructor
         '''
         self.setup_instantiated()
-        super().__init__(threadName, configuration)
+        super().__init__(threadName, configuration, interfaceQueues)
         self.logger.info(self, "init (Worker)")
 
 

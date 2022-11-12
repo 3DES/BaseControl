@@ -184,7 +184,7 @@ class Logger(ThreadBase):
                 return None
 
 
-    def __init__(self, threadName : str, configuration : dict, logger = None):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None, logger = None):
         '''
         Logger constructor
         
@@ -203,7 +203,7 @@ class Logger(ThreadBase):
         self.logQueueMaximumFilledLength = 0                    # to monitor queue fill length (for system stability)
 
         # now call super().__init() since all necessary pre-steps have been done
-        super().__init__(threadName, configuration)
+        super().__init__(threadName, configuration, interfaceQueues)
 
         self.logger.info(self, "init (Logger)")
 
@@ -277,7 +277,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def debug(cls, sender, message : str):
+    def debug(cls, sender, message):
         '''
         To log a debug message
         '''
@@ -285,7 +285,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def trace(cls, sender, message : str):
+    def trace(cls, sender, message):
         '''
         To log a trace message, usually to be used to see the steps through setup and tear down process as well as to see the threads working
         '''
@@ -293,7 +293,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def info(cls, sender, message : str):
+    def info(cls, sender, message):
         '''
         To log any information that could be from interest
         '''
@@ -301,7 +301,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def warning(cls, sender, message : str):
+    def warning(cls, sender, message):
         '''
         To log any warnings
         '''
@@ -309,7 +309,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def error(cls, sender, message : str):
+    def error(cls, sender, message):
         '''
         To log an error, usually in case of exceptions, that's usually the highest error level for any problems in the script
         '''
@@ -317,7 +317,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def fatal(cls, sender, message : str):
+    def fatal(cls, sender, message):
         '''
         To log an fatal errors, usually by detecting real critical hardware problems
         '''
@@ -325,7 +325,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def message(cls, level : LOG_LEVEL, sender, message : str):
+    def message(cls, level : LOG_LEVEL, sender, message):
         '''
         Overall log method, all log methods have to end up here
         '''
@@ -336,6 +336,10 @@ class Logger(ThreadBase):
                 senderName = cls.getSenderName(sender)
             timeStamp = datetime.now()
             levelText = "{:<18}".format("[" + str(level) + "]")
+            
+            if not isinstance(message, str):
+                message = str(message)
+            
             logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
 
             preLogged = False       # in case logger is not running message is prelogged and in case of error or fatal it is additionally printed to STDOUT!

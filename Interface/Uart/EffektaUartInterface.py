@@ -2,6 +2,7 @@ import time
 import serial    #pip install pyserial
 import json
 from Base.InterfaceBase import InterfaceBase
+from Base.Supporter import Supporter
 
 
 class EffektaUartInterface(InterfaceBase):
@@ -88,7 +89,7 @@ class EffektaUartInterface(InterfaceBase):
         return bytes(crcbytes)
 
     def getCommand(self, cmdStr):
-        cmd = cmdStr.encode('utf-8')
+        cmd = Supporter.encode(cmdStr)
         crc = self.getEffektaCRC(cmdStr)
         cmd = cmd + crc
         cmd = cmd + b'\r'
@@ -125,7 +126,7 @@ class EffektaUartInterface(InterfaceBase):
 
         if bytes(receivedCrc) == self.getEffektaCRC(bytes(serialInputByte)):
             del serialInputByte[0]
-            data = serialInputByte.decode()
+            data = Supporter.decode(serialInputByte)
             self.logger.debug(self, f"CRC ok. Data: {data}")
             if data == "NAK":
                 return ""

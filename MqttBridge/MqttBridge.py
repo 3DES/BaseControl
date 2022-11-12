@@ -81,7 +81,7 @@ class MqttBridge(ThreadObject):
         return MqttBridge._MqttBridge__globalSubscribers_always_use_getters_and_setters
 
 
-    def add_subscriber(self, subscriber : str, topicFilter : str, globalSubscription : bool = False):
+    def add_subscriber(self, subscriber : str, topicFilter : str, globalSubscription : bool = False, queue : Queue = None):
         '''
         Add a subscriber to the local or global subscriber list
         '''
@@ -111,10 +111,13 @@ class MqttBridge(ThreadObject):
         # add split filter to subscriber list
         if not foundSubscription:
             topicFilterLevels = self.splitTopic(topicFilter)            # split filter topic for faster search
-            subscriberDict[subscriber].append(topicFilterLevels)
+            subscriberDict[subscriber].append({
+                "topicFilter": topicFilterLevels,
+                "queue"      : queue,
+            })
             self.logger.info(self, Supporter.encloseString(subscriber) + " subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))
         else:
-            self.logger.debug(self, Supporter.encloseString(subscriber) + " already subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))            
+            self.logger.warning(self, Supporter.encloseString(subscriber) + " already subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))            
 
 
     def remove_subscriber(self, subscriber : str, topicFilter : str):
@@ -134,7 +137,8 @@ class MqttBridge(ThreadObject):
         for subscriberDict in (self.get_globalSubscribers(), self.get_localSubscribers()):
             if subscriber in subscriberDict:
                 #newTopicsList = [topic for topic in subscriberDict[subscriber] if (topicFilter == "/".join(topic))]
-                for index, topic in enumerate(subscriberDict[subscriber]):
+                for index, topicAndQueue in enumerate(subscriberDict[subscriber]):
+                    topic = topicAndQueue["topicFilter"]
                     checkTopic = "/".join(topic)
                     if topicFilter == checkTopic:
                         subscriberDict[subscriber].pop(index)
@@ -201,11 +205,17 @@ class MqttBridge(ThreadObject):
             for subscriber in subscriberDict:
                 # ignore already informed subscribers
                 if subscriber not in handledRecipients:
-                    for topicFilterLevels in subscriberDict[subscriber]:
+                    for topicAndQueue in subscriberDict[subscriber]:
+                        topicFilterLevels = topicAndQueue["topicFilter"]
                         # first matching filter stops handling of current subscriber
                         if self.matchTopic(topic, topicFilterLevels):
                             handledRecipients.add(subscriber)
-                            self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
+                            if topicAndQueue["queue"] is not None:
+                                # subscriber subscribed with special queue so send it to this one instead of using the default one
+                                self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
+                            else:
+                                # no special queue for this subscription so send it to the default one
+                                self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
                             break
 
 
@@ -223,9 +233,9 @@ class MqttBridge(ThreadObject):
             self.get_mqttListeners()[subscriber]["queue"].put(content, block = False)
 
 
-    def __init__(self, threadName : str, configuration : dict):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
         self.setup_mqttListeners()
-        super().__init__(threadName, configuration)
+        super().__init__(threadName, configuration, interfaceQueues)
         self.logger.info(self, "init (MqttBridge)")
 
 
@@ -281,7 +291,7 @@ class MqttBridge(ThreadObject):
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
+                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.UNSUBSCRIBE.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
@@ -289,8 +299,8 @@ class MqttBridge(ThreadObject):
             elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
                 # "sender" is the sender's name
                 # "topic"  is a string containing the topic filter 
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], globalSubscription = True)
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])                                  # global subscribers subscribe for local and global list
+                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"], globalSubscription = True)
+                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])                                  # global subscribers subscribe for local and global list
             else:
                 raise Exception("unknown type found in message " + str(newMqttMessageDict))
 
