@@ -151,9 +151,13 @@ class EffektaController(ThreadBase):
         self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "DailyCharge": 0.0, "DailyDischarge": 0.0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
         self.tempDailyProduction = 0.0
         self.timeStamp = time.time()
+        self.valideChargeValues = []
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()) + "/#", globalSubscription = True)
         #self.mqttSubscribeTopic(self.createInTopic(self.getClassTopic()) + "/#", globalSubscription = True)
+
+    def updateChargeValues(self):
+        self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
 
     def threadMethod(self):
         '''
@@ -179,6 +183,9 @@ class EffektaController(ThreadBase):
             self.timeStamp = time.time()
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QPIGS"), globalPublish = False, enableEcho = False)
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMOD"), globalPublish = False, enableEcho = False)
+            if not self.valideChargeValues:
+                # If valideChargeValues is emty we send a query and fill it if effekta answers
+                self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
@@ -214,6 +221,8 @@ class EffektaController(ThreadBase):
                     if newMqttMessageDict["content"]["query"]["extern"]:
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"]["response"], globalPublish = True, enableEcho = False)
+                    elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
+                        self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].slit()
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
                             self.sendeGlobalMqtt = True
