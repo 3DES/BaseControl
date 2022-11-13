@@ -379,6 +379,34 @@ class MqttBase(Base):
 
         return True
 
+
+    def createTopic(self, classTopic : bool = False, inTopic : bool = False, filterTopic : bool = False):
+        '''
+        Create a topic type depending on given flags
+        
+        classTopic flag decides if a class or object topic will be created
+        
+        inTopic flag decides if a in or out topic will be created
+        
+        filterTopic flag decides if a common topic or a topic filter (/#) will be created
+        '''
+        if classTopic:
+            topic = self.getClassTopic()
+        else:
+            topic = self.getObjectTopic()
+
+        if filterTopic:
+            if inTopic:
+                topic = self.createInTopicFilter(topic)
+            else:
+                topic = self.createOutTopicFilter(topic)
+        else:
+            if inTopic:
+                topic = self.createInTopic(topic)
+            else:
+                topic = self.createOutTopic(topic)
+        return topic
+        
     
     def getObjectTopic(self):
         '''

@@ -15,7 +15,6 @@ class PowerPlant(Worker):
     '''
     def threadInitMethod(self):
         self.mqttSubscribeTopic(self.createInTopicFilter(self.getObjectTopic()), globalSubscription = True)
-        pass
 
 
     def threadMethod(self):

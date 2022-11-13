@@ -89,7 +89,7 @@ class EasyMeter(ThreadObject):
             "allowedPower"        : 0,      # currently allowed power to be taken from the grid to load the batteries (inverter thread has to calculate proper current with known battery voltage)
             "previousPower"       : 0,      # previous allowed power, for logging
             "previousReduction"   : 0,      # reduction used for previous power level (has already been subtracted!)
-            "currentReduction"    : 0,      # reduction used for currently allowed power level (has already been subtracted!)
+            "currentReduction"    : 0,      # reduction used for currently allowed power level (has already been subtracted from allowedPoer!)
             "updatePowerValue"    : False,  # set to True in the one message every "loadCycle" seconds to inform the worker thread that an update should be done now 
         }            
 
@@ -165,8 +165,10 @@ class EasyMeter(ThreadObject):
         self.energyData["allowedPower"]     = newPowerLevel
         self.energyData["currentReduction"] = reductionLevel        # for logging and debugging only
 
-        # set to True for this one message
-        self.energyData["updatePowerValue"] = True              
+        # set to True for this one message only if there have been any changes since last turn and the power difference is more than 10%
+        self.energyData["updatePowerValue"] = (((self.energyData["allowedPower"] != self.energyData["previousPower"]) or
+                                               (self.energyData["currentReduction"] != self.energyData["previousReduction"])) and 
+                                               (Supporter.absolutePercentageDifference(self.energyData["allowedPower"], self.energyData["previousPower"]) > 10))
 
         # reset some values for next turn
         self.gridLossDetected = False                               # reset grid loss detection for next cycle
@@ -175,18 +177,24 @@ class EasyMeter(ThreadObject):
 
     def threadMethod(self):
         '''
+        first loop:
+            self.gridLossDetected = True
+       
         every loop run:
             "lastSentEnergyValue" == 0:
                 fill in current energy level (overall first cycle is probably a "shorter" one but that doesn't matter)
             time since last time > 2 minutes -> error (probably grid loss):
                 self.gridLossDetected = True
+
         every minute a message is sent out:
             containing all data, some data could be unchanged, others will be new
+
         every event time:
             self.gridLossDetected = False
             self.lastEasyMeterMessageTime = now
             store new power level
             send signal message (in case of real grid loss nth. will happen but in case it's a bug and there is no grid loss a message will be sent!
+
         1st cycle is a grid loss one
         2nd cycle is probably a shorter one (since timer is synchronized to quarter hours the 2nd cycle length depends on start time related to next quarter hour)
         3rd... cycles are common ones
@@ -194,6 +202,7 @@ class EasyMeter(ThreadObject):
 
         self.energyData["updatePowerValue"] = False     # set to False for all messages (except the one every "loadCycle" seconds)
 
+        # read messages from project (not from EasyMeterInterface!!!)
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
             self.logger.debug(self, "received message :" + str(newMqttMessageDict))

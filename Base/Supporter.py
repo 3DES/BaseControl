@@ -257,3 +257,8 @@ class Supporter(object):
         return string.encode('ISO-8859-1')
 
 
+    @classmethod
+    def absolutePercentageDifference(cls, value1 : int, value2 : int):
+        difference = 1 - ((value1 / value2) if (value2 > value1) else (value2 / value1))
+        return difference * 100
+
