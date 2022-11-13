@@ -167,7 +167,7 @@ class Logger(ThreadBase):
         '''
         To add a log message before logger has been set up, logger should handle them first when it comes up
         '''
-        print("(P) " + logEntry)        # (P) means pre logged message printed to STDOUT
+        print("(P) " + logEntry)        # (P) means pre-logged message printed to STDOUT
         with cls.get_threadLock():
             Logger._Logger__preLogBuffer_always_use_getters_and_setters.append(logEntry)
 
@@ -342,22 +342,22 @@ class Logger(ThreadBase):
             
             logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
 
-            preLogged = False       # in case logger is not running message is prelogged and in case of error or fatal it is additionally printed to STDOUT!
+            preLogged = False       # in case logger is not running the given message is pre-logged and in case of error or fatal it is additionally printed to STDOUT!
             if cls.get_logQueue() is not None:
                 # send message to log
                 cls.get_logQueue().put(logMessage, block = False)
             else:
-                # Queue is not yet available so log message into prelog buffer instead
+                # Queue is not yet available so log message into pre-log buffer instead
                 cls.add_preLogMessage(logMessage)
                 preLogged = True
 
             if level == cls.LOG_LEVEL.ERROR:
                 logging.error(logMessage)
-                if not preLogged:     # only print if not prelogged to suppress double printing
+                if not preLogged:     # only print if not pre-logged to suppress double printing
                     print("(E) " + logMessage)      # (E) means error printed to STDOUT
             elif level == cls.LOG_LEVEL.FATAL:
                 logging.critical(logMessage)
-                if not preLogged:     # only print if not prelogged to suppress double printing
+                if not preLogged:     # only print if not pre-logged to suppress double printing
                     print("(F) " + logMessage)      # (W) means fatal error printed to STDOUT
 
 

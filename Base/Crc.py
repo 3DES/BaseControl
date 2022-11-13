@@ -114,13 +114,3 @@ class Crc(object):
     def bytesToWordBigEndian(cls, string : bytes):
         return (ord(string[0:1]) << 8) | ord(string[1:2])
 
-
-# local main function to execute some tests
-if __name__ == '__main__':
-    for value in range(0x100):
-        result = Crc.crc16EasyMeter(bytes(value)) 
-        print(f"{value:03d} : 0x{result:04X}")
-    for value in range(0x100):
-        result = Crc.crc16XModem(str(value))
-        print(f"{value:03d} : 0x{result:04X}")
-

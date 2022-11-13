@@ -20,7 +20,7 @@ class TcpInterface(InterfaceBase):
         self.tagsIncluded(["messageLength", "port"], intIfy = True)
         self.tagsIncluded(["server"])
 
-    
+
     def threadInitMethod(self):
         # Create a TCP/IP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -44,7 +44,7 @@ class TcpInterface(InterfaceBase):
 
     def threadMethod(self):
         data = self.readData()
-        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), data)
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), data, globalPublish = False)
 
 
     def threadBreak(self):

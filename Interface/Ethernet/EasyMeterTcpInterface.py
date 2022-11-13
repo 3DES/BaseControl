@@ -1,5 +1,6 @@
 from Interface.Ethernet.TcpInterface import TcpInterface
 #import Interface.Ethernet.TcpInterface
+import Base.Crc
 
 
 import socket
@@ -33,25 +34,28 @@ class EasyMeterTcpInterface(TcpInterface):
                     index += subIndex
                     print((" " * (INDENT * recursion)) + "00")
                     continue
-    
+
                 # extra length?            
                 if elementType & 0x80:
                     length = (length << 4) | (buffer[index + subIndex] & 0x0F)
                     subIndex += 1
-                
+
                 if elementType & 0x70 == 0x70:
+                    # list element found
                     newList = []
                     data.append(newList)
                     print((" " * (INDENT * recursion)) + " ".join([ "{:02X}".format(char) for char in buffer[index:index + subIndex]]))
                     index = recursiveListHandler(buffer, index + subIndex, newList, length, recursion + 1)
                 else:
+                    # value element found
                     data.append(buffer[index:index + length])
                     print((" " * (INDENT * recursion)) + " ".join([ "{:02X}".format(char) for char in buffer[index:index + length]]))
                     index += length
             return index
-    
-        #crc(buffer)
-        
+
+        if Base.Crc.Crc.crc16EasyMeter(buffer[:-2]) != Base.Crc.Crc.bytesToWordBigEndian(buffer[-2:]):
+            print("invalid CRC")
+
         index = 0
         print(" ".join([ "{:02X}".format(char) for char in buffer[:4]]))
         print(" ".join([ "{:02X}".format(char) for char in buffer[4:8]]))
@@ -66,7 +70,7 @@ class EasyMeterTcpInterface(TcpInterface):
             elementType = buffer[index]
             length = elementType & 0x0F
             subIndex += 1
-    
+
             if elementType == 0x00:
                 # ignore fill byte
                 index += subIndex
@@ -76,21 +80,21 @@ class EasyMeterTcpInterface(TcpInterface):
             # only list entries are allowed at top level
             if (elementType & 0x70) != 0x70:
                 raise Exception(f"unknown element {buffer[index]} at {index}")
-    
+
             # extra length?
             if elementType & 0x80:
                 length = (length << 4) | (buffer[index + subIndex] & 0x0F)
                 # second byte handled
                 subIndex += 1
-            
+
             newList = []
             data.append(newList)
-    
+
             # handle rest of the current message recursively, if list ends maybe there is another one and we will come back to here with a new list entry
             print(" ".join([ "{:02X}".format(char) for char in buffer[index:index + subIndex]]))
             index = recursiveListHandler(buffer, index + subIndex, newList, length, 1)
-    
-    
+
+
         print(" ".join([ "{:02X}".format(char) for char in tail[:4]]))
         print(" ".join([ "{:02X}".format(char) for char in tail[4:]]))
         data.append(tail[:4])
@@ -103,14 +107,14 @@ class EasyMeterTcpInterface(TcpInterface):
 
     def threadInitMethod(self):
         super().threadInitMethod()      # we need the preparation from parental threadInitMethod 
-        
+
         self.received = b""     # collect all received message parts here
 
         # patterns to match messages and values (the ^.*? will ensure that partial messages received at the beginning will be thrown away)
-        self.smlPattern = re.compile(b"^.*?(\x1b{4}\x01{4}.*?\x1b{4}.{4})", re.MULTILINE | re.DOTALL)
-        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), "", globalPublish = True)
+        self.SML_PATTERN = re.compile(b"^.*?(\x1b{4}\x01{4}.*?\x1b{4}.{4})", re.MULTILINE | re.DOTALL)
+        #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), "", globalPublish = True)        # to clear retained message from mosquitto
 
-    
+
     def readData(self):
         #self.processBuffer(bytesArray)
         data = self.readSocket()
@@ -118,14 +122,14 @@ class EasyMeterTcpInterface(TcpInterface):
             self.received += data               # add received data to receive buffer
 
             # full message received?
-            if match := self.smlPattern.search(self.received):
+            if match := self.SML_PATTERN.search(self.received):
                 bytesArray = bytearray(match.groups()[0])
                 # log message
                 #hexString = ":".join([ "{:02X}".format(char) for char in bytesArray])
                 #self.logger.info(self, f"#{len(match.groups()[0])}: {hexString}")
     
                 # remove message from receive buffer
-                self.received = self.smlPattern.sub(b"", self.received)
+                self.received = self.SML_PATTERN.sub(b"", self.received)
 
                 #return bytesArray
 

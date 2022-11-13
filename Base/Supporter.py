@@ -259,6 +259,9 @@ class Supporter(object):
 
     @classmethod
     def absolutePercentageDifference(cls, value1 : int, value2 : int):
+        if value1 == 0 or value2 == 0:
+            return None
+
         difference = 1 - ((value1 / value2) if (value2 > value1) else (value2 / value1))
         return difference * 100
 
