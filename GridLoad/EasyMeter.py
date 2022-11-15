@@ -46,29 +46,6 @@ class EasyMeter(ThreadObject):
         "currentEnergyLevel"  : 2,      # filled with every received grid meter message
     }
 
-    energyValues             = [0, 0, 0]       # remember last three energy values, two times "loadCycle" ago, "loadCycle" ago and now
-    lastEasyMeterMessageTime = 0               # time stamp of the last valid message received from easy meter (not from the thread EasyMeter!!!)
-    gridLossDetected         = True            # grid loss detected in current cycle, first cycle after power up will always be a grid loss one
-
-    # data for easy meter message to be sent out to worker thread
-    energyData = {
-        "invalidMessages"     : 0,      # we need an initial value here, otherwise "+= 1" will fail!
-        "lastInvalidMessage"  : 0,      # time last invalid message has been detected
-        "invalidMessageError" : 0,      # reason why the last message has been detected as invalid, e.g. "invalid CRC", "value not found", "value found twice"
-
-        "allowedPower"        : 0,      # allowed power to be taken from the grid to load the batteries (inverter thread has to calculate proper current with known battery voltage)
-        "allowedReduction"    : 0,      # allowed reduction used for allowed power level (has already been subtracted from allowedPoer!)
-        "allowedTimestamp"    : 0,      # time stamp when allowed power has been set for the first time
-
-        "previousPower"       : 0,      # previous allowed power, for logging
-        "previousReduction"   : 0,      # reduction used for previous power level (has already been subtracted!)
-        "previousTimestamp"   : 0,      # time stamp when the previous power has been taken
-
-        "updatePowerValue"    : False,  # set to True in the one message every "loadCycle" seconds to inform the worker thread that an update should be done now 
-    }            
-
-
-
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
         '''
@@ -76,6 +53,28 @@ class EasyMeter(ThreadObject):
         '''
         self.easyMeterInterfaceQueue = Queue()
         super().__init__(threadName, configuration, [self.easyMeterInterfaceQueue])
+
+        # initialize object variables
+        self.energyValues             = [0, 0, 0]       # remember last three energy values, two times "loadCycle" ago, "loadCycle" ago and now
+        self.lastEasyMeterMessageTime = 0               # time stamp of the last valid message received from easy meter (not from the thread EasyMeter!!!)
+        self.gridLossDetected         = True            # grid loss detected in current cycle, first cycle after power up will always be a grid loss one
+
+        # data for easy meter message to be sent out to worker thread
+        self.energyData = {
+            "invalidMessages"     : 0,      # we need an initial value here, otherwise "+= 1" will fail!
+            "lastInvalidMessage"  : 0,      # time last invalid message has been detected
+            "invalidMessageError" : 0,      # reason why the last message has been detected as invalid, e.g. "invalid CRC", "value not found", "value found twice"
+    
+            "allowedPower"        : 0,      # allowed power to be taken from the grid to load the batteries (inverter thread has to calculate proper current with known battery voltage)
+            "allowedReduction"    : 0,      # allowed reduction used for allowed power level (has already been subtracted from allowedPoer!)
+            "allowedTimestamp"    : 0,      # time stamp when allowed power has been set for the first time
+    
+            "previousPower"       : 0,      # previous allowed power, for logging
+            "previousReduction"   : 0,      # reduction used for previous power level (has already been subtracted!)
+            "previousTimestamp"   : 0,      # time stamp when the previous power has been taken
+    
+            "updatePowerValue"    : False,  # set to True in the one message every "loadCycle" seconds to inform the worker thread that an update should be done now 
+        }            
 
         # check and prepare mandatory parameters
         self.tagsIncluded(["loadCycle", "gridLossThreshold", "conservativeDelta", "progressiveDelta", "messageInterval"], intIfy = True)
