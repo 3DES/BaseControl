@@ -461,6 +461,14 @@ class MqttBase(Base):
         return topic + "/out"
 
 
+    @classmethod
+    def createActualTopic(cls, topic : str):
+        '''
+        Create topic for actual messages
+        '''
+        return topic + "/out/actual"
+
+
     def mqttSubscribeTopic(self, topic : str, globalSubscription : bool = False, queue : Queue = None):
         '''
         Subscribe to a certain topic (locally OR globally)
