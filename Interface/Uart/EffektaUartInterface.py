@@ -147,7 +147,7 @@ class EffektaUartInterface(InterfaceBase):
             self.logger.debug(self, "setEffektaData: ok")
             return True
         else:
-            self.logger.error(self, f"setEffektaData: failed.-> {cmd} - {value} - {retVal}")
+            self.logger.error(self, f"setEffektaData: failed.-> -cmd: {cmd} -value: {value} -ret: {retVal}")
             return False
 
     def threadInitMethod(self):
@@ -166,11 +166,21 @@ class EffektaUartInterface(InterfaceBase):
             # queryTemplate["query"] = {"cmd":"filledfromSender", "response":"filledFromInterface"}
             # setValueTemplate["setValue"] = {"cmd":"filledfromSender", "value":"filledfromSender", "success": filledFromInterface, "extern":filledfromSender}
             if "query" in newMqttMessageDict["content"]:
-                newMqttMessageDict["content"]["query"]["response"] = self.getEffektaData(newMqttMessageDict["content"]["query"]["cmd"])
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
+                if type(newMqttMessageDict["content"]["query"]) == dict:
+                    cmdList = [newMqttMessageDict["content"]["query"]]
+                else:
+                    cmdList = newMqttMessageDict["content"]["query"]
+                for cmd in cmdList:
+                    cmd["response"] = self.getEffektaData(cmd["cmd"])
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"query":cmd}, globalPublish = False, enableEcho = False)
             elif "setValue" in newMqttMessageDict["content"]:
-                newMqttMessageDict["content"]["setValue"]["success"] = self.setEffektaData(newMqttMessageDict["content"]["setValue"]["cmd"], newMqttMessageDict["content"]["setValue"]["value"])
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
+                if type(newMqttMessageDict["content"]["setValue"]) == dict:
+                    cmdList = [newMqttMessageDict["content"]["setValue"]]
+                else:
+                    cmdList = newMqttMessageDict["content"]["setValue"]
+                for cmd in cmdList:
+                    cmd["success"] = self.setEffektaData(cmd["cmd"], cmd["value"])
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"setValue":cmd}, globalPublish = False, enableEcho = False)
 
     #def threadBreak(self):
     #    pass
