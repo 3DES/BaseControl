@@ -48,8 +48,6 @@ class MqttBrokerInterface(InterfaceBase):
                 del self.dontCareList[tempTopic]
             else:
                 self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
-        else:
-            self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
 
     def threadInitMethod(self):
         # subscribe internally global to get all global msg

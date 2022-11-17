@@ -11,7 +11,6 @@ import Logger
 import sys
 import Base
 from gc import get_referents
-import psutil
 import os
 
 
