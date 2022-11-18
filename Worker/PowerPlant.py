@@ -160,6 +160,7 @@ class PowerPlant(Worker):
 
 
     def threadInitMethod(self):
+        self.tagsIncluded(["managedEffektas", "initModeEffekta"])
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False}
         self.SkriptWerte = {"WrNetzladen":False, "Akkuschutz":False, "RussiaMode": False, "Error":False, "WrMode":"", "SkriptMode":"Auto", "PowerSaveMode":False, "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
         # Threadnames we have to wait for a initial message. The worker need this data.
@@ -314,3 +315,8 @@ class PowerPlant(Worker):
             if self.sendeMqtt == True: 
                 self.sendeMqtt = False
                 self.mqttPublish(self.createActualTopic(self.getObjectTopic()), self.SkriptWerte, globalPublish = True, enableEcho = False)
+
+
+
+    def threadBreak(self):
+        time.sleep(5)

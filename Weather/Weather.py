@@ -15,6 +15,7 @@ class WetterOnline(ThreadObject):
         Constructor
         '''
         super().__init__(threadName, configuration)
+        self.tagsIncluded(["weatherUrl"])
 
 
     def getSonnenStunden(self):
@@ -219,3 +220,7 @@ class WetterOnline(ThreadObject):
 
         if publishWeather:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.wetterdaten, globalPublish = True, enableEcho = False)
+
+
+    def threadBreak(self):
+        time.sleep(30)
