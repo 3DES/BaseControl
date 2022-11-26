@@ -71,6 +71,7 @@ class EffektaController(ThreadObject):
         parList = []
         parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
+        # @todo kleinsten strom automatisch ermitteln
         parList.append(cls.getSetValueKeys(cls.NetzErhaltungsLadestrom))
         return {"setValue":parList}
 
@@ -102,24 +103,24 @@ class EffektaController(ThreadObject):
         return {"setValue":parList}
 
     @classmethod
-    def getGlobalEffektaData(cls, EffektaData):
+    def getLinkedEffektaData(cls, EffektaData):
         """
         returns given Effekta data with logical link
         given data is a dict with one or more Effektas {"effekta_A":{Data}, "effekta_B":{Data}}
         """
         globalEffektaData = {"FloatingModeOr" : False, "OutputVoltageHighOr" : False, "InputVoltageAnd" : True, "OutputVoltageHighAnd" : True, "OutputVoltageLowAnd" : True, "ErrorPresentOr" : False}
         for name in list(EffektaData.keys()):
-            floatmode = list(EffektaData[name]["EffektaWerte"]["DeviceStatus2"])
+            floatmode = list(EffektaData[name]["DeviceStatus2"])
             if floatmode[0] == "1":
-                globalEffektaData["FloatingModeOr"] = True    
-            if float(EffektaData[name]["EffektaWerte"]["Netzspannung"]) < 210.0:
-                globalEffektaData["InputVoltageAnd"] = False    
-            if float(EffektaData[name]["EffektaWerte"]["AcOutSpannung"]) < 210.0:
+                globalEffektaData["FloatingModeOr"] = True
+            if float(EffektaData[name]["Netzspannung"]) < 210.0:
+                globalEffektaData["InputVoltageAnd"] = False
+            if float(EffektaData[name]["AcOutSpannung"]) < 210.0:
                 globalEffektaData["OutputVoltageHighAnd"] = False 
-            if float(EffektaData[name]["EffektaWerte"]["AcOutSpannung"]) > 25.0:
+            if float(EffektaData[name]["AcOutSpannung"]) > 25.0:
                 globalEffektaData["OutputVoltageLowAnd"] = False
                 globalEffektaData["OutputVoltageHighOr"] = True
-            if EffektaData[name]["EffektaWerte"]["ActualMode"] == "F":
+            if EffektaData[name]["ActualMode"] == "F":
                 globalEffektaData["ErrorPresentOr"] = True
         return globalEffektaData
 
@@ -228,6 +229,7 @@ class EffektaController(ThreadObject):
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"]["response"], globalPublish = True, enableEcho = False)
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
+                        # get setable charge values
                         self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].slit()
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
@@ -268,10 +270,11 @@ class EffektaController(ThreadObject):
 
                         if self.sendeGlobalMqtt:
                             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = True, enableEcho = False)
+                            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
                         else:
                             pass
                             # @todo send aktual values here
-                            #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData, globalPublish = False, enableEcho = False)
+                            #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
 
         now = datetime.datetime.now()
         if now.hour == 23:
