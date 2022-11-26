@@ -48,10 +48,14 @@ class MqttBrokerInterface(InterfaceBase):
                 del self.dontCareList[tempTopic]
             else:
                 self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
+        else:
+            self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
 
     def threadInitMethod(self):
         # subscribe internally global to get all global msg
         self.mqttSubscribeTopic(self.get_projectName() + "/#", globalSubscription = True)
+        # wait for all threads
+        time.sleep(2)
         try:
             # Try to connect to MQTT server, there could be a exception if ethernet or server is not available
             self.connectMqtt()
