@@ -245,11 +245,10 @@ class MqttBase(Base):
                 topic = interface.getObjectTopic()
                 self.interfaceInTopics.append(self.createInTopic(topic))    # add IN topic of this interface to send messages
                 self.interfaceOutTopics.append(self.createOutTopic(topic))  # add OUT topic of this interface to send messages
-                if interfaceQueues is not None:
-                    if interface in interfaceQueues:
-                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[interface])   # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
-                    else:
-                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                                       # subscribe to OUT topic of this interface to receive messages
+                if (interfaceQueues is not None) and (interface in interfaceQueues):
+                    self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[interface])   # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
+                else:
+                    self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                                       # subscribe to OUT topic of this interface to receive messages
 
 
     @classmethod
