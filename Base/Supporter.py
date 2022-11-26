@@ -104,16 +104,20 @@ class Supporter(object):
 
 
     @classmethod
-    def getDeltaTime(cls, timeStamp : int):
+    def getSecondsSince(cls, timeStamp : int):
         return cls.getTimeStamp() - timeStamp
 
 
     @classmethod
-    def getTimeOfToday(cls, hour : int = 0, minute : int = 0, second : int = 0):
+    def getTimeOfToday(cls, year : int = None, month : int = None, day : int = None, hour : int = 0, minute : int = 0, second : int = 0):
         '''
         Time of today 0 o'clock if no value has been given otherwise the time of today at given time
         '''
-        return int(datetime.now().replace(hour=hour,minute=minute,second=second,microsecond=0).timestamp())
+        nowTime = datetime.now()
+        if year  is not None: nowTime.replace(year = year)
+        if month is not None: nowTime.replace(month = month)
+        if day   is not None: nowTime.replace(day = day)
+        return int(nowTime.replace(hour=hour,minute=minute,second=second,microsecond=0).timestamp())
 
 
     @classmethod
@@ -257,10 +261,12 @@ class Supporter(object):
 
 
     @classmethod
-    def absolutePercentageDifference(cls, value1 : int, value2 : int):
-        if value1 == 0 or value2 == 0:
-            return None
-
-        difference = 1 - ((value1 / value2) if (value2 > value1) else (value2 / value1))
-        return difference * 100
+    def absoluteDifference(cls, value1 : int, value2 : int):
+        '''
+        Absolute difference between two given values
+        '''
+        difference = value1 - value2;
+        if difference < 0:
+            difference = -difference
+        return difference
 

@@ -64,7 +64,7 @@ class SignalMessenger(ThreadObject):
         self.tagsIncluded(["aliveTime"], intIfy = True, optional = True, default = 0)
         self.tagsIncluded(["disabled"], intIfy = True, optional = True, default = 0)
         if not isinstance(self.configuration["executable"], list):
-            raise Exception(self.name() + " needs a \"executable\" value in init file that is a list")
+            raise Exception(self.name + " needs a \"executable\" value in init file that is a list")
 
 
     def readSignalMessengerThread(self, pipe : subprocess.PIPE, partner : subprocess.Popen, queue : Queue = None, stdErrReader : bool = False):

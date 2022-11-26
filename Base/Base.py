@@ -13,6 +13,7 @@ class Base(object):
         '''
         self.name = baseName                                                # set name for this thread
         self.configuration = configuration                                  # remember given configuration
+        #super().__init__()        # NO!!!  -->  https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
 
 
     def counter(self, name : str, value : int = 0, autoReset : bool = True, singularTrue : bool = False, remove : bool = False, getValue : bool = False, dontCount : bool = False, startWithOne : bool = False):

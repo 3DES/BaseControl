@@ -13,7 +13,7 @@ class InterfaceFactory(object):
         Creates an interface from given configuration
         '''
         interfaceList = []
-        
+
         for interfaceName in configuration: 
             # create interface name
             interfaceConfiguration = configuration[interfaceName]
@@ -23,7 +23,9 @@ class InterfaceFactory(object):
             # create interface and store it to return list so creator can subscribe to all of them
             fullClassName = interfaceConfiguration["connection"]
             loadableClass = Supporter.loadClassFromFile(fullClassName)
-            interfaceList.append(loadableClass(interfaceName, interfaceConfiguration))
+            interface = loadableClass(interfaceName, interfaceConfiguration)
+            interfaceList.append(interface)
+            interface.start()
 
         return interfaceList
 

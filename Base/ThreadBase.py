@@ -58,16 +58,15 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # don't set up any further threads if there is already an exception!
         if self.get_exception() is None:
             self.killed  = False        # to stop thread independent if it has been started before or not
-            
+
             self.logger.info(self, "init (ThreadBase)")
-            
+
             self.event = threading.Event()                  # event is currently not used
             self.thread = threading.Thread(target = self.threadLoop, args=[self.event], daemon = True)
 
             self.interfaceThreads = None                    # to collect interfaces setup during thread init phase
 
             self.threadNumber = self.addThread(self)        # register thread and receive uniq thread number (currently it's not used any further since all thread names are uniq, too)
-            self.thread.start()                             # finally start new thread
         else:
             self.logger.error(self, "exception seen from other thread, set up denied")
 
@@ -82,6 +81,10 @@ class ThreadBase(Base.MqttBase.MqttBase):
             cls.set_numberOfThreads(threadNumber + 1)   # ensure each thread has unique number
             cls.add_setupThreadObjects(thread)          # remember new thread in global thread list for tearing them all down if necessary 
         return threadNumber
+
+
+    def start(self):
+        self.thread.start()                             # finally start all thread interfaces and the new thread
 
 
     def threadBreak(self):
@@ -102,7 +105,6 @@ class ThreadBase(Base.MqttBase.MqttBase):
         Finally threadMethod() will be called to give the thread the possibility to clean up
         '''
         self.logger.trace(self, "thread loop started")
-# @todo evtl. erst warten, dann init und dann loop aufrufen? dann waere der Init zeitlich naeher am ersten loop durchlauf!!!
         # first of all execute thread init method once
         try:
             self.threadInitMethod()             # call init method for the case the thread has sth. to set up

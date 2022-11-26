@@ -39,12 +39,8 @@ class EasyMeter(ThreadObject):
     }
     DELIVERED_ENERGY_KEY = "2.8.0"
 
-    ENERGY_VALUE_NAMES = {
-        # to be used as indices for self.energyValues[]
-        "backedupEnergyLevel" : 0,      # the energy value one before the last one has been calculated (so we can calculate two deltas, the current one and the previous one)
-        "lastSentEnergyValue" : 1,      # energy value when last delta has been calculated
-        "currentEnergyLevel"  : 2,      # filled with every received grid meter message
-    }
+    SECONDS_PER_HOUR = 60 * 60      # an hour has 3600 seconds
+    POWER_OFF_LEVEL  = 0            # 0 watts means power OFF
 
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
@@ -54,46 +50,117 @@ class EasyMeter(ThreadObject):
         self.easyMeterInterfaceQueue = Queue()
         super().__init__(threadName, configuration, [self.easyMeterInterfaceQueue])
 
-        # initialize object variables
-        self.energyValues             = [0, 0, 0]       # remember last three energy values, two times "loadCycle" ago, "loadCycle" ago and now
-        self.lastEasyMeterMessageTime = 0               # time stamp of the last valid message received from easy meter (not from the thread EasyMeter!!!)
-        self.gridLossDetected         = True            # grid loss detected in current cycle, first cycle after power up will always be a grid loss one
+
+        # initialize object variables...
+        # dictionary to hold process data that are used to decide if and how much power can be used to load the batteries
+        self.energyProcessData = {
+            "currentEnergyLevel"     : 0,
+            "lastEnergyLevel"        : 0,
+            "backedupEnergyLevel"    : 0,
+
+            "currentEnergyTimestamp" : 0,
+
+            "gridLossDetected"       : True,
+        }
 
         # data for easy meter message to be sent out to worker thread
         self.energyData = {
-            "invalidMessages"     : 0,      # we need an initial value here, otherwise "+= 1" will fail!
-            "lastInvalidMessage"  : 0,      # time last invalid message has been detected
-            "invalidMessageError" : 0,      # reason why the last message has been detected as invalid, e.g. "invalid CRC", "value not found", "value found twice"
-    
-            "allowedPower"        : 0,      # allowed power to be taken from the grid to load the batteries (inverter thread has to calculate proper current with known battery voltage)
-            "allowedReduction"    : 0,      # allowed reduction used for allowed power level (has already been subtracted from allowedPoer!)
-            "allowedTimestamp"    : 0,      # time stamp when allowed power has been set for the first time
-    
-            "previousPower"       : 0,      # previous allowed power, for logging
-            "previousReduction"   : 0,      # reduction used for previous power level (has already been subtracted!)
-            "previousTimestamp"   : 0,      # time stamp when the previous power has been taken
-    
-            "updatePowerValue"    : False,  # set to True in the one message every "loadCycle" seconds to inform the worker thread that an update should be done now 
-        }            
+            "invalidMessages"            : 0,      # we need an initial value here, otherwise "+= 1" will fail!
+            "lastInvalidMessageTimeStamp": 0,      # time last invalid message has been detected
+            "invalidMessageError"        : 0,      # reason why the last message has been detected as invalid, e.g. "invalid CRC", "value not found", "value found twice"
+
+            "allowedPower"               : 0,      # allowed power to be taken from the grid to load the batteries (inverter thread has to calculate proper current with known battery voltage)
+            "allowedReduction"           : 0,      # allowed reduction used for allowed power level (has already been subtracted from allowedPoer!)
+            "allowedTimestamp"           : 0,      # time stamp when allowed power has been set for the first time
+
+            "previousPower"              : 0,      # previous allowed power, for logging
+            "previousReduction"          : 0,      # reduction used for previous power level (has already been subtracted!)
+            "previousTimestamp"          : 0,      # time stamp when the previous power has been taken
+
+            "updatePowerValue"           : False,  # set to True in the one message every "loadCycle" seconds to inform the worker thread that an update should be done now 
+        }
 
         # check and prepare mandatory parameters
-        self.tagsIncluded(["loadCycle", "gridLossThreshold", "conservativeDelta", "progressiveDelta", "messageInterval"], intIfy = True)
+        self.tagsIncluded(["loadCycle", "gridLossThreshold", "conservativeDelta", "progressiveDelta", "minimumPowerStep"], intIfy = True)
+
+        if not self.tagsIncluded(["messageInterval"], intIfy = True, optional = True):
+            self.configuration["messageInterval"] = 60     # default value if not given
 
         if (self.configuration["loadCycle"] // self.configuration["messageInterval"]) <= 1:
-            raise Exception(f"loadCycle must to be larger than messageInterval") 
+            raise Exception(f"loadCycle must to be larger than messageInterval =={self.configuration['messageInterval']}") 
 
         if ((self.configuration["loadCycle"] // self.configuration["messageInterval"]) * self.configuration["messageInterval"]) != self.configuration["loadCycle"]:  
-            raise Exception(f"loadCycle has to be an integer multiple of messageInterval") 
+            raise Exception(f"loadCycle has to be an integer multiple of messageInterval")
 
-        if self.configuration["loadCycle"] <= (3 * self.configuration["gridLossThreshold"]):
-            raise Exception(f"loadCycle has to be at least 4 times gridLossThresold") 
+        if self.configuration["loadCycle"] <= (4 * self.configuration["gridLossThreshold"]):
+            raise Exception(f"loadCycle has to be at least 4 times gridLossThresold")
 
         if self.configuration["gridLossThreshold"] <= 0:
-            raise Exception(f"gridLossThresold must be larger than 0") 
+            raise Exception(f"gridLossThresold must be larger than 0 seconds")
+
+        if self.configuration["minimumPowerStep"] < 100:
+            raise Exception(f"minimumPowerStep must be at least 100 watts")
 
 
     #def threadInitMethod(self):
     #    pass
+
+
+    def processReceivedMessage(self, data : str) -> str:
+        '''
+        Check and process a data message received from easy meter
+        
+        All received data will be filled into self.energyData
+        '''
+        messageError = ""
+
+        # last two bytes are the CRC so calculate CRC over the first n-2 bytes and compare result with CRC in the last two bytes
+        if Base.Crc.Crc.crc16EasyMeter(data[:-2]) != Base.Crc.Crc.bytesToWordBigEndian(data[-2:]):
+            messageError = "invalid CRC"
+        else:
+            # try to match all keys since messages always have same content, it's an error if one key hasn't been found at all or has been found twice!
+            hexString = ":".join([ "{:02X}".format(char) for char in data])     # create printable string for log message, for the case of an error
+            for key in self.SML_VALUES:
+                matcher = self.SML_VALUES[key]["regex"]
+                match = matcher.findall(data)
+                if not len(match):
+                    self.logger.warning(self, f"no match for {key} in easy meter message: {hexString}")
+                    messageError = f"element for {key} not found"
+                    break
+                elif len(match) > 1:
+                    self.logger.warning(self, f"too many matches for {key} in easy meter message: {hexString}")
+                    messageError = f"element for {key} found {len(match)} times"
+                    break
+                else:
+                    value = str(int.from_bytes(match[0], byteorder = "big", signed = self.SML_VALUES[key]["signed"]))
+                    self.energyData[key] = value[:-self.SML_VALUES[key]["resolution"]] + "." + value[-self.SML_VALUES[key]["resolution"]:]  
+        return messageError
+
+
+    def handleReceivedValues(self, messageError : bool):
+        '''
+        Check result from processed data and fill in proper values or store error information
+        '''
+        if not messageError:
+            self.logger.debug(self, str(self.energyData))
+
+            # current energy level == 0 means script has been (re-)started and we are here for the first time, in that case take the values received with the last message
+            if self.energyProcessData["currentEnergyLevel"] == 0:              # can only happen after reboot since this is the real overall energy measured so far
+                self.energyProcessData["backedupEnergyLevel"] = self.energyData[self.DELIVERED_ENERGY_KEY]
+                self.energyProcessData["lastEnergyLevel"]     = self.energyData[self.DELIVERED_ENERGY_KEY]
+            else:
+                # backup last levels
+                self.energyProcessData["backedupEnergyLevel"] = self.energyProcessData["lastEnergyLevel"]
+                self.energyProcessData["lastEnergyLevel"]     = self.energyProcessData["currentEnergyLevel"]
+
+            # remember current level and current time
+            self.energyProcessData["currentEnergyLevel"]     = self.energyData[self.DELIVERED_ENERGY_KEY]
+            self.energyProcessData["currentEnergyTimestamp"] = Supporter.getTimeStamp()
+        else:
+            # logging values only
+            self.energyData["invalidMessages"]            += 1
+            self.energyData["lastInvalidMessageTimeStamp"] = Supporter.getTimeStamp()
+            self.energyData["invalidMessageError"]         = messageError
 
 
     def receiveGridMeterMessage(self):
@@ -102,43 +169,37 @@ class EasyMeter(ThreadObject):
         If a valid message could be found it will be processed and proper values will be set
         '''
         if not self.easyMeterInterfaceQueue.empty():
-            invalidMessage = ""
+            while not self.easyMeterInterfaceQueue.empty():
+                data = self.easyMeterInterfaceQueue.get(block = False)  # read a message from interface but take only last one (if there are more they can be thrown away, only the newest one is from interest)
 
-            data = self.easyMeterInterfaceQueue.get(block = False)      # read a message from interface
+            messageError = self.processReceivedMessage(data)            # fill variables from message content (if message is OK)
+            self.handleReceivedValues(messageError)                     # process filled variables and try to calculate new power level
 
-            # last two bytes are the CRC so calculate CRC over the first n-2 bytes and compare result with CRC in the last two bytes
-            if Base.Crc.Crc.crc16EasyMeter(data[:-2]) != Base.Crc.Crc.bytesToWordBigEndian(data[-2:]):
-                invalidMessage = "invalid CRC"
+
+    def calculateNewPowerLevel(self):
+        '''
+        Calculate new power level from last and current energy values
+        '''
+        # handle grid loss if necessary, otherwise calculate new power levels
+        if self.energyProcessData["gridLossDetected"]:
+            # grid loss handling
+            newReductionLevel  = self.configuration["conservativeDelta"]
+            newPowerLevel      = self.POWER_OFF_LEVEL
+        else:
+            # grid is OK so send proper values
+            lastEnergyDelta    = int(self.energyProcessData["lastEnergyLevel"]    - self.energyProcessData["backedupEnergyLevel"])
+            currentEnergyDelta = int(self.energyProcessData["currentEnergyLevel"] - self.energyProcessData["lastEnergyLevel"])
+            if lastEnergyDelta > currentEnergyDelta:
+                newReductionLevel = self.configuration["conservativeDelta"]
             else:
-                for key in self.SML_VALUES:
-                    matcher = self.SML_VALUES[key]["regex"]
-                    match = matcher.findall(data)
-                    hexString = ":".join([ "{:02X}".format(char) for char in data])
-                    if not len(match):
-                        self.logger.warning(self, f"no match for {key} in easy meter message: {hexString}")
-                        invalidMessage = f"element for {key} not found"
-                        break
-                    elif len(match) > 1:
-                        self.logger.warning(self, f"too many matches for {key} in easy meter message: {hexString}")
-                        invalidMessage = f"element for {key} found {len(match)} times"
-                        break
-                    else:
-                        value = str(int.from_bytes(match[0], byteorder = "big", signed = self.SML_VALUES[key]["signed"]))
-                        self.energyData[key] = value[:-self.SML_VALUES[key]["resolution"]] + "." + value[-self.SML_VALUES[key]["resolution"]:]  
+                newReductionLevel = self.configuration["progressiveDelta"]
+            newPowerLevel      = currentEnergyDelta / (self.SECONDS_PER_HOUR / self.configuration["loadCycle"]) - newReductionLevel            # 1 hour / "loadCycle" to calculate power from energy! This is ok even for the first cycle that can be a bit shorter since in that case less energy will be calculated than really collected
 
-            if not invalidMessage:
-                self.logger.debug(self, str(self.energyData))
+            # no negative power level but with reduction level this can happen!
+            if newPowerLevel < self.POWER_OFF_LEVEL:
+                newPowerLevel = self.POWER_OFF_LEVEL
 
-                # no initial value (probably first message ever received), so use current one!
-                if self.energyValues[self.ENERGY_VALUE_NAMES["lastSentEnergyValue"]] == 0:
-                    self.energyValues[self.ENERGY_VALUE_NAMES["lastSentEnergyValue"]] = self.energyData[self.DELIVERED_ENERGY_KEY]
-
-                # remember current energy value and current time
-                self.energyValues[self.ENERGY_VALUE_NAMES["currentEnergyLevel"]] = self.energyData[self.DELIVERED_ENERGY_KEY]
-                self.lastEasyMeterMessageTime = Supporter.getTimeStamp()
-            else:
-                self.energyData["invalidMessages"]   += 1
-                self.energyData["lastInvalidMessage"] = invalidMessage
+        return (newPowerLevel, newReductionLevel)
 
 
     def prepareNewEasyMeterMessage(self):
@@ -147,59 +208,49 @@ class EasyMeter(ThreadObject):
 
         Checks if grid loss has been detected and calculates new power value for the message to the worker thread
         '''
-        SECONDS_PER_HOUR = 60 * 60
-        POWER_OFF_LEVEL  = 0
-        # handle grid loss if necessary
-        if not self.gridLossDetected:
-            # grid is OK so send proper values
-            lastEnergyDelta    = int(self.energyValues[self.ENERGY_VALUE_NAMES["lastSentEnergyValue"]] - self.energyValues[self.ENERGY_VALUE_NAMES["backedupEnergyLevel"]])
-            currentEnergyDelta = int(self.energyValues[self.ENERGY_VALUE_NAMES["currentEnergyLevel"]]  - self.energyValues[self.ENERGY_VALUE_NAMES["lastSentEnergyValue"]])
-            newReductionLevel  = self.configuration["conservativeDelta"] if lastEnergyDelta > currentEnergyDelta else self.configuration["progressiveDelta"]
-            newPowerLevel      = currentEnergyDelta / (SECONDS_PER_HOUR / self.configuration["loadCycle"]) - newReductionLevel            # 1 hour / "loadCycle" to calculate power from energy!
-        else:
-            # grid loss handling
-            newReductionLevel  = self.configuration["conservativeDelta"]
-            newPowerLevel      = POWER_OFF_LEVEL
+        # calculate new power level and reduction value
+        (newPowerLevel, newReductionLevel) = self.calculateNewPowerLevel()
 
-        # set to True for this one message only if there have been any changes since last turn and the power difference is more than 10%
-        #    - allowedPower is 0                 --> to be sure that 0 is set e.g. after grid loss
-        #    - different power has to be used    --> 
-        if (newPowerLevel == POWER_OFF_LEVEL) or (newPowerLevel != self.energyData["allowedPower"]):
+        # do we have to switch OFF -or- difference between current and last set power level large enough?
+        messageTime = Supporter.getTimeStamp()
+        if (newPowerLevel == self.POWER_OFF_LEVEL) or (Supporter.absoluteDifference(newPowerLevel, self.energyData["allowedPower"]) >= self.configuration["minimumPowerStep"]): 
             # copy current values over to previous ones
             self.energyData["previousPower"]     = self.energyData["allowedPower"]
             self.energyData["previousReduction"] = self.energyData["allowedReduction"]
             self.energyData["previousTimestamp"] = self.energyData["allowedTimestamp"]
-    
+
             # fill in new current values
             self.energyData["allowedPower"]     = newPowerLevel
             self.energyData["allowedReduction"] = newReductionLevel
-            self.energyData["allowedTimestamp"] = Supporter.getTimeStamp()          # remember time of last set power level (since not every "loadCycle" a new level is set! 
+            self.energyData["allowedTimestamp"] = messageTime          # remember time of last set power level (since not every "loadCycle" a new level is set! 
 
             # tag this message as message with new power level
             self.energyData["updatePowerValue"] = True
 
+        # set last message time
+        self.energyProcessData["currentEnergyTimestamp"] = messageTime    
+
         # reset some values for next turn
-        self.gridLossDetected = False                               # reset grid loss detection for next cycle
-        self.lastEasyMeterMessageTime = Supporter.getTimeStamp()    # set last message time
+        self.energyProcessData["gridLossDetected"] = False                               # reset grid loss detection for next cycle
 
 
     def threadMethod(self):
         '''
         first loop:
-            self.gridLossDetected = True
+            self.energyProcessData["gridLossDetected"] = True
        
         every loop run:
-            "lastSentEnergyValue" == 0:
+            "lastEnergyLevel" == 0:
                 fill in current energy level (overall first cycle is probably a "shorter" one but that doesn't matter)
             time since last time > 2 minutes -> error (probably grid loss):
-                self.gridLossDetected = True
+                self.energyProcessData["gridLossDetected"] = True
 
         every minute a message is sent out:
             containing all data, some data could be unchanged, others will be new
 
         every event time:
-            self.gridLossDetected = False
-            self.lastEasyMeterMessageTime = now
+            self.energyProcessData["gridLossDetected"] = False
+            self.energyProcessData["currentEnergyTimestamp"] = now
             store new power level
             send signal message (in case of real grid loss nth. will happen but in case it's a bug and there is no grid loss a message will be sent!
 
@@ -214,8 +265,8 @@ class EasyMeter(ThreadObject):
             self.logger.debug(self, "received message :" + str(newMqttMessageDict))
 
         # grid loss detected?
-        if Supporter.getDeltaTime(self.lastEasyMeterMessageTime) > self.configuration["gridLossThreshold"]:
-            self.gridLossDetected = True
+        if Supporter.getSecondsSince(self.energyProcessData["currentEnergyTimestamp"]) > self.configuration["gridLossThreshold"]:
+            self.energyProcessData["gridLossDetected"] = True
 
         # any grid meter data to be received?
         self.receiveGridMeterMessage()
@@ -224,9 +275,9 @@ class EasyMeter(ThreadObject):
         if self.timer("energyLoadTimer", timeout = self.configuration["loadCycle"], startTime = Supporter.getTimeOfToday(), firstTimeTrue = True):         # start timer with the interval in which new load parameters have to be sent out, timer is synchronized to the real time and not to random time it has been started
             self.prepareNewEasyMeterMessage()
 
-
         # one message every 60 seconds
-        if self.timer("messageTimer", timeout = 60, startTime = Supporter.getTimeOfToday(), firstTimeTrue = False):
+        if self.timer("messageTimer", timeout = self.configuration["messageInterval"], startTime = Supporter.getTimeOfToday(), firstTimeTrue = False):
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.energyData, globalPublish = False)
+            self.logger.info(self, "new message: " + str(self.energyData))
             self.energyData["updatePowerValue"] = False     # set to False (again) for all following messages until it has been decided to set a new power level
 

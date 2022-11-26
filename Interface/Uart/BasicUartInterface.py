@@ -1,6 +1,7 @@
 import time
 import serial    #pip install pyserial
 import json
+from Base.Supporter import Supporter
 
 from Base.InterfaceBase import InterfaceBase
 
@@ -26,22 +27,31 @@ class BasicUartInterface(InterfaceBase):
         self.tagsIncluded(["timeout"], optional = True, default = 4)
         self.tagsIncluded(["xonxoff"], optional = True, default = False)
         self.tagsIncluded(["rtscts"], optional = True, default = False)
+        self.tagsIncluded(["writeTimeout"], optional = True, default = 4)
 
 
     def reInitSerial(self):
+        error = False
         try:
             self.logger.debug(self, f"Serial Port {self.name} reInit!")
             self.serialConn.close()
             self.serialConn.open()
-        except:
-            self.logger.error(self, f"Serial Port {self.name} reInit failed!")
+        except Exception as exception:
+            self.logger.error(self, f"Serial Port {self.name} reInit failed: {exception}")
+            error = True
             # @todo perhaps wait a little bit
+        return error
+
 
     def serialWrite(self, data):
+        error = False
         try:
             self.serialConn.write(data)
-        except:
-            self.logger.error(self, "Could not send serial data!")
+        except Exception as exception:
+            self.logger.error(self, f"Sending serial data failed: {exception}")
+            error = True
+        return error
+
 
     def serialReadLine(self):
         try:
@@ -51,36 +61,47 @@ class BasicUartInterface(InterfaceBase):
             retVal = b""
         return retVal
 
-    def serialRead(self):
+
+    def serialRead(self, length : int = 0, timeout : int = 0):
+        returnData = b""
+
+        if timeout:
+            startTime = Supporter.getTimeStamp()
         try:
-            retVal = self.serialConn.read()
+            while True:
+                receivedData = self.serialConn.read()
+                if receivedData:
+                    returnData += receivedData
+
+                    # if length has been given check if length characters have been received
+                    if len(returnData) >= length:
+                        break
+
+                # if timeout has been given check if time is over
+                if timeout and Supporter.getSecondsSince(startTime) > timeout:
+                    break
         except:
             self.reInitSerial()
-            retVal = b""
-        return retVal
+
+        return returnData
+
 
     def serialReset_input_buffer(self):
         self.serialConn.reset_input_buffer()
 
+
     def threadInitMethod(self):
         self.serialConn = serial.Serial(
-            port = self.configuration["interface"],
-            baudrate = self.configuration["baudrate"],
-            timeout = self.configuration["timeout"]
-            )
-
-        #self.serialConn = self.serial.Serial(self.configuration["interface"], self.configuration["baudrate"], timeout=4)
-
-        #self.serialConn = serial.Serial(
-        #    port = self.configuration["interface"],
-        #    baudrate = self.configuration["baudrate"],
-        #    bytesize = self.configuration["bytesize"],
-        #    parity = self.configuration["parity"],
-        #    stopbits = self.configuration["stopbits"],
-        #    timeout = self.configuration["timeout"],
-        #    xonxoff = self.configuration["xonxoff"],
-        #    rtscts = self.configuration["rtscts"]
-        #    )
+            port         = self.configuration["interface"],
+            baudrate     = self.configuration["baudrate"],
+            bytesize     = self.configuration["bytesize"],
+            parity       = self.configuration["parity"],
+            stopbits     = self.configuration["stopbits"],
+            timeout      = self.configuration["timeout"],
+            xonxoff      = self.configuration["xonxoff"],
+            writeTimeout = self.configuration["writeTimeout"],
+            rtscts       = self.configuration["rtscts"]
+        )
 
 
     #def threadMethod(self):

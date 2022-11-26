@@ -62,7 +62,7 @@ class WatchDog(ThreadObject):
         self.watchDogLastInformedDict = {}                                                                          # to collect all known threads so far with next timeout time
 
         # init lastDeltaTime to be compared with current delta time to show proper up-time message 
-        self.lastDeltaTime = Supporter.getDeltaTime(self.startupTime)
+        self.lastDeltaTime = Supporter.getSecondsSince(self.startupTime)
 
 
     def threadMethod(self):
@@ -132,7 +132,7 @@ class WatchDog(ThreadObject):
 
         # log system running time (except it has been deactivated by "logUpTime" == 0)
         if self.configuration["logUpTime"]:
-            deltaTime = Supporter.getDeltaTime(self.startupTime)
+            deltaTime = Supporter.getSecondsSince(self.startupTime)
             if self.lastDeltaTime + self.configuration["logUpTime"] <= deltaTime:
                 self.logger.info(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
                 self.lastDeltaTime = deltaTime
