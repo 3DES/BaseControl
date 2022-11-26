@@ -310,42 +310,86 @@ class PowerPlant(Worker):
 
     def handleMessage(self, message):
         """
-        sort the incoming msg to the localDeviceData variable and handle expectedDevicesPresent variable
+        sort the incoming msg to the localDeviceData variable
+        handle expectedDevicesPresent variable
+        set setable values wich are received global
         """
+
+        # check if its our own topic
         if self.createActualTopic(self.getObjectTopic()) in message["topic"]:
-            # if old own data received we use it and unsubscribe
+            # we use it and unsubscribe
             self.SkriptWerte = message["content"]
             self.mqttUnSubscribeTopic(self.createActualTopic(self.getObjectTopic()))
             self.timer(name = "timeoutMqtt", remove = True)
             self.localDeviceData["initialMqttTimeout"] = True
         else:
-            # set expectedDevicesPresent. If a device is not present we reset the value
-            self.localDeviceData["expectedDevicesPresent"] = True
-            # check if a expected device sended a msg and store it
-            for key in self.expectedDevices:
-                if key in message["topic"]:
-                    self.localDeviceData[key] = message["content"]
-                # check if all devices except effektas are present
-                if not (key in self.localDeviceData):
-                    self.localDeviceData["expectedDevicesPresent"] = False
+            # check if the incoming value is part of self.setableSkriptWerte and if true then take the new value
+            for key in self.setableSkriptWerte:
+                if key in message["content"]:
+                    try:
+                        if type(message["content"][key]) == type(self.SkriptWerte[key]):
+                            self.SkriptWerte[key] = message["content"][key]
+                            self.sendeMqtt = True
+                        else:
+                            self.logger.error(self, "Wrong datatype globally received.")
+                    except:
+                        self.logger.error(self, "Wrong datatype globally received.")
 
+            if message["content"] in self.manualCommands:
+                self.sendeMqtt = True
+                self.SkriptWerte["SkriptMode"] = "Manual"
+                self.logger.info(self, "Die Anlage wurde auf Manuell gestellt")
+                if message["content"] == "NetzSchnellLadenEin":
+                    self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
+                elif message["content"] == "NetzLadenEin":
+                    self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
+                elif message["content"] == "NetzLadenAus":
+                    self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
+                elif message["content"] == "WrAufNetz":
+                    self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
+                elif message["content"] == "WrAufAkku":
+                    self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
+
+            # check if all expected devices sent data
+            if self.localDeviceData["expectedDevicesPresent"] == False:
+                # set expectedDevicesPresent. If a device is not present we reset the value
+                self.localDeviceData["expectedDevicesPresent"] = True
+                # check if a expected device sended a msg and store it
+                for key in self.expectedDevices:
+                    if key in message["topic"]:
+                        self.localDeviceData[key] = message["content"]
+                    # check if all devices are present
+                    if not (key in self.localDeviceData):
+                        self.localDeviceData["expectedDevicesPresent"] = False
 
     def threadInitMethod(self):
-        self.tagsIncluded(["managedEffektas", "initModeEffekta"])
-        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False}
-        self.SkriptWerte = {"WrNetzladen":False, "Akkuschutz":False, "RussiaMode": False, "Error":False, "WrMode":"", "SkriptMode":"Auto", "PowerSaveMode":False, "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
-        self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "relaisNames"])
+        self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName", "relaisNames"])
         # Threadnames we have to wait for a initial message. The worker need this data.
-        self.expectedDevices = ["BMS", "SocMonitor"]
+        self.expectedDevices = []
+        self.expectedDevices.append(self.configuration["socMonitorName"])
+        self.expectedDevices.append(self.configuration["bmsName"])
+        # add managedEffekta List, funktion getLinkedEffektaData nedds this data
+        self.expectedDevices += self.configuration["managedEffektas"]
         # init some variables
+        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "linkedEffektaData":{}, "Wetter":{}}
+        # (keys of self.SkriptWerte) - self.setableSkriptWerte = nonsetable or internal currentValues
+        self.SkriptWerte = {"WrNetzladen":False, "Akkuschutz":False, "RussiaMode": False, "Error":False, "PowerSaveMode" : False, "WrMode":"", "SkriptMode":"Auto", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
+        # init lists of direct setable values or commands
+        self.setableSkriptWerte = ["Akkuschutz", "RussiaMode", "PowerSaveMode", "SkriptMode", "schaltschwelleAkkuTollesWetter", "schaltschwelleAkkuRussia", "schaltschwelleNetzRussia", "schaltschwelleAkkuSchlechtesWetter", "schaltschwelleNetzSchlechtesWetter"]
+        self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
         self.InitialInitWr = True
         self.EntladeFreigabeGesendet = False
         self.NetzLadenAusGesperrt = False
+        self.ResetSocSended = False
         # init some constants
         self.Akkumode = "Akku"
         self.NetzMode = "Netz"
+        self.initTransferRelais()
+
         # subscribe global to own out topic to get old data and set timeout
         self.mqttSubscribeTopic(self.createActualTopic(self.getObjectTopic()), globalSubscription = True)
+        # subscribe Global to get commands from extern
+        self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()), globalSubscription = True)
 
         for device in self.expectedDevices:
             self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
@@ -353,6 +397,8 @@ class PowerPlant(Worker):
             self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
 
     def threadMethod(self):
+        self.sendeMqtt = False
+
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
             self.logger.debug(self, "received message :" + str(newMqttMessageDict))
@@ -364,16 +410,16 @@ class PowerPlant(Worker):
 
         # check Timer, delete it and remember internally
         if not self.localDeviceData["initialMqttTimeout"]:
-            #if Supporter.timer(name = "timeoutMqtt", timeout = 30):
-            if self.timer(name = "timeoutMqtt", timeout = 3):
+            if self.timer(name = "timeoutMqtt", timeout = 30):
                 self.timer(name = "timeoutMqtt", remove = True)
                 self.localDeviceData["initialMqttTimeout"] = True
                 self.logger.info(self, "MQTT init timeout.")
 
+
         # if all devices has sended its work data then we will run the worker
         if self.localDeviceData["expectedDevicesPresent"] and self.localDeviceData["initialMqttTimeout"]:
+            self.manageLogicalLinkedEffektaData()
             now = datetime.datetime.now()
-            self.sendeMqtt = False
 
             self.passeSchaltschwellenAn()
 
@@ -489,8 +535,14 @@ class PowerPlant(Worker):
             if self.sendeMqtt == True: 
                 self.sendeMqtt = False
                 self.mqttPublish(self.createActualTopic(self.getObjectTopic()), self.SkriptWerte, globalPublish = True, enableEcho = False)
-
+        else:
+            if self.timer(name = "timeoutExpectedDevices", timeout = 10*60):
+                self.myPrint(Logger.LOG_LEVEL.ERROR, "Es haben sich nicht alle erwarteten Devices gemeldet!")
+                for device in self.expectedDevices:
+                    if not device in self.localDeviceData:
+                        self.myPrint(Logger.LOG_LEVEL.ERROR, f"Device: {device} fehlt!")
+                raise Exception("Some devices are missing after timeout!") 
 
 
     def threadBreak(self):
-        time.sleep(5)
+        time.sleep(0.5)
