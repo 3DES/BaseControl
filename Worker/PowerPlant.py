@@ -274,7 +274,7 @@ class PowerPlant(Worker):
 
     def initInverter(self):
         if self.configuration["initModeEffekta"] == "Auto":
-            if self.localDeviceData["SocMonitor"]["Prozent"] == SocMeter.InitAkkuProz:
+            if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == SocMeter.InitAkkuProz:
                 # if the value is still (after getting work data from soc) on initAkkuProz we fallback on "Netz"
                 self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
             else:
@@ -288,28 +288,25 @@ class PowerPlant(Worker):
             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
 
-
     def myPrint(self, msgType, msg):
-        # convert LOGGER.INFO -> "info"
+        # convert LOGGER.INFO -> "info" and concat it to topic
         msgTypeSegment = str(msgType)
         msgTypeSegment = msgTypeSegment.split(".")[1]
         msgTypeSegment = msgTypeSegment.lower()
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + msgTypeSegment, msg, globalPublish = True, enableEcho = False)
         self.logger.message(msgType, self, msg)
 
-
     def autoInitInverter(self):
-        if 0 < self.localDeviceData["SocMonitor"]["Prozent"] < self.SkriptWerte["schaltschwelleNetzLadenaus"]:
+        if 0 < self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < self.SkriptWerte["schaltschwelleNetzLadenaus"]:
             self.myPrint(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Netz mit Laden")
             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
             self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
-        elif self.SkriptWerte["schaltschwelleNetzLadenaus"] <= self.localDeviceData["SocMonitor"]["Prozent"] < self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"]:
+        elif self.SkriptWerte["schaltschwelleNetzLadenaus"] <= self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"]:
             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-            self.myPrint(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Netz ohne Laden")                     
-        elif self.localDeviceData["SocMonitor"]["Prozent"] >= self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
+            self.myPrint(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Netz ohne Laden")
+        elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
             self.myPrint(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Akku") 
-
 
     def handleMessage(self, message):
         """
@@ -337,6 +334,7 @@ class PowerPlant(Worker):
         self.tagsIncluded(["managedEffektas", "initModeEffekta"])
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False}
         self.SkriptWerte = {"WrNetzladen":False, "Akkuschutz":False, "RussiaMode": False, "Error":False, "WrMode":"", "SkriptMode":"Auto", "PowerSaveMode":False, "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
+        self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "relaisNames"])
         # Threadnames we have to wait for a initial message. The worker need this data.
         self.expectedDevices = ["BMS", "SocMonitor"]
         # init some variables
@@ -385,12 +383,12 @@ class PowerPlant(Worker):
 
 
             # Wir setzen den Error bei 100 prozent zurück. In der Hoffunng dass nicht immer 100 prozent vom BMS kommen dieses fängt aber bei einem Neustart bei 0 proz an.
-            if self.localDeviceData["SocMonitor"]["Prozent"] >= 100.0:
+            if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= 100.0:
                 self.SkriptWerte["Error"] = False
 
 
             # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
-            if self.localDeviceData["BMS"]["BmsEntladeFreigabe"] == True and self.SkriptWerte["Error"] == False:
+            if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] == True and self.SkriptWerte["Error"] == False:
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
                 if self.SkriptWerte["SkriptMode"] == "Auto":
                     # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
@@ -404,7 +402,7 @@ class PowerPlant(Worker):
                             if self.localDeviceData["Wetter"]["Tag_1"] != None:
                                 if self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
                                 # Wir wollen den Akku schonen weil es nichts bringt wenn wir ihn leer machen
-                                    if self.localDeviceData["SocMonitor"]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]):
+                                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]):
                                         if self.SkriptWerte["WrMode"] == self.Akkumode:
                                             # todo ist das so sinnvoll. Bestand
                                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
@@ -419,7 +417,7 @@ class PowerPlant(Worker):
                             if self.localDeviceData["Wetter"]["Tag_0"] != None and self.localDeviceData["Wetter"]["Tag_1"] != None:
                                 if self.localDeviceData["Wetter"]["Tag_0"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"] and self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
                                 # Wir wollen den Akku schonen weil es nichts bringt wenn wir ihn leer machen
-                                    if self.localDeviceData["SocMonitor"]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]):
+                                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]):
                                         if self.SkriptWerte["WrMode"] == self.Akkumode:
                                             # todo ist das so sinnvoll. Bestand
                                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
@@ -431,19 +429,19 @@ class PowerPlant(Worker):
                     self.passeSchaltschwellenAn()
 
                     # todo self.SkriptWerte["Akkuschutz"] = False Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
-                    if self.localDeviceData["SocMonitor"]["Prozent"] >= self.SkriptWerte["AkkuschutzAbschalten"]:
+                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["AkkuschutzAbschalten"]:
                         self.SkriptWerte["Akkuschutz"] = False
 
 
                     if self.SkriptWerte["WrMode"] == self.Akkumode:
-                        if self.localDeviceData["SocMonitor"]["Prozent"] <= self.SkriptWerte["MinSoc"]:
+                        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["MinSoc"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                             self.myPrint(Logger.LOG_LEVEL.INFO, "MinSOC %iP erreicht -> schalte auf Netz." %self.SkriptWerte["MinSoc"])
-                        elif self.localDeviceData["SocMonitor"]["Prozent"] <= self.SkriptWerte["schaltschwelleNetz"]:
+                        elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["schaltschwelleNetz"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                             self.myPrint(Logger.LOG_LEVEL.INFO, "%iP erreicht -> schalte auf Netz." %self.SkriptWerte["schaltschwelleNetz"])  
                     elif self.SkriptWerte["WrMode"] == self.NetzMode:
-                        if self.localDeviceData["SocMonitor"]["Prozent"] >= self.SkriptWerte["schaltschwelleAkku"]:
+                        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleAkku"]:
                             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
                             self.NetzLadenAusGesperrt = False
                             self.myPrint(Logger.LOG_LEVEL.INFO, "%iP erreicht -> Schalte auf Akku"  %self.SkriptWerte["schaltschwelleAkku"])
@@ -454,13 +452,13 @@ class PowerPlant(Worker):
 
 
                     # Wenn Akkuschutz an ist und die schaltschwelle NetzLadenEin erreicht ist, dann laden wir vom Netz
-                    if self.SkriptWerte["WrNetzladen"] == False and self.SkriptWerte["Akkuschutz"] == True and self.localDeviceData["SocMonitor"]["Prozent"] <= self.SkriptWerte["schaltschwelleNetzLadenein"]:
+                    if self.SkriptWerte["WrNetzladen"] == False and self.SkriptWerte["Akkuschutz"] == True and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["schaltschwelleNetzLadenein"]:
                         self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
                         self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte auf Netz mit laden")
 
 
                     # Wenn das Netz Laden durch eine Unterspannungserkennung eingeschaltet wurde schalten wir es aus wenn der Akku wieder 10% hat
-                    if self.SkriptWerte["WrNetzladen"] == True and self.NetzLadenAusGesperrt == False and self.localDeviceData["SocMonitor"]["Prozent"] >= self.SkriptWerte["schaltschwelleNetzLadenaus"]:
+                    if self.SkriptWerte["WrNetzladen"] == True and self.NetzLadenAusGesperrt == False and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleNetzLadenaus"]:
                         self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
                         self.myPrint(Logger.LOG_LEVEL.INFO, "NetzLadenaus %iP erreicht -> schalte Laden aus." %self.SkriptWerte["schaltschwelleNetzLadenaus"])
 
@@ -471,20 +469,22 @@ class PowerPlant(Worker):
                 self.EntladeFreigabeGesendet = True
                 self.schalteAlleWrAufNetzMitNetzladen(self.configuration["managedEffektas"])
                 # Falls der Akkustand zu hoch ist würde nach einer Abschaltung das Netzladen gleich wieder abgeschaltet werden das wollen wir verhindern
-                self.myPrint(Logger.LOG_LEVEL.ERROR, f'Schalte auf Netz mit laden. Trigger-> BMS: {not self.localDeviceData["BMS"]["BmsEntladeFreigabe"]}, Error: {self.SkriptWerte["Error"]}')
-                if self.localDeviceData["SocMonitor"]["Prozent"] >= self.SkriptWerte["schaltschwelleNetzLadenaus"]:
+                self.myPrint(Logger.LOG_LEVEL.ERROR, f'Schalte auf Netz mit laden. Trigger-> BMS: {not self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]}, Error: {self.SkriptWerte["Error"]}')
+                if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleNetzLadenaus"]:
                     # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenaus ausgelöst wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
                     self.NetzLadenAusGesperrt = True
                     self.SkriptWerte["Akkuschutz"] = True
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Ladestand weicht ab")
                 # wir setzen einen error weil das nicht plausibel ist und wir hin und her schalten sollte die freigabe wieder kommen
                 # wir wollen den Akku erst bis 100 P aufladen 
-                if self.localDeviceData["SocMonitor"]["Prozent"] >= self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
+                if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
                     self.SkriptWerte["Error"] = True
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Ladestand nicht plausibel")
                 self.sendeMqtt = True
 
             self.passeSchaltschwellenAn()
+
+            self.manageTranferRelais()
 
             if self.sendeMqtt == True: 
                 self.sendeMqtt = False
