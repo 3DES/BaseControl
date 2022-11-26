@@ -17,11 +17,11 @@ class UartInterface(InterfaceBase):
         '''
         super().__init__(threadName, configuration)
 
-        self.tagsIncluded(["interface", "parity", "stopbits"])
-        self.tagsIncluded(["baudrate", "bytesize"], intIfy = True)
-        self.tagsIncluded(["timeout"], optional = True, default = None)
-        self.tagsIncluded(["xonxoff"], optional = True, default = 0)
-        self.tagsIncluded(["rtscts"], optional = True, default = 0)
+        #self.tagsIncluded(["interface", "parity", "stopbits"])
+        #self.tagsIncluded(["baudrate", "bytesize"], intIfy = True)
+        #self.tagsIncluded(["timeout"], optional = True, default = None)
+        #self.tagsIncluded(["xonxoff"], optional = True, default = 0)
+        #self.tagsIncluded(["rtscts"], optional = True, default = 0)
         #self.serialConn = serial.Serial(
         #    port = self.configuration["interface"],
         #    baudrate = self.configuration["baudrate"],
