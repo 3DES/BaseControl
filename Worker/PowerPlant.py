@@ -98,6 +98,33 @@ class PowerPlant(Worker):
         self.myPrint(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf manuell gestellt!")
         self.sendeMqtt = True
 
+    def resetSocMonitor(self):
+        # @todo topic und evt auch msg ermitteln
+        self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["socMonitorName"])), "resetSoc", globalPublish = False, enableEcho = False)
+
+    def getLinkedEffektaData(self):
+        dataList = {}
+        for device in self.configuration["managedEffektas"]:
+            if device in self.localDeviceData:
+                dataList.update({device:self.localDeviceData[device]})
+        return EffektaController.getLinkedEffektaData(dataList)
+
+    def manageLogicalLinkedEffektaData(self):
+        """
+        check logical linked Effekta data 
+        reset SocMonitor to 100% if floatMode is activ, and remember it
+        send the data on topic ...out/linkedEffektaData if a new value arrived
+        """
+        tempData = self.getLinkedEffektaData()
+        if tempData != self.localDeviceData["linkedEffektaData"]:
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + "linkedEffektaData", tempData, globalPublish = True, enableEcho = False)
+        self.localDeviceData["linkedEffektaData"] = tempData
+        if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
+            if not self.ResetSocSended:
+                self.resetSocMonitor()
+            self.ResetSocSended = True
+        else:
+            self.ResetSocSended = False
     def initInverter(self):
         if self.configuration["initModeEffekta"] == "Auto":
             if self.localDeviceData["SocMonitor"]["Prozent"] == SocMeter.InitAkkuProz:
