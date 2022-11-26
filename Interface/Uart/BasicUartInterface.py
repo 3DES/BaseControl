@@ -38,7 +38,10 @@ class BasicUartInterface(InterfaceBase):
             # @todo perhaps wait a little bit
 
     def serialWrite(self, data):
-        self.serialConn.write(data)
+        try:
+            self.serialConn.write(data)
+        except:
+            self.logger.error(self, "Could not send serial data!")
 
     def serialReadLine(self):
         try:
