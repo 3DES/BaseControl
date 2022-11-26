@@ -4,7 +4,7 @@ import json
 from Base.ThreadObject import ThreadObject
 
 
-class WeisserBMS(ThreadObject):
+class WBMS(ThreadObject):
     '''
     classdocs
     '''
@@ -42,12 +42,13 @@ class WeisserBMS(ThreadObject):
             #myPrint("wert wird nicht uebernommen")
             return False
 
-    #def threadInitMethod(self):
+    def threadInitMethod(self):
+        self.bmsWerte = {}
 
     def threadMethod(self):
         def takeDataAndSend():
             self.bmsWerte = newMqttMessageDict["content"]
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.bmsWerte, globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.bmsWerte, globalPublish = True, enableEcho = False)
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
@@ -72,3 +73,4 @@ class WeisserBMS(ThreadObject):
                 elif newMqttMessageDict["content"]["toggleIfMsgSeen"] != self.bmsWerte["toggleIfMsgSeen"]:
                     # @todo trigger wd only here
                     self.bmsWerte = newMqttMessageDict["content"]
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.bmsWerte, globalPublish = False, enableEcho = False)

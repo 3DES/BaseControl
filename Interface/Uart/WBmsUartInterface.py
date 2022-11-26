@@ -2,7 +2,7 @@ import time
 
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 
-class WeisserBmsUartInterface(BasicUartInterface):
+class WBmsUartInterface(BasicUartInterface):
     '''
     classdocs
     '''
