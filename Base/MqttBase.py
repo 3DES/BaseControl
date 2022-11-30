@@ -551,6 +551,101 @@ class MqttBase(Base):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
+    def mqttDiscoverySensor(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, unitDict = {}):
+        """
+        sensorList: dict oder List der Sensoren die angelegt werden sollen
+        ignoreKeys: list. Diese keys werden ignoriert
+        nameDict: dict. Hier koennen einzelne keys mit einzelnen frindlyNames drin stehen
+        unitDict: dict. Hier koennen einzelne keys mit einzelnen Einheiten drin stehen
+        """
+        if type(sensorList) == dict:
+            nameList = list(sensorList.keys())
+        else:
+            nameList = sensorList
+        for key in nameList:
+            niceName = ""
+            unit = ""
+            if key not in ignoreKeys:
+                if key in nameDict:
+                    niceName = nameDict[key]
+                if key in unitDict:
+                    unit = unitDict[key]
+                preparedMsg = self.homeAutomation.getDiscoverySensorCmd(senderObj.name, key, niceName, unit)
+                sensorTopic = self.homeAutomation.getDiscoverySensorTopic(senderObj.name, key)
+                if sensorTopic:
+                    senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+
+
+    def mqttDiscoveryInputNumberSlider(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, minValDict = {}, maxValDict = {}):
+        """
+        sensorList: dict oder List der Slider die angelegt werden sollen
+        ignoreKeys: list. Diese keys werden ignoriert
+        nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
+        minValDict: dict der minimal Slider Werte. default 0
+        maxValDict: dict der maximal Slider Werte. default 100
+        """
+        if type(sensorList) == dict:
+            nameList = list(sensorList.keys())
+        else:
+            nameList = sensorList
+        for key in nameList:
+            niceName = ""
+            minVal = 0
+            maxVal = 100
+            if key not in ignoreKeys:
+                if key in nameDict:
+                    niceName = nameDict[key]
+                if key in minValDict:
+                    minVal = minValDict["key"]
+                if key in maxValDict:
+                    maxVal = maxValDict["key"]
+                preparedMsg = self.homeAutomation.getDiscoveryInputNumberSliderCmd(senderObj.name, key, niceName, minVal, maxVal)
+                sensorTopic = self.homeAutomation.getDiscoveryInputNumberSliderTopic(senderObj.name, key)
+                if sensorTopic:
+                    senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+
+
+    def mqttDiscoverySelector(self, senderObj, sensorList, ignoreKeys = [], niceName=""):
+        """
+        sensorList: dict oder List der optionen die zu auswaehlen angelegt werden sollen
+        ignoreKeys: list. Diese keys werden ignoriert
+        niceName: der Name des Selectors
+        """
+        if type(sensorList) == dict:
+            nameList = list(sensorList.keys())
+        else:
+            nameList = sensorList
+        nameListMinusIgnore = []
+        for item in nameList:
+            if item not in ignoreKeys:
+                nameListMinusIgnore.append(item)
+        preparedMsg = self.homeAutomation.getDiscoverySelectorCmd(senderObj.name, nameListMinusIgnore, niceName)
+        sensorTopic = self.homeAutomation.getDiscoverySelectorTopic(senderObj.name, niceName.lower().replace(" ", "_"))
+        if sensorTopic:
+            senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+
+
+    def mqttDiscoverySwitch(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}):
+        """
+        sensorList: dict oder List der sensoren die angelegt werden sollen
+        ignoreKeys: list. Diese keys werden ignoriert
+        nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
+        """
+        if type(sensorList) == dict:
+            nameList = list(sensorList.keys())
+        else:
+            nameList = sensorList
+        for key in nameList:
+            niceName = ""
+            if key not in ignoreKeys:
+                if key in nameDict:
+                    niceName = nameDict[key]
+                preparedMsg = self.homeAutomation.getDiscoverySwitchCmd(senderObj.name, key, niceName)
+                sensorTopic = self.homeAutomation.getDiscoverySwitchTopic(senderObj.name, key)
+                if sensorTopic:
+                    senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+
+
     def mqttSendPackage(self, mqttCommand : MQTT_TYPE, topic : str = None, content = None, incocnito : str = None):
         '''
         Universal send method to send all types of supported mqtt messages
