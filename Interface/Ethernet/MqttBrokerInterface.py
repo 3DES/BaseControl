@@ -17,7 +17,7 @@ class MqttBrokerInterface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.tagsIncluded(["user", "password", "server", "port"])
+        self.tagsIncluded(["user", "password", "server", "port", "sendRetained"])
 
     def connectMqtt(self):
         self.client = mqtt.Client()
@@ -53,7 +53,7 @@ class MqttBrokerInterface(InterfaceBase):
 
     def threadInitMethod(self):
         # subscribe internally global to get all global msg
-        self.mqttSubscribeTopic(self.get_projectName() + "/#", globalSubscription = True)
+        self.mqttSubscribeTopic("#", globalSubscription = True)
         # wait for all threads
         time.sleep(2)
         try:
@@ -72,7 +72,7 @@ class MqttBrokerInterface(InterfaceBase):
             if newMqttMessageDict["global"]:
                 self.logger.info(self, " received global queue message :" + str(newMqttMessageDict))
                 try:
-                    self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = True)
+                    self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = self.configuration["sendRetained"])
                     # we remember the msg to ignore incomming own msg
                     self.dontCareList[newMqttMessageDict["topic"]] = newMqttMessageDict["content"]
                 except:
