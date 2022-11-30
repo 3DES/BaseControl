@@ -75,6 +75,7 @@
 
         # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
         "projectName":   "AccuControl"              # project name for MQTT topics (<projectName>/<threadName>/...)
+        #"homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover"
     },
 
     "PowerPlant":

@@ -8,6 +8,7 @@ from queue import Queue
 from datetime import datetime
 import Base
 import re
+from Base.Supporter import Supporter
 
 
 from Base.ThreadBase import ThreadBase
@@ -195,11 +196,14 @@ class Logger(ThreadBase):
         self.set_projectName(configuration["projectName"])
         if self.tagsIncluded(["queueLength"], optional = True, configuration = configuration):
             self.set_logQueueLength(configuration["queueLength"])
-        
+        if not self.tagsIncluded(["homeAutomation"], optional = True, configuration = configuration):
+            configuration["homeAutomation"] = "HomeAutomation.BaseHomeAutomation.BaseHomeAutomation"
+
         self.setup_logQueue()                                   # setup log queue
         self.logBuffer = collections.deque([], 500)             # buffer storing the last 500 elements (for emergency write)
         self.logCounter = 0                                     # counts all logged messages
         self.set_logger(self if logger is None else logger)     # set project wide logger (since this is the base class for all loggers its it's job to set the project logger)
+        self.set_homeAutomation(Supporter.loadClassFromFile(configuration["homeAutomation"])())
         self.logQueueMaximumFilledLength = 0                    # to monitor queue fill length (for system stability)
 
         # now call super().__init() since all necessary pre-steps have been done

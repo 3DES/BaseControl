@@ -143,6 +143,13 @@ class MqttBase(Base):
 
 
     @classmethod
+    def set_homeAutomation(cls, homeAutomation):
+
+        #MqttBase._MqttBase__logger_always_use_getters_and_setters = logger
+        MqttBase.homeAutomation = homeAutomation
+
+
+    @classmethod
     def set_projectName(cls, projectName : str):
         '''
         Setter for __projectName
@@ -420,12 +427,12 @@ class MqttBase(Base):
         '''
         return self.createProjectTopic(self.__class__.__name__)
 
-
-    def createProjectTopic(self, objectName : str):
+    @classmethod
+    def createProjectTopic(cls, objectName : str):
         '''
         Creates a topic for given objectName, objectName should be a class name or a thread name or a interface name
         '''
-        return self.get_projectName() + "/" + objectName
+        return cls.get_projectName() + "/" + objectName
 
 
     @classmethod
