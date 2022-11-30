@@ -66,9 +66,9 @@ class DummyEffektaUartInterface(InterfaceBase):
                 else:
                     cmdList = newMqttMessageDict["content"]["setValue"]
                 for cmd in cmdList:
-                    if cmd == EffektaController.VerbraucherNetz:
+                    if cmd["cmd"] == EffektaController.VerbraucherNetz:
                         self.Netzbetrieb = True
-                    else:
+                    elif cmd["cmd"] == EffektaController.VerbraucherAkku:
                         self.Netzbetrieb = False
                     self.logger.info(self, f'set Effekta Parameter: {cmd}')
 

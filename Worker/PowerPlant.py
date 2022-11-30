@@ -99,7 +99,6 @@ class PowerPlant(Worker):
         self.sendeMqtt = True
 
     def resetSocMonitor(self):
-        # @todo topic und evt auch msg ermitteln
         self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["socMonitorName"])), "resetSoc", globalPublish = False, enableEcho = False)
 
     def getLinkedEffektaData(self):
@@ -164,15 +163,14 @@ class PowerPlant(Worker):
                     modifyRelaisData(self.relPvAus, self.ein, True)
                 case 1:
                     # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht währendessen abschalten
-                    #if self.timer(name = "timerToNetz", timeout = 3):
                     if self.timer(name = "timerToNetz", timeout = 30):
                         self.timer(name = "timerToNetz", remove = True)
                         self.transferToNetzState+=1
                         modifyRelaisData(self.relWr1, self.aus)
                         modifyRelaisData(self.relWr2, self.aus, True)
                 case 2:
-                    # warten bis keine Spannung mehr am ausgang anliegt damit der Schütz nicht wieder kurz anzieht
-                    #if self.timer(name = "timerToNetz", timeout = 5):
+                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
+                    #if self.timer(name = "timerToNetz", timeout = 35):
                     if self.timer(name = "timerToNetz", timeout = 500):
                         self.timer(name = "timerToNetz", remove = True)
                         tmpglobalEffektaData = self.getLinkedEffektaData()
@@ -190,15 +188,15 @@ class PowerPlant(Worker):
                             # kurz warten damit das zurücklesen nicht zu schnell geht
                             time.sleep(0.5)
                         self.transferToNetzState = 0
-                        # Wir wollen nicht zu oft am Tag umschalten Maximal 1 mal auf Netz.
+                        # Wir wollen nicht zu oft am Tag umschalten. Maximal 1 mal am Tag auf Netz.
                         self.aufNetzSchaltenErlaubt = False
+                        self.myPrint(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf Inverter.")
                         return self.NetzMode
             return self.transferToNetz
 
         def schalteRelaisAufPv():
             if self.TransferToPvState == 0:
                 # warten bis Parameter geschrieben sind
-                #if self.timer(name = "timerToPv", timeout = 3):
                 if self.timer(name = "timerToPv", timeout = 30):
                     self.timer(name = "timerToPv", remove = True)
                     self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf PV.")
@@ -208,7 +206,6 @@ class PowerPlant(Worker):
                     modifyRelaisData(self.relWr2, self.ein, True)
                     self.TransferToPvState+=1
             elif self.TransferToPvState == 1:
-                #if self.timer(name = "timeoutAcOut", timeout = 3):
                 if self.timer(name = "timeoutAcOut", timeout = 100):
                     self.timer(name = "timeoutAcOut", remove = True)
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Wartezeit zu lange. Keine Ausgangsspannung am WR erkannt.")
@@ -218,11 +215,8 @@ class PowerPlant(Worker):
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Die Automatische Netzumschaltung wurde deaktiviert.")
                     modifyRelaisData(self.relWr1, self.aus)
                     modifyRelaisData(self.relWr2, self.aus, True)
-                    # warten bis keine Spannung mehr am ausgang anliegt damit der Schütz nicht wieder kurz anzieht
-                    #time.sleep(500)
-                    #self.localRelaisData.update({self.relPvAus: self.aus})
-                    #self.mqttPublish(self.getGpioTopic(), self.localRelaisData, globalPublish = False, enableEcho = False)
-                    self.sleeptime = 500
+                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
+                    self.sleeptime = 600
                     self.TransferToPvState+=1
                     return self.OutputVoltageError
                 elif self.getLinkedEffektaData()["OutputVoltageHighAnd"] == True:
@@ -230,7 +224,6 @@ class PowerPlant(Worker):
                     self.TransferToPvState+=1
                     self.sleeptime = 10
             elif self.TransferToPvState == 2:
-                #if self.timer(name = "waitForOut", timeout = 3):
                 if self.timer(name = "waitForOut", timeout = self.sleeptime):
                     self.timer(name = "waitForOut", remove = True)
                     modifyRelaisData(self.relPvAus, self.aus, True)
