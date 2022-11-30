@@ -6,11 +6,12 @@
         {
             "Mosquitto":
             {
-                "connection": "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-                "server":     "localhost",
-                "port":       1883,
-                "user":       "user",
-                "password":   "password"                
+                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+                "server":       "localhost",
+                "port":         1883,
+                "user":         "user",
+                "password":     "password",
+                "sendRetained": false                       # for tests you can send not retained
             }
         }
     },
@@ -80,7 +81,12 @@
 
     "PowerPlant":
     {
-        "class": "Worker.PowerPlant.PowerPlant"
+        "class": "Worker.PowerPlant.PowerPlant",
+        "managedEffektas": ["WrEffektaWest"],
+        "socMonitorName": "SocMonitor",
+        "bmsName": "BMS",
+        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
+        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.  Fallback: Netz
     },
 
     "SignalMessenger":
