@@ -6,6 +6,7 @@ from Worker.Worker import Worker
 from GridLoad.SocMeter import SocMeter
 from Base.Supporter import Supporter
 from Inverter.EffektaController import EffektaController
+#from HomeAutomation.BaseHomeAutomation import BaseHomeAutomation as HomeAutomation
 import Base
 import subprocess
 import json
@@ -309,16 +310,20 @@ class PowerPlant(Worker):
         """
 
         # check if its our own topic
-        if self.createActualTopic(self.getObjectTopic()) in message["topic"]:
+        if self.createOutTopic(self.getObjectTopic()) in message["topic"]:
             # we use it and unsubscribe
             self.SkriptWerte = message["content"]
-            self.mqttUnSubscribeTopic(self.createActualTopic(self.getObjectTopic()))
+            self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
             self.timer(name = "timeoutMqtt", remove = True)
             self.localDeviceData["initialMqttTimeout"] = True
         else:
             # check if the incoming value is part of self.setableSkriptWerte and if true then take the new value
             for key in self.setableSkriptWerte:
                 if key in message["content"]:
+                    if type(self.SkriptWerte[key]) == float and type(message["content"][key]) == int:
+                        message["content"][key] = float(message["content"][key])
+                    if type(self.SkriptWerte[key]) == int and type(message["content"][key]) == float:
+                        message["content"][key] = int(message["content"][key])
                     try:
                         if type(message["content"][key]) == type(self.SkriptWerte[key]):
                             self.SkriptWerte[key] = message["content"][key]
@@ -363,24 +368,34 @@ class PowerPlant(Worker):
         self.expectedDevices.append(self.configuration["bmsName"])
         # add managedEffekta List, funktion getLinkedEffektaData nedds this data
         self.expectedDevices += self.configuration["managedEffektas"]
+
         # init some variables
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "linkedEffektaData":{}, "Wetter":{}}
-        # (keys of self.SkriptWerte) - self.setableSkriptWerte = nonsetable or internal currentValues
-        self.SkriptWerte = {"WrNetzladen":False, "Akkuschutz":False, "RussiaMode": False, "Error":False, "PowerSaveMode" : False, "WrMode":"", "SkriptMode":"Auto", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
-        # init lists of direct setable values or commands
-        self.setableSkriptWerte = ["Akkuschutz", "RussiaMode", "PowerSaveMode", "SkriptMode", "schaltschwelleAkkuTollesWetter", "schaltschwelleAkkuRussia", "schaltschwelleNetzRussia", "schaltschwelleAkkuSchlechtesWetter", "schaltschwelleNetzSchlechtesWetter"]
+        # init lists of direct setable values, sensors or commands
+        self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
+        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "SkriptMode":"Auto"}
+        self.sensorList = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
+        # (keys of self.SkriptWerte) - self.setableSkriptWerte = nonsetable or internal currentValues
+        self.SkriptWerte = {}
+        self.SkriptWerte.update(self.setableSlider)
+        self.SkriptWerte.update(self.setableSwitch)
+        self.SkriptWerte.update(self.sensorList)
+        self.setableSkriptWerte = []
+        self.setableSkriptWerte += list(self.setableSlider.keys())
+        self.setableSkriptWerte += list(self.setableSwitch.keys())
         self.InitialInitWr = True
         self.EntladeFreigabeGesendet = False
         self.NetzLadenAusGesperrt = False
         self.ResetSocSended = False
+
         # init some constants
         self.Akkumode = "Akku"
         self.NetzMode = "Netz"
         self.initTransferRelais()
 
         # subscribe global to own out topic to get old data and set timeout
-        self.mqttSubscribeTopic(self.createActualTopic(self.getObjectTopic()), globalSubscription = True)
+        self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
         # subscribe Global to get commands from extern
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()), globalSubscription = True)
 
@@ -389,6 +404,10 @@ class PowerPlant(Worker):
         for device in self.configuration["managedEffektas"]:
             self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
 
+        self.homeAutomation.mqttDiscoverySensor(self, self.sensorList)
+        self.homeAutomation.mqttDiscoverySelector(self, self.manualCommands, niceName = "Pv Kommando")
+        self.homeAutomation.mqttDiscoveryInputNumberSlider(self, self.setableSlider)
+        self.homeAutomation.mqttDiscoverySwitch(self, self.setableSwitch, ignoreKeys = ["SkriptMode"])
     def threadMethod(self):
         self.sendeMqtt = False
 
@@ -527,7 +546,8 @@ class PowerPlant(Worker):
 
             if self.sendeMqtt == True: 
                 self.sendeMqtt = False
-                self.mqttPublish(self.createActualTopic(self.getObjectTopic()), self.SkriptWerte, globalPublish = True, enableEcho = False)
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SkriptWerte, globalPublish = True, enableEcho = False)
+
         else:
             if self.timer(name = "timeoutExpectedDevices", timeout = 10*60):
                 self.myPrint(Logger.LOG_LEVEL.ERROR, "Es haben sich nicht alle erwarteten Devices gemeldet!")
