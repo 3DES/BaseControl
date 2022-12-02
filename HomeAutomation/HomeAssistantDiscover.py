@@ -12,6 +12,11 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def _getFrindlyName(cls, deviceName, valueName):
+        """
+        devicename: normally objectname
+        valuename: normally keyname from a dict. "PvPower" will be converted to "Pv Power"
+        return devicename + converted valueName
+        """
         newName = " ".join(re.findall('[A-Z][^A-Z]*', valueName))
         return deviceName + " " + newName
 
@@ -57,13 +62,12 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         message '{"name": "garden", "device_class": "motion", "state_topic": "homeassistant/binary_sensor/garden/state"}'
         alle REQUIRED Values muessen enthalten sein, siehe dokumentation von z.b. binary_sensor oder sensor
 
-        Wenn kein nameDict angegeben ist dann wird der devicName + KeyName als frindlyName verwendet
+        Wenn kein niceName angegeben ist dann wird er gebildet. s. _getFrindlyName
         Wenn kein unitDict angegeben ist dann wird versucht die Einheit aus dem Keyname abzuleiten
-        deviceName: wird zu bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
-        dataNames: dict oder list. Bei einem dict werden nur die keys verwendet
-        ignoreKeys: list. Diese keys werden ignoriert
-        nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
-        unitDict: dict. hier koennen einzelne key mit der jeweiligen Einheit drin stehen.
+        deviceName: wird zum bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
+        sensorName: Name des Sensors
+        niceName: Hier kann der FrindlyName drin stehen
+        unit: hier kann die jeweilige Einheit drin stehen.
         """
         templateMsg = {"state_topic":"", "name": "", "value_template":"", "unit_of_measurement":""}
 
@@ -99,11 +103,10 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         message '{"name": "garden", "device_class": "motion", "state_topic": "homeassistant/switch/garden/state"}'
         alle REQUIRED Values muessen enthalten sein, siehe dokumentation von z.b. binary_sensor oder sensor
 
-        Wenn kein nameDict angegeben ist dann wird der devicName + KeyName als frindlyName verwendet
-        deviceName: wird zu bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
-        dataNames: dict oder list. Bei einem dict werden nur die keys verwendet
-        ignoreKeys: list. Diese keys werden ignoriert
-        nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
+        Wenn kein niceName angegeben ist dann wird er gebildet. s. _getFrindlyName
+        deviceName: wird zum bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
+        optionList: Liste der eintrage der auswahlbox
+        niceName: Hier kann der FrindlyName drin stehen
         """
         templateMsg = {"command_topic":"", "name": "", "options":[]}
         #templateMsg = {"command_topic":"", "name": "", "options":[], "command_template":""}
@@ -133,11 +136,10 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         message '{"name": "garden", "device_class": "motion", "state_topic": "homeassistant/number/garden/state"}'
         alle REQUIRED Values muessen enthalten sein, siehe dokumentation von z.b. binary_sensor oder sensor
         
-        Wenn kein nameDict angegeben ist dann wird der devicName + KeyName als frindlyName verwendet
+        Wenn kein niceName angegeben ist dann wird er gebildet. s. _getFrindlyName
         deviceName: wird zum bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
-        dataNames: dict oder list. Bei einem dict werden nur die keys verwendet
-        ignoreKeys: list. Diese keys werden ignoriert
-        nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
+        sensorName: Name des Sensors
+        niceName: Hier kann der FrindlyName drin stehen
         minVal: dict Hier koennen einzelne keys mit dem minimal Slider Wert drin stehen. standard = 0
         maxVal: dict Hier koennen einzelne keys mit dem maximal Slider Wert drin stehen. standard = 100
         -t "homeassistant/number/slider1/config" -m '{"name": "Slider Test", "command_topic": "testSlider/state", "min":0, "max":100, "mode":"slider", "command_template": "{\"temperature\": {{ value }} }"}'
@@ -170,9 +172,10 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         message '{"name": "garden", "device_class": "motion", "state_topic": "homeassistant/switch/garden/state"}'
         alle REQUIRED Values muessen enthalten sein, siehe dokumentation von z.b. binary_sensor oder sensor
 
-        Wenn kein niceName angegeben ist dann wird der devicName + sensorName als frindlyName verwendet
-        deviceName: wird zu bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
-        sensorName: Name des Sensors (normalerweise key im dict)
+        Wenn kein niceName angegeben ist dann wird er gebildet. s. _getFrindlyName
+        deviceName: wird zum bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
+        sensorName: Name des Sensors
+        niceName: Hier kann der FrindlyName drin stehen
         """
         templateMsg = {"state_topic":"", "command_topic":"", "name": "", "value_template":"", "payload_on":"", "payload_off":"", "state_off":False, "state_on":True}
 
