@@ -152,6 +152,7 @@ class EffektaUartInterface(InterfaceBase):
 
     def threadInitMethod(self):
         self.serialConn = serial.Serial(self.configuration["interface"], self.configuration["baudrate"], timeout=4)
+        self.cmdCounter = 0
 
     def threadMethod(self):
         while not self.mqttRxQueue.empty():
@@ -174,11 +175,18 @@ class EffektaUartInterface(InterfaceBase):
                     cmd["response"] = self.getEffektaData(cmd["cmd"])
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"query":cmd}, globalPublish = False, enableEcho = False)
             elif "setValue" in newMqttMessageDict["content"]:
+                
+                if self.cmdCounter >= 50:
+                    raise Exception("Too much commands to inverter per hour!")
+                if self.timer(name = "resetMsgCounter", timeout = 60*60):
+                    self.timer(name = "resetMsgCounter", remove = True)
+                    self.cmdCounter = 0
                 if type(newMqttMessageDict["content"]["setValue"]) == dict:
                     cmdList = [newMqttMessageDict["content"]["setValue"]]
                 else:
                     cmdList = newMqttMessageDict["content"]["setValue"]
                 for cmd in cmdList:
+                    self.cmdCounter += 1
                     cmd["success"] = self.setEffektaData(cmd["cmd"], cmd["value"])
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"setValue":cmd}, globalPublish = False, enableEcho = False)
 
