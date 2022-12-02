@@ -16,68 +16,6 @@
         }
     },
 
-#    "WrEffektaWest":
-#    {
-#        "class":        "Inverter.EffektaController.EffektaController",
-#        "interfaces":
-#        {
-#            "UartWrEffektaWest":
-#            {
-#                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
-#                "interface":    "COM4",
-#                "baudrate":     2400
-#            }
-#        }
-#    },
-
-    "WatchDog":
-    {
-        "class":      "WatchDog.WatchDog.WatchDog",
-        "interfaces":
-        {
-            "WatchDogUart":
-            {
-                "connection":  "Interface.Uart.UartInterface.UartInterface",
-                #"interface":   "/dev/ttyUSB0",
-                "interface":   "COM6",
-                "baudrate":    9600, 
-                "bytesize":    8,               # 5, 6, 7, 8
-                "parity":      "N",             # [N]one, [O]dd, [E]ven, [M]ark, [S]pace
-                "stopbits":    1.5              # 1, 1.5, 2
-                #"xonxoff":    1,               # on = 1, off = 0
-                #"rtscts":     1,               # on = 1, off = 0
-                #"timeout":    1,               # read timeout in seconds
-            }
-        },
-        "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
-        "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
-        "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
-        "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
-        "expectThreads":                    # expected threads
-        [
-            "MqttBridge",
-            "Logger",
-            "PowerPlant",
-            "Mosquitto",
-            "SignalMessenger"
-        ],
-        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
-        [
-            "WatchDogUart"
-        ],
-        "logUpTime":          60            # every 60 seconds create up time message
-    },
-
-    "Logger":
-    {
-        "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
-        "queueLength":   500,                       # log queue length is 100 per default but can be enlarged if it gets critically filled up
-        #"messageFilter": "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
-
-        # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
-        "projectName":   "AccuControl"              # project name for MQTT topics (<projectName>/<threadName>/...)
-        #"homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover"
-    },
 
     "PowerPlant":
     {
@@ -89,29 +27,78 @@
         "initModeEffekta": "Auto"                   # Auto, Akku, Netz.  Fallback: Netz
     },
 
-    "SignalMessenger":
+    "Logger":
     {
-        "class": "Messenger.SignalMessenger.SignalMessenger",
-        
-        "executable":
-        [
-            ".\\\\signal-cli-0.11.4\\\\bin\\\\signal-cli.bat",             # from https://github.com/AsamK/signal-cli
-            "-u",
-            "+0111111111111",
-            "jsonRpc"
-        ],
-        "emergency":  "+0222222222222",
-        "trusted":
-        [
-            "+0222222222222",    # it makes sense that emergency number is also contained in trusted numbers but it is not necessary
-            "+0333333333333",
-            "+0444444444444"
-        ],
-        "restartLimit":     3,          # if singal-cli dies a restart cycle will contain these numbers of restart tries
-        "restartTime":      600,        # if singal-cli dies a restart cycle will be initiated, if the restart cycle was not successful the next one will be started after this time in seconds
-        "aliveTime":        86400,      # 24 * 60 * 60 = 86400 seconds = once a day
-        "disabled":         1
+        "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
+        "queueLength":   500,                       # log queue length is 100 per default but can be enlarged if it gets critically filled up
+        #"messageFilter": "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
+
+        # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
+        "projectName":   "AccuControl",              # project name for MQTT topics (<projectName>/<threadName>/...)
+        "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover"
     },
+
+#    "WatchDog":
+#    {
+#        "class":      "WatchDog.WatchDog.WatchDog",
+#        "interfaces":
+#        {
+#            "WatchDogUart":
+#            {
+#                "connection":  "Interface.Uart.UartInterface.UartInterface",
+#                #"interface":   "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A9HSILDS-if00-port0",
+#                "interface":   "COM6",
+#                "baudrate":    9600, 
+#                #"bytesize":    8,               # 5, 6, 7, 8
+#                #"parity":      "N",             # [N]one, [O]dd, [E]ven, [M]ark, [S]pace
+#                #"stopbits":    1.5              # 1, 1.5, 2
+#                #"xonxoff":    1,               # on = 1, off = 0
+#                #"rtscts":     1,               # on = 1, off = 0
+#                #"timeout":    1,               # read timeout in seconds
+#            }
+#        },
+#        "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
+#        "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
+#        "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
+#        "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
+#        "expectThreads":                    # expected threads
+#        [
+#            "MqttBridge",
+#            "Logger",
+#            "PowerPlant",
+#            "Mosquitto",
+#        ],
+#        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
+#        [
+#            "WatchDogUart"
+#        ],
+#        "logUpTime":          60            # every 60 seconds create up time message
+#    },
+#
+
+#    "SignalMessenger":
+#    {
+#        "class": "Messenger.SignalMessenger.SignalMessenger",
+#        
+#        "executable":
+#        [
+#            ".\\\\signal-cli-0.11.4\\\\bin\\\\signal-cli.bat",             # from https://github.com/AsamK/signal-cli
+#            "-u",
+#            "+0111111111111",
+#            "jsonRpc"
+#        ],
+#        "emergency":  "+0222222222222",
+#        "trusted":
+#        [
+#            "+0222222222222",    # it makes sense that emergency number is also contained in trusted numbers but it is not necessary
+#            "+0333333333333",
+#            "+0444444444444"
+#        ],
+#        "restartLimit":     3,          # if singal-cli dies a restart cycle will contain these numbers of restart tries
+#        "restartTime":      600,        # if singal-cli dies a restart cycle will be initiated, if the restart cycle was not successful the next one will be started after this time in seconds
+#        "aliveTime":        86400,      # 24 * 60 * 60 = 86400 seconds = once a day
+#        "disabled":         1
+#    },
 
 #    "EasyMeter":
 #    {
@@ -132,6 +119,26 @@
 #            }
 #        }
 #    },
+
+#    "WrEffektaWest":
+#    {
+#        "class":        "Inverter.EffektaController.EffektaController",
+#        "interfaces":
+#        {
+#            "UartWrEffektaWest":
+#            {
+#                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+#                "interface":    "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A9HSILDS-if00-port0",
+#                "baudrate":     2400
+#            }
+#        }
+#    },
+
+#    "Wetter":
+#    {
+#        "class": "Weather.Weather.WetterOnline",
+#        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
+#    }
 
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
