@@ -62,6 +62,8 @@ class WBMS(ThreadObject):
                 if not "Vmin" in self.bmsWerte:
                     # if we have to initialise variable
                     takeDataAndSend()
+                    # send Values to a homeAutomation to get there sliders sensors selectors and switches
+                    self.homeAutomation.mqttDiscoverySensor(self, self.bmsWerte)
                 elif self.checkWerteSprung(newMqttMessageDict["content"]["Vmin"], self.bmsWerte["Vmin"], 1, -1, 10):
                     takeDataAndSend()
                 elif self.checkWerteSprung(newMqttMessageDict["content"]["Vmax"], self.bmsWerte["Vmax"], 1, -1, 10):

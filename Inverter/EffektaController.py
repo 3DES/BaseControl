@@ -162,6 +162,9 @@ class EffektaController(ThreadObject):
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()) + "/#", globalSubscription = True)
         #self.mqttSubscribeTopic(self.createInTopic(self.getClassTopic()) + "/#", globalSubscription = True)
 
+        # send Values to a homeAutomation to get there sliders sensors selectors and switches
+        self.homeAutomation.mqttDiscoverySensor(self, self.EffektaData["EffektaWerte"])
+
     def threadMethod(self):
         '''
         supported funktions:

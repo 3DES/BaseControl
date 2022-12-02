@@ -6,7 +6,6 @@ from Worker.Worker import Worker
 from GridLoad.SocMeter import SocMeter
 from Base.Supporter import Supporter
 from Inverter.EffektaController import EffektaController
-#from HomeAutomation.BaseHomeAutomation import BaseHomeAutomation as HomeAutomation
 import Base
 import subprocess
 import json
@@ -92,7 +91,7 @@ class PowerPlant(Worker):
         self.sendEffektaData(EffektaController.getCmdSwitchUtilityFastChargeOn()(), effektas)
         self.SkriptWerte["WrNetzladen"] = True
         # Wir müssen hier auf Manuell schalten damit das Skrip nich gleich zurückschaltet
-        self.SkriptWerte["SkriptMode"] = "Manual"
+        self.SkriptWerte["AutoMode"] = False
         self.SkriptWerte["WrMode"] = self.NetzMode
         self.sendeSkriptDaten()
         self.myPrint(Logger.LOG_LEVEL.INFO, "Schnellladen vom Netz wurde aktiviert!")
@@ -277,7 +276,7 @@ class PowerPlant(Worker):
         elif self.configuration["initModeEffekta"] == "Akku":
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
-            self.SkriptWerte["SkriptMode"] = "Manual"
+            self.SkriptWerte["AutoMode"] = False
         elif self.configuration["initModeEffekta"] == "Netz":
             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
@@ -335,7 +334,7 @@ class PowerPlant(Worker):
 
             if message["content"] in self.manualCommands:
                 self.sendeMqtt = True
-                self.SkriptWerte["SkriptMode"] = "Manual"
+                self.SkriptWerte["AutoMode"] = False
                 self.logger.info(self, "Die Anlage wurde auf Manuell gestellt")
                 if message["content"] == "NetzSchnellLadenEin":
                     self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
@@ -373,7 +372,8 @@ class PowerPlant(Worker):
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "linkedEffektaData":{}, "Wetter":{}}
         # init lists of direct setable values, sensors or commands
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
-        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "SkriptMode":"Auto"}
+        self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
+        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": False}
         self.sensorList = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
         # (keys of self.SkriptWerte) - self.setableSkriptWerte = nonsetable or internal currentValues
@@ -404,10 +404,13 @@ class PowerPlant(Worker):
         for device in self.configuration["managedEffektas"]:
             self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
 
+        # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomation.mqttDiscoverySensor(self, self.sensorList)
-        self.homeAutomation.mqttDiscoverySelector(self, self.manualCommands, niceName = "Pv Kommando")
-        self.homeAutomation.mqttDiscoveryInputNumberSlider(self, self.setableSlider)
-        self.homeAutomation.mqttDiscoverySwitch(self, self.setableSwitch, ignoreKeys = ["SkriptMode"])
+        self.homeAutomation.mqttDiscoverySelector(self, self.manualCommands, niceName = "Pv Cmd")
+        self.homeAutomation.mqttDiscoveryInputNumberSlider(self, self.setableSlider, nameDict = self.niceNameSlider)
+        self.homeAutomation.mqttDiscoverySwitch(self, self.setableSwitch)
+
+
     def threadMethod(self):
         self.sendeMqtt = False
 
@@ -448,7 +451,7 @@ class PowerPlant(Worker):
             # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] == True and self.SkriptWerte["Error"] == False:
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
-                if self.SkriptWerte["SkriptMode"] == "Auto":
+                if self.SkriptWerte["AutoMode"]:
                     # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
                     # Dazu wird geprüft wie das Wetter (Sonnenstunden) am nächsten Tag ist und dementsprechend früher oder später umgeschaltet.
                     # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.

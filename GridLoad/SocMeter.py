@@ -44,6 +44,8 @@ class SocMeter(ThreadObject):
 
     def threadInitMethod(self):
         self.SocMonitorWerte = { "Ah":-1, "Current":0, "Prozent": self.InitAkkuProz}
+        # send Values to a homeAutomation to get there sliders sensors selectors and switches
+        self.homeAutomation.mqttDiscoverySensor(self, self.SocMonitorWerte)
 
     def threadMethod(self):
 

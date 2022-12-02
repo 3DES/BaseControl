@@ -2,6 +2,7 @@ import json
 
 from HomeAutomation.BaseHomeAutomation import BaseHomeAutomation
 from Base.ThreadObject import ThreadObject
+import re
 
 
 class HomeAssistantDiscover(BaseHomeAutomation):
@@ -11,7 +12,8 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def _getFrindlyName(cls, deviceName, valueName):
-        return deviceName + " " + valueName
+        newName = " ".join(re.findall('[A-Z][^A-Z]*', valueName))
+        return deviceName + " " + newName
 
     @classmethod
     def _getValueTemplateInt(cls, name):
