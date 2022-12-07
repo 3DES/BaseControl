@@ -19,7 +19,7 @@ class PowerPlant(Worker):
 
     def passeSchaltschwellenAn(self):
         #SOC Schaltschwellen in Prozent
-        self.SkriptWerte["schaltschwelleNetzLadenaus"] = 11.0
+        self.SkriptWerte["schaltschwelleNetzLadenaus"] = 12.0
         self.SkriptWerte["schaltschwelleNetzLadenein"] = 6.0
         self.SkriptWerte["MinSoc"] = 10.0
         self.SkriptWerte["SchaltschwelleAkkuTollesWetter"] = 20.0
@@ -39,14 +39,14 @@ class PowerPlant(Worker):
         else:
             if self.SkriptWerte["Akkuschutz"]:
                 # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
-                if self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"] < self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:        
+                if self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"] < self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
                     if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
                         self.sendeMqtt = True
                     self.SkriptWerte["schaltschwelleAkku"] = self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]
                     self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"]
             else:
                 # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
-                if self.SkriptWerte["MinSoc"] < self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:        
+                if self.SkriptWerte["MinSoc"] < self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
                     if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
                         self.sendeMqtt = True
                     self.SkriptWerte["schaltschwelleAkku"] = self.SkriptWerte["schaltschwelleAkkuTollesWetter"]
@@ -148,7 +148,7 @@ class PowerPlant(Worker):
         self.aus = "0"
         self.localRelaisData = {self.configuration["relaisNames"]["deviceName"]:{self.relNetzAus: "unknown", self.relPvAus: "unknown", self.relWr2: "unknown", self.relWr1: "unknown"}}
 
-    def manageTranferRelais(self):
+    def manageTransferRelais(self):
         def modifyRelaisData(relais, value, sendValue = False):
             self.localRelaisData[self.configuration["relaisNames"]["deviceName"]].update({relais:value})
             if sendValue:
@@ -265,6 +265,32 @@ class PowerPlant(Worker):
         elif switchToUtiliyAllowed():
             self.aktualMode = schalteRelaisAufNetz()
 
+    def wetterPrognoseMorgenSchlecht(self):
+        # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
+        # Dazu wird geprüft wie das Wetter (Sonnenstunden) am nächsten Tag ist und dementsprechend früher oder später umgeschaltet.
+        # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.
+        # Die Prüfung ist nur Abends aktiv da man unter Tags eine andere Logig haben möchte.
+        # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
+        if "Tag_1" in self.localDeviceData["Wetter"]:
+            if self.localDeviceData["Wetter"]["Tag_1"] != None:
+                if self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
+                    return True
+            else:
+                self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
+            return False
+
+    def wetterPrognoseHeuteUndMorgenSchlecht(self):
+        if "Tag_0" in self.localDeviceData["Wetter"] and "Tag_1" in self.localDeviceData["Wetter"]:
+            if self.localDeviceData["Wetter"]["Tag_0"] != None and self.localDeviceData["Wetter"]["Tag_1"] != None:
+                if self.localDeviceData["Wetter"]["Tag_0"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"] and self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
+                    return True
+            else:
+                self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
+        return False
+
+    def akkuStandAusreichend(self):
+        return self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"])
+
     def initInverter(self):
         if self.configuration["initModeEffekta"] == "Auto":
             if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == SocMeter.InitAkkuProz:
@@ -313,6 +339,8 @@ class PowerPlant(Worker):
             # we use it and unsubscribe
             self.SkriptWerte = message["content"]
             self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
+            # We set the timer because it is possible that the timer is not set yet and the it raise an exc
+            self.timer(name = "timeoutMqtt", timeout = 30)
             self.timer(name = "timeoutMqtt", remove = True)
             self.localDeviceData["initialMqttTimeout"] = True
         else:
@@ -347,14 +375,17 @@ class PowerPlant(Worker):
                 elif message["content"] == "WrAufAkku":
                     self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
 
+            # check if a expected device sended a msg and store it
+            for key in self.expectedDevices:
+                if key in message["topic"]:
+                    self.localDeviceData[key] = message["content"]
+
             # check if all expected devices sent data
             if self.localDeviceData["expectedDevicesPresent"] == False:
                 # set expectedDevicesPresent. If a device is not present we reset the value
                 self.localDeviceData["expectedDevicesPresent"] = True
                 # check if a expected device sended a msg and store it
                 for key in self.expectedDevices:
-                    if key in message["topic"]:
-                        self.localDeviceData[key] = message["content"]
                     # check if all devices are present
                     if not (key in self.localDeviceData):
                         self.localDeviceData["expectedDevicesPresent"] = False
@@ -371,8 +402,8 @@ class PowerPlant(Worker):
         # init some variables
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "linkedEffektaData":{}, "Wetter":{}}
         # init lists of direct setable values, sensors or commands
-        self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
-        self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
+        self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
+        self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": False}
         self.sensorList = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
@@ -452,40 +483,19 @@ class PowerPlant(Worker):
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] == True and self.SkriptWerte["Error"] == False:
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
                 if self.SkriptWerte["AutoMode"]:
-                    # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
-                    # Dazu wird geprüft wie das Wetter (Sonnenstunden) am nächsten Tag ist und dementsprechend früher oder später umgeschaltet.
-                    # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.
-                    # Die Prüfung ist nur Abends aktiv da man unter Tags eine andere Logig haben möchte.
-                    # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
+
+                    # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag auf Netz schalten müssen
                     if now.hour >= 17 and now.hour < 23:
-                    #if Zeit >= 17 and Zeit < 23:
-                        if "Tag_1" in self.localDeviceData["Wetter"]:
-                            if self.localDeviceData["Wetter"]["Tag_1"] != None:
-                                if self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
-                                # Wir wollen den Akku schonen weil es nichts bringt wenn wir ihn leer machen
-                                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]):
-                                        if self.SkriptWerte["WrMode"] == self.Akkumode:
-                                            # todo ist das so sinnvoll. Bestand
-                                            self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                                            self.SkriptWerte["Akkuschutz"] = True
-                                            self.myPrint(Logger.LOG_LEVEL.INFO, "Sonne morgen < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
-                            else:
-                                self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
-                    # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
+                        if self.wetterPrognoseMorgenSchlecht() and self.akkuStandAusreichend():
+                            #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
+                            self.SkriptWerte["Akkuschutz"] = True
+                            self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
+
                     if now.hour >= 12 and now.hour < 23:
-                    #if Zeit >= 17 and Zeit < 23:
-                        if "Tag_0" in self.localDeviceData["Wetter"] and "Tag_1" in self.localDeviceData["Wetter"]:
-                            if self.localDeviceData["Wetter"]["Tag_0"] != None and self.localDeviceData["Wetter"]["Tag_1"] != None:
-                                if self.localDeviceData["Wetter"]["Tag_0"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"] and self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
-                                # Wir wollen den Akku schonen weil es nichts bringt wenn wir ihn leer machen
-                                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]):
-                                        if self.SkriptWerte["WrMode"] == self.Akkumode:
-                                            # todo ist das so sinnvoll. Bestand
-                                            self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                                            self.SkriptWerte["Akkuschutz"] = True
-                                            self.myPrint(Logger.LOG_LEVEL.INFO, "Sonne heute und morgen < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
-                            else:
-                                self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
+                        if self.wetterPrognoseHeuteUndMorgenSchlecht() and self.akkuStandAusreichend():
+                            #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
+                            self.SkriptWerte["Akkuschutz"] = True
+                            self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
 
                     self.passeSchaltschwellenAn()
 
@@ -545,7 +555,9 @@ class PowerPlant(Worker):
 
             self.passeSchaltschwellenAn()
 
-            self.manageTranferRelais()
+            # Zum debuggen wollen wir das Relais nicht laufen ansteuern, darum warten wir
+            if self.timer(name = "timeoutTransferRelais", timeout = 3*60):
+                self.manageTransferRelais()
 
             if self.sendeMqtt == True: 
                 self.sendeMqtt = False
