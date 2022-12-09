@@ -120,6 +120,8 @@ class PowerPlant(Worker):
         if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
             if not self.ResetSocSended:
                 self.resetSocMonitor()
+                # Wir setzen hier einen eventuellen Skript error zurück. Wenn der Inverter in Floatmode schaltet dann ist der Akku voll und der SOC Monitor auf 100% gesetzt
+                self.SkriptWerte["Error"] = False
             self.ResetSocSended = True
         else:
             self.ResetSocSended = False
@@ -473,11 +475,6 @@ class PowerPlant(Worker):
                 self.initInverter()
 
 
-            # Wir setzen den Error bei 100 prozent zurück. In der Hoffunng dass nicht immer 100 prozent vom BMS kommen dieses fängt aber bei einem Neustart bei 0 proz an.
-            if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= 100.0:
-                self.SkriptWerte["Error"] = False
-
-
             # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] == True and self.SkriptWerte["Error"] == False:
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
@@ -541,12 +538,15 @@ class PowerPlant(Worker):
                     # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenaus ausgelöst wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
                     self.NetzLadenAusGesperrt = True
                     self.SkriptWerte["Akkuschutz"] = True
-                    self.myPrint(Logger.LOG_LEVEL.ERROR, "Ladestand weicht ab")
+                    self.myPrint(Logger.LOG_LEVEL.ERROR, f'Ladestand weicht ab, UnterSpannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
                 # wir setzen einen error weil das nicht plausibel ist und wir hin und her schalten sollte die freigabe wieder kommen
                 # wir wollen den Akku erst bis 100 P aufladen 
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
                     self.SkriptWerte["Error"] = True
-                    self.myPrint(Logger.LOG_LEVEL.ERROR, "Ladestand nicht plausibel")
+                    # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
+                    if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
+                        raise Exception("SOC Wert unplaulibel und FloatMode Inverter aktiv!") 
+                    self.myPrint(Logger.LOG_LEVEL.ERROR, f'Ladestand unplausibel, Unterspannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
                 self.sendeMqtt = True
 
             self.passeSchaltschwellenAn()
