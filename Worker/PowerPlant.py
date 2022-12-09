@@ -51,6 +51,10 @@ class PowerPlant(Worker):
                         self.sendeMqtt = True
                     self.SkriptWerte["schaltschwelleAkku"] = self.SkriptWerte["schaltschwelleAkkuTollesWetter"]
                     self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["MinSoc"]
+
+        if self.SkriptWerte["schaltschwelleNetz"] < self.SkriptWerte["MinSoc"]:
+            self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["MinSoc"]
+
         # Wetter Sonnenstunden Schaltschwellen
         self.SkriptWerte["wetterSchaltschwelleNetz"] = 6    # Einheit Sonnnenstunden
 
@@ -505,10 +509,7 @@ class PowerPlant(Worker):
 
 
                     if self.SkriptWerte["WrMode"] == self.Akkumode:
-                        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["MinSoc"]:
-                            self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                            self.myPrint(Logger.LOG_LEVEL.INFO, "MinSOC %iP erreicht -> schalte auf Netz." %self.SkriptWerte["MinSoc"])
-                        elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["schaltschwelleNetz"]:
+                        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["schaltschwelleNetz"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                             self.myPrint(Logger.LOG_LEVEL.INFO, "%iP erreicht -> schalte auf Netz." %self.SkriptWerte["schaltschwelleNetz"])  
                     elif self.SkriptWerte["WrMode"] == self.NetzMode:
@@ -523,7 +524,7 @@ class PowerPlant(Worker):
 
 
                     # Wenn Akkuschutz an ist und die schaltschwelle NetzLadenEin erreicht ist, dann laden wir vom Netz
-                    if self.SkriptWerte["WrNetzladen"] == False and self.SkriptWerte["Akkuschutz"] == True and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["schaltschwelleNetzLadenein"]:
+                    if self.SkriptWerte["WrNetzladen"] == False and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["schaltschwelleNetzLadenein"]:
                         self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
                         self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte auf Netz mit laden")
 
