@@ -499,6 +499,13 @@ class PowerPlant(Worker):
                     if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["AkkuschutzAbschalten"]:
                         self.SkriptWerte["Akkuschutz"] = False
 
+                    # behandeln vom Laden in RussiaMode (USV)
+                    if self.SkriptWerte["RussiaMode"]:
+                        self.NetzLadenAusGesperrt = True
+                        if self.SkriptWerte["WrNetzladen"] == False and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= (self.SkriptWerte["schaltschwelleNetz"] - self.SkriptWerte["verbrauchNachtNetz"]):
+                            self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
+                        if self.SkriptWerte["WrNetzladen"] == True and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleNetz"]:
+                            self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
 
                     if self.SkriptWerte["WrMode"] == self.Akkumode:
                         if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.SkriptWerte["schaltschwelleNetz"]:
@@ -552,7 +559,7 @@ class PowerPlant(Worker):
             self.passeSchaltschwellenAn()
 
             # Zum debuggen wollen wir das Relais nicht laufen ansteuern, darum warten wir
-            if self.timer(name = "timeoutTransferRelais", timeout = 3*60):
+            if self.timer(name = "timeoutTransferRelais", timeout = 10*60):
                 self.manageTransferRelais()
 
             if self.sendeMqtt == True: 
