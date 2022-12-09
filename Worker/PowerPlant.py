@@ -92,14 +92,9 @@ class PowerPlant(Worker):
         self.sendeMqtt = True
 
     def schalteAlleWrNetzSchnellLadenEin(self, effektas):
-        self.sendEffektaData(EffektaController.getCmdSwitchUtilityFastChargeOn()(), effektas)
-        self.SkriptWerte["WrNetzladen"] = True
-        # Wir müssen hier auf Manuell schalten damit das Skrip nich gleich zurückschaltet
-        self.SkriptWerte["AutoMode"] = False
+        self.sendEffektaData(EffektaController.getCmdSwitchUtilityFastChargeOn(), effektas)
         self.SkriptWerte["WrMode"] = self.NetzMode
-        self.sendeSkriptDaten()
-        self.myPrint(Logger.LOG_LEVEL.INFO, "Schnellladen vom Netz wurde aktiviert!")
-        self.myPrint(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf manuell gestellt!")
+        self.SkriptWerte["WrNetzladen"] = True
         self.sendeMqtt = True
 
     def resetSocMonitor(self):
