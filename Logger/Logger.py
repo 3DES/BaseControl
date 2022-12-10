@@ -65,7 +65,7 @@ class Logger(ThreadBase):
     __logBuffer_always_use_getters_and_setters      = collections.deque([], 500)    # length of 500 elements
     __printAlways_always_use_getters_and_setters    = False                         # print log messages always even if level is not LOG_LEVEL.DEBUG
     __preLogBuffer_always_use_getters_and_setters   = []                            # list to collect all log messages created before logger has been started up (they should be printed too for the case the logger will never come up!), if the logger comes up it will log all these messages first!
-
+    __logFilter_always_use_getters_and_setters      = r""                           # filter regex
 
     @classmethod
     def get_logQueueLength(cls):
@@ -122,6 +122,15 @@ class Logger(ThreadBase):
             elif newLogLevel < Logger.LOG_LEVEL.ERROR.value:
                 newLogLevel = Logger.LOG_LEVEL.DEBUG.value
             Logger._Logger__logLevel_always_use_getters_and_setters = Logger.LOG_LEVEL(newLogLevel)
+
+
+    @classmethod
+    def set_logFilter(cls, newLogFilter : str):
+        '''
+        To change log filter, e.g. during development to show messages only from a certain thread
+        '''
+        with cls.get_threadLock():
+            Logger._Logger__logFilter_always_use_getters_and_setters = newLogFilter
 
 
     @classmethod
@@ -196,8 +205,6 @@ class Logger(ThreadBase):
         self.set_projectName(configuration["projectName"])
         if self.tagsIncluded(["queueLength"], optional = True, configuration = configuration):
             self.set_logQueueLength(configuration["queueLength"])
-
-        # @todo das ist keine Logger-Aufgabe, unbedingt umbauen, die Klasse muss jemand anderes laden!!!
         if not self.tagsIncluded(["homeAutomation"], optional = True, configuration = configuration):
             configuration["homeAutomation"] = "HomeAutomation.BaseHomeAutomation.BaseHomeAutomation"
 
@@ -331,6 +338,18 @@ class Logger(ThreadBase):
 
 
     @classmethod
+    def get_filter(cls):
+        return Logger._Logger__logFilter_always_use_getters_and_setters
+        
+    @classmethod
+    def filter(cls, sender):
+        filterPattern = cls.get_filter()
+        length = (len(filterPattern) == 0)
+        matched = (re.search(filterPattern, sender) is not None)
+        return (len(filterPattern) == 0) or (re.search(filterPattern, sender) is not None)
+
+
+    @classmethod
     def message(cls, level : LOG_LEVEL, sender, message):
         '''
         Overall log method, all log methods have to end up here
@@ -342,20 +361,22 @@ class Logger(ThreadBase):
                 senderName = cls.getSenderName(sender)
             timeStamp = datetime.now()
             levelText = "{:<18}".format("[" + str(level) + "]")
-            
+
             if not isinstance(message, str):
                 message = str(message)
-            
+
             logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
 
             preLogged = False       # in case logger is not running the given message is pre-logged and in case of error or fatal it is additionally printed to STDOUT!
-            if cls.get_logQueue() is not None:
-                # send message to log
-                cls.get_logQueue().put(logMessage, block = False)
-            else:
-                # Queue is not yet available so log message into pre-log buffer instead
-                cls.add_preLogMessage(logMessage)
-                preLogged = True
+
+            if cls.filter(senderName) or (level <= cls.LOG_LEVEL.ERROR):
+                if cls.get_logQueue() is not None:
+                    # send message to log
+                    cls.get_logQueue().put(logMessage, block = False)
+                else:
+                    # Queue is not yet available so log message into pre-log buffer instead
+                    cls.add_preLogMessage(logMessage)
+                    preLogged = True
 
             if level == cls.LOG_LEVEL.ERROR:
                 logging.error(logMessage)

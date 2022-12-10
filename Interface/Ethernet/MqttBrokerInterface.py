@@ -13,6 +13,7 @@ class MqttBrokerInterface(InterfaceBase):
 
     _MOSQUITTO_SUBSCRIBE_TIMER_NAME = "mosquittoSubscribe"
 
+
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -77,7 +78,7 @@ class MqttBrokerInterface(InterfaceBase):
 
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
-            
+
             # If messageType == Publish we have to publish The Data to MQTT Broker
             if newMqttMessageDict["global"]:
                 self.logger.debug(self, " received global queue message :" + str(newMqttMessageDict))

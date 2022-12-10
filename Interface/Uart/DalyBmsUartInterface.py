@@ -520,12 +520,14 @@ class DalyBmsUartInterface(BasicUartInterface):
                 raise Exception(f"too many errors for command [{key}] in [{self.name}], expected: {expected[key]}")
 
         # status should be the first one to get number of cells and temp sensors
-        self.logger.debug(self.name, f"status:       " + str(values["status"]))
-        self.logger.debug(self.name, f"voltages:     " + str(values["cell_voltages"]))
-        self.logger.debug(self.name, f"mosfet:       " + str(values["mosfet_status"]))
-        self.logger.debug(self.name, f"temperatures: " + str(values["temperature_range"]))
-        self.logger.debug(self.name, f"balancing:    " + str(values["balancing_status"]))
-        self.logger.debug(self.name, f"errors:       " + str(values["errors"]))
+        #self.logger.debug(self.name, f"status:       " + str(values["status"]))
+        #self.logger.debug(self.name, f"voltages:     " + str(values["cell_voltages"]))
+        #self.logger.debug(self.name, f"mosfet:       " + str(values["mosfet_status"]))
+        #self.logger.debug(self.name, f"temperatures: " + str(values["temperature_range"]))
+        #self.logger.debug(self.name, f"balancing:    " + str(values["balancing_status"]))
+        #self.logger.debug(self.name, f"errors:       " + str(values["errors"]))
+
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), values, globalPublish = False)
 
 
     def threadBreak(self):
