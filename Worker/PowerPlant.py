@@ -331,12 +331,7 @@ class PowerPlant(Worker):
 
     def initInverter(self):
         if self.configuration["initModeEffekta"] == "Auto":
-            if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == SocMeter.InitAkkuProz:
-                # if the value is still (after getting work data from soc) on initAkkuProz we fallback on "Netz"
-                self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-            else:
-                self.autoInitInverter()
-                self.sendeMqtt = True
+            self.autoInitInverter()
         elif self.configuration["initModeEffekta"] == "Akku":
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
@@ -344,6 +339,10 @@ class PowerPlant(Worker):
         elif self.configuration["initModeEffekta"] == "Netz":
             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
+            self.SkriptWerte["AutoMode"] = False
+        else:
+            raise Exception("Unknown initModeEffekta given! Check configurationFile!")
+        self.sendeMqtt = True
 
     def myPrint(self, msgType, msg):
         # convert LOGGER.INFO -> "info" and concat it to topic
@@ -354,9 +353,11 @@ class PowerPlant(Worker):
         self.logger.message(msgType, self, msg)
 
     def autoInitInverter(self):
-        if 0 < self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < self.SkriptWerte["schaltschwelleNetzLadenaus"]:
+        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == SocMeter.InitAkkuProz:
+            self.myPrint(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Netz mit Laden. SOC == InitWert")
+            self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
+        elif 0 <= self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < self.SkriptWerte["schaltschwelleNetzLadenaus"]:
             self.myPrint(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Netz mit Laden")
-            self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
             self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
         elif self.SkriptWerte["schaltschwelleNetzLadenaus"] <= self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"]:
             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
