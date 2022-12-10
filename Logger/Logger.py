@@ -196,6 +196,8 @@ class Logger(ThreadBase):
         self.set_projectName(configuration["projectName"])
         if self.tagsIncluded(["queueLength"], optional = True, configuration = configuration):
             self.set_logQueueLength(configuration["queueLength"])
+
+        # @todo das ist keine Logger-Aufgabe, unbedingt umbauen, die Klasse muss jemand anderes laden!!!
         if not self.tagsIncluded(["homeAutomation"], optional = True, configuration = configuration):
             configuration["homeAutomation"] = "HomeAutomation.BaseHomeAutomation.BaseHomeAutomation"
 

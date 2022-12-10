@@ -12,6 +12,9 @@ class BasicUartInterface(InterfaceBase):
     '''
 
 
+    readData = b""
+
+
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -31,29 +34,33 @@ class BasicUartInterface(InterfaceBase):
 
 
     def reInitSerial(self):
-        error = False
+        success = True
         try:
             self.logger.debug(self, f"Serial Port {self.name} reInit!")
             self.serialConn.close()
             self.serialConn.open()
         except Exception as exception:
             self.logger.error(self, f"Serial Port {self.name} reInit failed: {exception}")
-            error = True
+            success = False
             # @todo perhaps wait a little bit
-        return error
+        return success
 
 
     def serialWrite(self, data):
-        error = False
+        success = True
         try:
             self.serialConn.write(data)
         except Exception as exception:
             self.logger.error(self, f"Sending serial data failed: {exception}")
-            error = True
-        return error
+            success = False
+        return success
 
 
     def serialReadLine(self):
+        '''
+        Reads data up to a new line
+        don't mix serialRead() and serialReadLine()
+        '''
         try:
             retVal = self.serialConn.readline()
         except:
@@ -62,23 +69,54 @@ class BasicUartInterface(InterfaceBase):
         return retVal
 
 
+    def flush(self):
+        '''
+        Read serial once, then clear receive buffer
+        '''
+        self.serialReset_input_buffer()
+        self.serialReset_output_buffer()
+
+        if self.serialConn.inWaiting():
+            self.serialConn.read(self.serialConn.inWaiting())
+
+        self.readData = b""
+
+
     def serialRead(self, length : int = 0, timeout : int = 0):
+        '''
+        Reads data from serial until length bytes have been received or timeout has been reached
+        
+        @param length       amount of bytes to be received, 0 = read only once up to timeout, n = read until this amount of bytes have been received
+        @param timeout      seconds to read from serial, 0 = use default timeout, n = read up to n seconds
+        
+        if not enough bytes have been received after timeout seconds an empty byte string will be returned! 
+        don't mix serialRead() and serialReadLine()
+        '''
         returnData = b""
+
+        if timeout == 0:
+            timeout = self.configuration["timeout"]
 
         if timeout:
             startTime = Supporter.getTimeStamp()
         try:
             while True:
-                receivedData = self.serialConn.read()
-                if receivedData:
-                    returnData += receivedData
+                if self.serialConn.inWaiting():
+                    receivedData = self.serialConn.read(self.serialConn.inWaiting())
 
-                    # if length has been given check if length characters have been received
-                    if len(returnData) >= length:
-                        break
+                    if receivedData:
+                        self.readData += receivedData
+
+                # if length has been given check if length characters have been received
+                if len(self.readData) >= length:
+                    returnData = self.readData[:length]
+                    self.readData = self.readData[length:]
+                    self.logger.debug(self, f"OK")
+                    break
 
                 # if timeout has been given check if time is over
                 if timeout and Supporter.getSecondsSince(startTime) > timeout:
+                    self.logger.debug(self, f"timeout {len(self.readData)} {timeout}")
                     break
         except:
             self.reInitSerial()
@@ -88,6 +126,10 @@ class BasicUartInterface(InterfaceBase):
 
     def serialReset_input_buffer(self):
         self.serialConn.reset_input_buffer()
+
+
+    def serialReset_output_buffer(self):
+        self.serialConn.reset_output_buffer()
 
 
     def threadInitMethod(self):

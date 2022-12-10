@@ -210,13 +210,17 @@ class MqttBridge(ThreadObject):
                         # first matching filter stops handling of current subscriber
                         if self.matchTopic(topic, topicFilterLevels):
                             handledRecipients.add(subscriber)
-                            if topicAndQueue["queue"] is not None:
-                                # subscriber subscribed with special queue so send it to this one instead of using the default one
-                                self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
-                            else:
-                                # no special queue for this subscription so send it to the default one
-                                self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
-                            break
+                            try:
+                                if topicAndQueue["queue"] is not None:
+                                    # subscriber subscribed with special queue so send it to this one instead of using the default one
+                                    self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
+                                else:
+                                    # no special queue for this subscription so send it to the default one
+                                    self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
+                                break
+                            except Exception as exception:
+                                # probably any full queue!
+                                raise Exception(f"{self.name} : {subscriber} {self.get_mqttListeners()[subscriber]['queue'].qsize()}")
 
 
     def broadcast_message(self, sender : str, content : str):

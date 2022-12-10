@@ -171,7 +171,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, stopAfterSeconds : int, printAlways : bool, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool):
+    def executeProject(cls, initFileName : str, logLevel : int, logFilter : str, stopAfterSeconds : int, printAlways : bool, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -187,6 +187,7 @@ class ProjectRunner(object):
 
         # set some command line parameters to the referring threads
         Logger.Logger.Logger.set_logLevel(logLevel)
+        Logger.Logger.Logger.set_logFilter(logFilter)
         Logger.Logger.Logger.set_printAlways(printAlways)
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)

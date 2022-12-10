@@ -1,7 +1,6 @@
 '''
 '''
 import time
-import calendar
 from datetime import datetime
 import pydoc
 import json
@@ -100,7 +99,7 @@ class Supporter(object):
 
     @classmethod
     def getTimeStamp(cls):
-        return calendar.timegm(time.gmtime())
+        return time.time()
 
 
     @classmethod

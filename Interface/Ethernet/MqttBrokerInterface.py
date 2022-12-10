@@ -11,6 +11,7 @@ class MqttBrokerInterface(InterfaceBase):
     classdocs
     '''
 
+    _MOSQUITTO_SUBSCRIBE_TIMER_NAME = "mosquittoSubscribe"
 
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -30,10 +31,17 @@ class MqttBrokerInterface(InterfaceBase):
         self.client.loop_start()
 
     def on_connect(self, client, userdata, flags, rc):
+        _MOSQUITTO_INITIAL_TIMEOUT = 2
+
         self.logger.info(self, f"MQTT connected with result code " + str(rc))
 
-        # Subscribe to projectName/# 
-        self.client.subscribe(f"{self.get_projectName()}/#")
+        if not self.counter(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, value = 2, autoReset = False):
+            timeout = _MOSQUITTO_INITIAL_TIMEOUT
+        else:
+            timeout = 0.1
+
+        # (re-)setup one-shot-timer with timeout of 2 seconds
+        self.timer(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, setup = True, timeout = timeout, firstTimeTrue = True)
 
     def on_message(self, client, userdata, msg):
         tempTopic = str(msg.topic)
@@ -54,8 +62,6 @@ class MqttBrokerInterface(InterfaceBase):
     def threadInitMethod(self):
         # subscribe internally global to get all global msg
         self.mqttSubscribeTopic("#", globalSubscription = True)
-        # wait for all threads
-        time.sleep(2)
         try:
             # Try to connect to MQTT server, there could be a exception if ethernet or server is not available
             self.connectMqtt()
@@ -65,6 +71,10 @@ class MqttBrokerInterface(InterfaceBase):
             # RECONNECT_DELAY_SET(min_delay=1, max_delay=120)
 
     def threadMethod(self):
+        if self.timerExists(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME) and self.timer(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME):
+            # (re-)subscribe to projectName/# 
+            self.client.subscribe(f"{self.get_projectName()}/#")
+
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
             

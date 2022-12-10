@@ -294,7 +294,8 @@ class SignalMessenger(ThreadObject):
 
     def threadTearDownMethod(self):
         # try to send a last message out!
-        self.sendMessage(self.get_projectName() + " shut down...")
+        if not self.configuration["disabled"]:
+            self.sendMessage(self.get_projectName() + " shut down...")
         self.logger.info(self, "killing sub process")
         time.sleep(1)       # give message some time to be sent out
         if "killpg" in dir(os):

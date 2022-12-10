@@ -117,15 +117,14 @@ class ThreadBase(Base.MqttBase.MqttBase):
         try:
             # execute thread loop until we get killed
             while not self.killed:              # and not event.is_set():
-                self.threadBreak()              # be nice!
                 self.threadTraceMethod()        # print tracing info
                 self.threadMethod()
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
 
-                # @todo das hier wieder raus werfen, sollte in den echten Thread rein!!!
-                if self.watchDogTimeRemaining() <= 0:
-                    self.mqttSendWatchdogAliveMessage()
+                self.threadWatchdogTrigger()
+
+                self.threadBreak()              # be nice!
 
         except Exception as exception:
             # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
@@ -134,19 +133,28 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         # final thread clean up
         try:
+            self.threadTearDownMethod()                         # call tear down method for the case the thread has sth. to clean up
+
+            # stop interfaces after own tear down method since the tear down method could need the interface!
             if self.interfaceThreads is not None:
                 for interface in self.interfaceThreads:                    
                     interfaceThread = interface.killThread()    # send stop to thread containing object and get real thread back
                 for interface in self.interfaceThreads:
                     interfaceThread.join()                      # join all stopped threads
-
-            self.threadTearDownMethod()             # call tear down method for the case the thread has sth. to clean up
         except Exception as exception:
             # beside explicitly exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
         self.logger.trace(self, "leaving thread loop")
+
+
+    def threadWatchdogTrigger(self):
+        '''
+        Triggers Watchdog but should be overwritten if necessary
+        '''
+        if self.watchDogTimeRemaining() <= 0:
+            self.mqttSendWatchdogAliveMessage()
 
 
     def threadInitMethod(self):

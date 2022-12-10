@@ -16,6 +16,30 @@ class Base(object):
         #super().__init__()        # NO!!!  -->  https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
 
 
+    def _getCounterName(self, name : str):
+        return f"counter_{self.name}_{name}"
+
+
+    def _getTimerName(self, name : str):
+        return f"timer_{self.name}_{name}"
+
+
+    def counterExists(self, name : str):
+        '''
+        To check if a counter already exists
+        '''
+        nameSpace = globals()
+        return self._getCounterName(name) in nameSpace
+        
+
+    def timerExists(self, name : str):
+        '''
+        To check if a timer already exists
+        '''
+        nameSpace = globals()
+        return self._getTimerName(name) in nameSpace
+
+
     def counter(self, name : str, value : int = 0, autoReset : bool = True, singularTrue : bool = False, remove : bool = False, getValue : bool = False, dontCount : bool = False, startWithOne : bool = False):
         '''
         Simple counter returns True if counter has called given amount of times whereby the setup call already counts as the first call!
@@ -37,7 +61,7 @@ class Base(object):
         
         if startWithOne is True counter counts [1..value], otherwise counter counts [0..value-1], this can only be set during setup, to change it counter has to be removed and set up again
         '''
-        counterName = f"{self.name}_{name}"
+        counterName = self._getCounterName(name)
         nameSpace = globals()
 
         if remove:
@@ -91,13 +115,13 @@ class Base(object):
         The timer can jitter (depending on your read timing) but it will never drift away!
 
         If startTime is not given current time will be taken, if startTiem has been given it will only be taken to setup the timer but will be ignored if the timer is already running, so a timer can be set up and checked with the same line of code
-        
+
         If remove is True the timer will be deleted
-        
+
         If strict is True an Exception will be thrown in case more than one timeout period has passed over since last call, so calling is too slow and timeout events have been lost
-        
+
         If setup is True timer will be set up even if it already exists, but remove has higher priority if also given, in that case no new timer will be set up!
-        
+
         If remainingTime is True timer handling is as usual but the remaining time will be given back instead of True or False, check can be done by comparing the returned value with 0, a positive value (= False) means there is still some time left, a negative value (= True) means time is already over 
 
         During setup call the timer usually returns with False but if firstTimeTrue is set to True it will return with True for the first time, so it's not necessary to handle it manually to get informed at setup call, too and not only for all following periods
@@ -119,7 +143,7 @@ class Base(object):
                 return startTime + period * ((deltaTime // period) + 1)
 
         setupTurn = False
-        timerName = f"{self.name}_{name}"
+        timerName = self._getTimerName(name)
         nameSpace = globals()
 
         if remove:
@@ -128,7 +152,7 @@ class Base(object):
             del(nameSpace[timerName])
             return True
         else:
-            # setup counter in global namespace if necessary
+            # setup timer in global namespace if necessary
             if timeout > 0:
                 if (timerName not in nameSpace) or setup:
                     if startTime == 0:

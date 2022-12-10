@@ -2,6 +2,7 @@ import time
 import struct
 import math
 from Interface.Uart.BasicUartInterface import BasicUartInterface
+from Base.Supporter import Supporter
 
 
 class DalyBmsUartInterface(BasicUartInterface):
@@ -10,6 +11,10 @@ class DalyBmsUartInterface(BasicUartInterface):
     
     based on https://github.com/dreadnought/python-daly-bms commit da769999d8
     '''
+
+
+    _ERROR_REPEATS = 40         # in case of communication error 20 repeats will be done before an exception is thrown
+
 
 
     """
@@ -122,7 +127,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         message = message.ljust(24, "0")
         message_bytes = bytearray.fromhex(message)
         message_bytes += self._calc_checksum(message_bytes)
-        self.logger.debug(f"sent cmd:[{command}] message:[{message_bytes.hex()}]")
+        self.logger.debug(self.name, f"sent cmd:[{command}] message:[{message_bytes.hex()}]")
         return message_bytes
 
 
@@ -143,42 +148,81 @@ class DalyBmsUartInterface(BasicUartInterface):
         )
 
         if not response_data:
-            self.logger.warning(f'command [{command}] failed')
+            self.logger.warning(self.name, f'command [{command}] failed')
             return False
 
+        self.logger.debug(self.name, f'command [{command}], request [{response_data}]')
         return response_data
 
 
-    def _read(self, command, extra="", max_responses = 1, return_list=False):
+    def _read(self, command, extra : str = "", max_responses : int = 1, return_list : bool = False, timeout : int = 1):
+        RESPONSE_LENGTH = 13
+
+        # throw away any received data
+        self.flush()
+
+        # prepare message
         message_bytes = self._format_message(command, extra=extra)
 
-        # clear all buffers, in case something is left from a previous command that failed
-        self.serial.reset_input_buffer()
-        self.serial.reset_output_buffer()
+        self.logger.debug(self.name, f"serial write [{message_bytes}]")
 
+        # send message
         if not self.serialWrite(message_bytes):
-            self.logger.error(f"serial write failed for command [{command}]")
+            self.logger.error(self.name, f"serial write failed for command [{command}]")
             return False
-        x = 0
+        
         response_data = []
+        responses = 0
+
+        startTime = Supporter.getTimeStamp()
         while True:
-            b = self.serial.read(13)
-            if len(b) == 0:
-                self.logger.debug("%i empty response for command %s" % (x, command))
+            if Supporter.getSecondsSince(startTime) > timeout:
                 break
-            self.logger.debug("%i %s %s" % (x, b.hex(), len(b)))
-            x += 1
-            response_checksum = self._calc_checksum(b[:-1])
-            if response_checksum != b[-1:]:
-                self.logger.debug("response checksum mismatch: %s != %s" % (response_checksum.hex(), b[-1:].hex()))
-            header = b[0:4].hex()
-            # todo: verify  more header fields
-            if header[4:6] != command:
-                self.logger.debug("invalid header %s: wrong command (%s != %s)" % (header, header[4:6], command))
+
+            receivedBytes = self.serialRead(length = RESPONSE_LENGTH, timeout = timeout)
+
+            # nth. received
+            if len(receivedBytes) == 0:
+                self.logger.debug(self.name, f"empty response for command [{command}] {max_responses} {responses}")
                 continue
-            data = b[4:-1]
+
+            self.logger.debug(self.name, f"loop {responses}, received [{receivedBytes.hex()}], length {len(receivedBytes)}")
+
+            # validate checksum
+            response_checksum = self._calc_checksum(receivedBytes[:-1])
+            if response_checksum != receivedBytes[-1:]:
+                deltaSleep = timeout - Supporter.getSecondsSince(startTime)
+                self.logger.debug(self.name, f"response checksum mismatch: {response_checksum.hex()} != {receivedBytes[-1:].hex()} / sleep: {deltaSleep}")
+                response_data = []
+                # error wait for timeout then leave
+                time.sleep(deltaSleep)
+                break
+
+            # validate header
+            header = receivedBytes[0:4].hex()
+            if header[4:6] != command:
+                deltaSleep = timeout - Supporter.getSecondsSince(startTime)
+                self.logger.debug(self.name, f"invalid header {header}: wrong command ({header[4:6]} != {command}) / sleep: {deltaSleep}")
+                response_data = []
+                # error wait for timeout then leave
+                time.sleep(deltaSleep)
+                break
+
+            if receivedBytes == RESPONSE_LENGTH:
+                deltaSleep = timeout - Supporter.getSecondsSince(startTime)
+                self.logger.debug(self.name, f"invalid message length {len(receivedBytes)} / sleep: {deltaSleep}")
+                response_data = []
+                # error wait for timeout then leave
+                time.sleep(deltaSleep)
+                break
+
+            # handle data
+            data = receivedBytes[4:-1]
             response_data.append(data)
-            if x == max_responses:
+
+            # expected responses received?
+            responses += 1
+            if responses >= max_responses:
                 break
 
         if return_list or len(response_data) > 1:
@@ -189,10 +233,9 @@ class DalyBmsUartInterface(BasicUartInterface):
             return False
 
 
-    def get_soc(self, response_data=None):
+    def get_soc(self):
         # SOC of Total Voltage Current
-        if not response_data:
-            response_data = self._read_request("90")
+        response_data = self._read_request("90")
         if not response_data:
             return False
 
@@ -246,7 +289,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         if not response_data:
             return False
         # todo: implement
-        self.logger.debug(response_data.hex())
+        self.logger.debug(self.name, response_data.hex())
 
         parts = struct.unpack('>b ? ? B l', response_data)
 
@@ -286,7 +329,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             state_index += 1
         data = {
             "cells": parts[0],  # number of cells
-            "temperature_sensors": parts[1],  # number of sensors
+            "temperatures": parts[1],  # number of sensors
             "charger_running": parts[2],
             "load_running": parts[3],
             # "state_bits": state_bits,
@@ -299,18 +342,18 @@ class DalyBmsUartInterface(BasicUartInterface):
 
     def _calc_num_responses(self, status_field, num_per_frame):
         if not self.status:
-            self.logger.error("get_status has to be called at least once before calling get_cell_voltages")
+            self.logger.error(self.name, "get_status has to be called at least once before calling get_cell_voltages")
             return False
 
         # each response message includes 3 cell voltages
-        if self.address == 8:
+        if self.address == self.ADDRESS["Bluetooth"]:
             # via Bluetooth the BMS returns all frames, even when they don't have data
-            if status_field == 'cell_voltages':
-                max_responses = 16
+            if status_field == 'cells':
+                max_responses = 11  # 16S BMS sends frames from 01 to 0B = 11 frames, originally this was 16!?
             elif status_field == 'temperatures':
-                max_responses = 3
+                max_responses = 1   # 16S BMS sends only one frame, originally this was 3!?
             else:
-                self.logger.error("unkonwn status_field %s" % status_field)
+                self.logger.error(self.name, "unkonwn status_field %s" % status_field)
                 return False
         else:
             # via UART/USB the BMS returns only frames that have data
@@ -324,7 +367,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         for response_bytes in response_data:
             parts = struct.unpack(structure, response_bytes)
             if parts[0] != x:
-                self.logger.warning("frame out of order, expected %i, got %i" % (x, response_bytes[0]))
+                self.logger.warning(self.name, "frame out of order, expected %i, got %i" % (x, response_bytes[0]))
                 continue
             for value in parts[1:]:
                 values[len(values) + 1] = value
@@ -351,14 +394,14 @@ class DalyBmsUartInterface(BasicUartInterface):
     def get_temperatures(self, response_data=None):
         # Sensor temperatures
         if not response_data:
-            max_responses = self._calc_num_responses(status_field="temperature_sensors", num_per_frame=7)
+            max_responses = self._calc_num_responses(status_field="temperatures", num_per_frame=7)
             if not max_responses:
                 return
             response_data = self._read_request("96", max_responses=max_responses, return_list=True)
         if not response_data:
             return False
 
-        temperatures = self._split_frames(response_data=response_data, status_field="temperature_sensors",
+        temperatures = self._split_frames(response_data=response_data, status_field="temperatures",
                                           structure=">b 7b")
         for id in temperatures:
             temperatures[id] = temperatures[id] - 40
@@ -371,13 +414,13 @@ class DalyBmsUartInterface(BasicUartInterface):
             response_data = self._read_request("97")
         if not response_data:
             return False
-        self.logger.info(response_data.hex())
+        self.logger.info(self.name, response_data.hex())
         bits = bin(int(response_data.hex(), base=16))[2:].zfill(48)
-        self.logger.info(bits)
+        self.logger.info(self.name, bits)
         cells = {}
         for cell in range(1, self.status["cells"] + 1):
             cells[cell] = bool(int(bits[cell * -1]))
-        self.logger.info(cells)
+        self.logger.info(self.name, cells)
         # todo: get sample data and verify result
         return {"error": "not implemented"}
 
@@ -403,23 +446,9 @@ class DalyBmsUartInterface(BasicUartInterface):
 
                 bit_index += 1
 
-            self.logger.debug("%s %s %s" % (byte_index, b, bits))
+            self.logger.debug(self.name, "%s %s %s" % (byte_index, b, bits))
             byte_index += 1
         return errors
-
-
-    def get_all(self):
-        return {
-            "soc": self.get_soc(),
-            "cell_voltage_range": self.get_cell_voltage_range(),
-            "temperature_range": self.get_temperature_range(),
-            "mosfet_status": self.get_mosfet_status(),
-            "status": self.get_status(),
-            "cell_voltages": self.get_cell_voltages(),
-            "temperatures": self.get_temperatures(),
-            "balancing_status": self.get_balancing_status(),
-            "errors": self.get_errors()
-        }
 
 
     def set_discharge_mosfet(self, on=True, response_data=None):
@@ -431,7 +460,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             response_data = self._read_request("d9", extra = extra)
         if not response_data:
             return False
-        self.logger.info(response_data.hex())
+        self.logger.info(self.name, response_data.hex())
         # on response
         # 0101000002006cbe
         # off response
@@ -439,34 +468,66 @@ class DalyBmsUartInterface(BasicUartInterface):
 
 
     def threadMethod(self):
-        allValues = self.get_all()
-        #line = self.serialReadLine()
-        #lastLine = False
-        #if len(line):
-        #    segmentList = line.split()
-        #    try:
-        #        for i in segmentList:
-        #            if i == b'Kleinste':
-        #                self.BmsWerte["Vmin"] = float(segmentList[2])
-        #            elif i == b'Groeste':
-        #                self.BmsWerte["Vmax"] = float(segmentList[2])
-        #            elif i == b'Ladephase:':
-        #                self.BmsWerte["Ladephase"] = segmentList[1].decode()
-        #                lastLine = True
-        #                self.serialReset_input_buffer() 
-        #        if line == b'Rel fahren 1\r\n':
-        #            self.BmsWerte["BmsEntladeFreigabe"] = True
-        #            self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
-        #        elif line == b'Rel fahren 0\r\n':
-        #            self.BmsWerte["BmsEntladeFreigabe"] = False
-        #            self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
-        #    except:
-        #        self.logger.error(self, f"Convert error!")
-        #
-        #if lastLine:
-        #    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
+        keys = [
+            "status",
+            "soc",               
+            "cell_voltage_range",
+            "temperature_range",
+            "mosfet_status",    
+            "cell_voltages",     
+            "temperatures",     
+            "balancing_status",  
+            "errors",  
+        ]
+        
+        methods = {
+            "status":             self.get_status,
+            "soc":                self.get_soc,
+            "cell_voltage_range": self.get_cell_voltage_range,
+            "temperature_range":  self.get_temperature_range,
+            "mosfet_status":      self.get_mosfet_status,
+            "cell_voltages":      self.get_cell_voltages,
+            "temperatures":       self.get_temperatures,
+            "balancing_status":   self.get_balancing_status,
+            "errors":             self.get_errors,
+        }
+
+        expected = {
+            "status":             True,
+            "soc":                True,
+            "cell_voltage_range": True,
+            "temperature_range":  True,
+            "mosfet_status":      True,
+            "cell_voltages":      True,
+            "temperatures":       True,
+            "balancing_status":   True,
+            "errors":             False,        # no error expected
+        }
+
+        values = {}
+
+        for key in keys:
+            success = False
+            self.logger.debug(self.name, f"check: {key}")
+            for repeat in range(self._ERROR_REPEATS):
+                result = methods[key]()
+                self.logger.debug(self.name, f"repeat: {repeat}, cmd: {key}")
+                if (result and expected[key]) or ((not result) and (not expected[key])):
+                    values[key] = result
+                    success = True
+                    break
+            if not success:
+                raise Exception(f"too many errors for command [{key}] in [{self.name}], expected: {expected[key]}")
+
+        # status should be the first one to get number of cells and temp sensors
+        self.logger.debug(self.name, f"status:       " + str(values["status"]))
+        self.logger.debug(self.name, f"voltages:     " + str(values["cell_voltages"]))
+        self.logger.debug(self.name, f"mosfet:       " + str(values["mosfet_status"]))
+        self.logger.debug(self.name, f"temperatures: " + str(values["temperature_range"]))
+        self.logger.debug(self.name, f"balancing:    " + str(values["balancing_status"]))
+        self.logger.debug(self.name, f"errors:       " + str(values["errors"]))
 
 
     def threadBreak(self):
-        time.sleep(10)
+        time.sleep(1)
 
