@@ -127,7 +127,7 @@ class PowerPlantTester(ThreadObject):
 
     def setPowerPlantBoolValueAndAssert(self, key, value, name=""):
         if not type(value) == bool:
-            raise Exception("Wrong value type")
+            raise Exception("Wrong data type")
         self.mqttPublish(self.createInTopic(ThreadObject.createProjectTopic(self.configuration["powePlantName"])), {key:value}, globalPublish = False, enableEcho = False)
         self.assertBoolFromProwerPlant(key, value, True, name)
 
@@ -176,8 +176,9 @@ class PowerPlantTester(ThreadObject):
 
 
 # Test Funktion Helpers
-    def initAkkumodeAndAssert(self, testNr):
-        self.logger.info(self, f"Test {testNr} beginn")
+    def initAkkumodeAndAssert(self):
+        self.TestName = "Init Akkumode and assert"
+        self.printTestBeginnAndIncrTestNumber()
         self.initPowerplant()
         self.fakeBMSNormalBetrieb()
         self.fakeInverterAkkumode()
@@ -186,15 +187,12 @@ class PowerPlantTester(ThreadObject):
         self.assertAkkusschutzAus(checkMsg=True)
         self.assertAutoMode(checkMsg=False)
         self.assertNetzLadenAus(checkMsg=False)
-        self.assertAkkuBerieb(checkMsg=False, name=f"Test {testNr} Akkubetrieb nach Start")
-
-    def cycle100ToNearlyMinSocAssertAkkuBetrieb(self, testNr):
-        self.logger.info(self, f"Test {testNr} beginn")
-        self.cycleSocAndAssert(100, self.getPowerPlantValue("MinSoc")+1, self.assertAkkuBerieb)
-        self.assertAkkuBerieb(checkMsg=False, name=f"Test {testNr} Akkubetrieb nach Zyklus")
+        self.assertAkkuBerieb(checkMsg=False, name=self.getTestResultMsg())
 
 
-    def cycleAndCheckSwitchValue(self, testNr, name, assertFuntionBevoreChange, assertFuntionAfterChange, startKeyname, endKeyname, offsetStartVal = False):
+    def cycleAndCheckSwitchValue(self, name, assertFuntionBevoreChange, assertFuntionAfterChange, startKeyname, endKeyname, offsetStartVal = False):
+        self.TestName = name
+        self.printTestBeginnAndIncrTestNumber()
         if type(startKeyname) == str:
             startValue = self.getPowerPlantValue(startKeyname)
         else:
@@ -203,7 +201,6 @@ class PowerPlantTester(ThreadObject):
             endValue = self.getPowerPlantValue(endKeyname)
         else:
             endValue = endKeyname
-        self.logger.info(self, f"Test {testNr} beginn, {name}")
         startOffset = 0
         if startValue<endValue:
             endOffset = -1
@@ -216,20 +213,23 @@ class PowerPlantTester(ThreadObject):
         self.cycleSocAndAssert(startValue+startOffset, endValue+endOffset, assertFuntionBevoreChange)
         self.logger.info(self, f"Set to endValue: {endValue}")
         self.setAkkuSoc(endValue)
-        assertFuntionAfterChange(checkMsg=True, name=f"Test {testNr} {name}")
+        assertFuntionAfterChange(checkMsg=True, name=self.getTestResultMsg())
 
-    def printTestBeginnAndIncrTestNumber(self, name=""):
-        self.testNumber =+1
-        self.logger.info(self, f"Test {self.testNumber} {name} beginnt")
+    def printTestBeginnAndIncrTestNumber(self):
+        self.TestNumber += 1
+        self.logger.info(self, f"__________________Test {self.TestNumber} --{self.TestName}-- beginnt__________________")
 
+    def getTestResultMsg(self):
+        return f"************** Test {self.TestNumber} --{self.TestName}-- beendet **************"
 
-    def setToMinSocAssertNetzBetrieb(self, testNr):
-        self.logger.info(self, f"Test {testNr} beginn")
+    def setToMinSocAssertNetzBetrieb(self):
+        self.TestName = "Netzbetrieb nach unterschreiten von minsoc"
+        self.printTestBeginnAndIncrTestNumber()
         self.setAkkuSoc(self.getPowerPlantValue("MinSoc"))
         self.assertAkkusschutzAus(checkMsg=True)
         self.assertAutoMode(checkMsg=False)
         self.assertNetzLadenAus(checkMsg=False)
-        self.assertNetzBerieb(checkMsg=False, name=f"Test {testNr} Netzbetrieb nach unterschreiten von minsoc")
+        self.assertNetzBerieb(checkMsg=False, name=self.getTestResultMsg())
 
 
     def threadInitMethod(self):
@@ -241,24 +241,25 @@ class PowerPlantTester(ThreadObject):
         self.tagsIncluded(["bmsName", "socMonitorName", "inverterName", "powePlantName"])
         self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(self.configuration["powePlantName"])), globalSubscription = True)
         self.mqttSubscribeTopic(self.createInTopicFilter(self.createProjectTopic(self.configuration["inverterName"])), globalSubscription = False)
-        self.testNumber = 0
+        self.TestNumber = 0
+        self.TestName = ""
 
 #        ThreadObject.PowerPlant.datetime.datetime.now = self.myDateTime
 
     def threadMethod(self):
 
-        self.initAkkumodeAndAssert(1)
+        self.initAkkumodeAndAssert()
 
-        self.cycleAndCheckSwitchValue(2, "teste auf Netz wenn MinSoc unterschritten wird",self.assertAkkuBerieb, self.assertNetzBerieb, "schaltschwelleAkku", "MinSoc")
+        self.cycleAndCheckSwitchValue("teste auf Netz wenn MinSoc unterschritten wird",self.assertAkkuBerieb, self.assertNetzBerieb, "schaltschwelleAkku", "MinSoc")
         # jetzt sind wir im Netzbetrieb nach erreichen des MinSoc
 
         # Wir pruefen jetzt die umschaltung auf Akku
-        self.cycleAndCheckSwitchValue(4, "Akkubetrieb nach MinSoc",self.assertNetzBerieb, self.assertAkkuBerieb, "MinSoc", "schaltschwelleAkkuTollesWetter")
+        self.cycleAndCheckSwitchValue("Akkubetrieb nach MinSoc",self.assertNetzBerieb, self.assertAkkuBerieb, "MinSoc", "schaltschwelleAkkuTollesWetter")
 
 
 
         # Wir unterschreiten minSoc und lösen eine Unterspannungs erkennung vom BMS aus
-        self.setToMinSocAssertNetzBetrieb(5)
+        self.setToMinSocAssertNetzBetrieb()
         self.fakeBMSUnterSpannung()
         self.assertNetzLaden(True, "Netzladen nach Unterspannung ein")
 
@@ -275,11 +276,11 @@ class PowerPlantTester(ThreadObject):
         self.fakeBMSUnterSpannung()
         self.assertNetzLaden(False, "Netzladen nach Unterspannung ein")
         self.fakeBMSNormalBetrieb()
-        self.cycleAndCheckSwitchValue(7, "Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "MinSoc", "schaltschwelleNetzLadenaus")
+        self.cycleAndCheckSwitchValue("Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "MinSoc", "schaltschwelleNetzLadenaus")
         # teste erneutes einschalten des Ladens
-        self.cycleAndCheckSwitchValue(8, "Erneutes einschalten Netzladen",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzLadenaus", "schaltschwelleNetzLadenein")
+        self.cycleAndCheckSwitchValue("Erneutes einschalten Netzladen",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzLadenaus", "schaltschwelleNetzLadenein")
         # teste auf Netzladen aus
-        self.cycleAndCheckSwitchValue(9, "Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "schaltschwelleNetzLadenein", "schaltschwelleNetzLadenaus")
+        self.cycleAndCheckSwitchValue("Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "schaltschwelleNetzLadenein", "schaltschwelleNetzLadenaus")
 
 
 
@@ -295,21 +296,21 @@ class PowerPlantTester(ThreadObject):
         self.assertNetzLaden(checkMsg=False)
 
         # teste auf Netzladen aus wenn schaltschwelle Netz im Russia Mode erreicht ist
-        self.cycleAndCheckSwitchValue(10, "Netzladen aus bei USV Mode",self.assertNetzLaden, self.assertNetzLadenAus, "schaltschwelleAkkuTollesWetter", "schaltschwelleNetzRussia")
+        self.cycleAndCheckSwitchValue("Netzladen aus bei USV Mode",self.assertNetzLaden, self.assertNetzLadenAus, "schaltschwelleAkkuTollesWetter", "schaltschwelleNetzRussia")
 
         # teste auf Netzladen ein wenn schaltschwelle Netz - verbrauchNachtNetz erreicht ist
-        self.cycleAndCheckSwitchValue(11, "Netzladen ein bei USV Mode",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzRussia", self.getPowerPlantValue("schaltschwelleNetzRussia") - self.getPowerPlantValue("verbrauchNachtNetz"))
+        self.cycleAndCheckSwitchValue("Netzladen ein bei USV Mode",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzRussia", self.getPowerPlantValue("schaltschwelleNetzRussia") - self.getPowerPlantValue("verbrauchNachtNetz"))
 
-        self.cycleAndCheckSwitchValue(12, "Netzladen aus bei USV Mode",self.assertNetzLaden, self.assertNetzLadenAus, self.getPowerPlantValue("schaltschwelleNetzRussia") - self.getPowerPlantValue("verbrauchNachtNetz"), "schaltschwelleNetzRussia",)
+        self.cycleAndCheckSwitchValue("Netzladen aus bei USV Mode",self.assertNetzLaden, self.assertNetzLadenAus, self.getPowerPlantValue("schaltschwelleNetzRussia") - self.getPowerPlantValue("verbrauchNachtNetz"), "schaltschwelleNetzRussia",)
 
         # teste auf Akkubetrieb im Russia Mode
-        self.cycleAndCheckSwitchValue(13, "Akkubetieb bei USV Mode",self.assertNetzBerieb, self.assertAkkuBerieb, "schaltschwelleNetzRussia", "schaltschwelleAkkuRussia")
+        self.cycleAndCheckSwitchValue("Akkubetieb bei USV Mode",self.assertNetzBerieb, self.assertAkkuBerieb, "schaltschwelleNetzRussia", "schaltschwelleAkkuRussia")
 
         # teste auf Netzbetrieb im Russia Mode
-        self.cycleAndCheckSwitchValue(14, "Netzbetrieb bei USV Mode",self.assertAkkuBerieb, self.assertNetzBerieb, "schaltschwelleAkkuRussia", "schaltschwelleNetzRussia")
+        self.cycleAndCheckSwitchValue("Netzbetrieb bei USV Mode",self.assertAkkuBerieb, self.assertNetzBerieb, "schaltschwelleAkkuRussia", "schaltschwelleNetzRussia")
 
         # teste auf Netzladen ein wenn schaltschwelle Netz - verbrauchNachtNetz erreicht ist
-        self.cycleAndCheckSwitchValue(15, "Netzladen ein bei USV Mode",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzRussia", self.getPowerPlantValue("schaltschwelleNetzRussia") - self.getPowerPlantValue("verbrauchNachtNetz"))
+        self.cycleAndCheckSwitchValue("Netzladen ein bei USV Mode",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzRussia", self.getPowerPlantValue("schaltschwelleNetzRussia") - self.getPowerPlantValue("verbrauchNachtNetz"))
         self.setPowerPlantBoolValueAndAssert("RussiaMode", False)
         self.assertNetzLadenAus(checkMsg=False, name="Netzladen aus nach schalten auf Autobetrieb")
         self.assertAkkuBerieb(checkMsg=False, name="Akkubetrieb nach schalten auf Autobetrieb")
@@ -317,7 +318,10 @@ class PowerPlantTester(ThreadObject):
 
 
 
-        # teste das Verhalten wenn einen Unterspannung auftritt und der SOC größer als NetzLaden aus ist
+
+        # teste das Verhalten wenn eine Unterspannung auftritt und der SOC größer als NetzLaden aus ist
+        self.TestName = "Unterspannung zu hoher SOC. SOC unplausibel Test"
+        self.printTestBeginnAndIncrTestNumber()
         self.setAkkuSoc(self.getPowerPlantValue("schaltschwelleNetzLadenaus") + 1)
         self.assertNetzLadenAus(checkMsg=False, name="Pruefe Startsbedingung Unterspannung SOC unplausibel Test")
         self.assertAkkuBerieb(checkMsg=False)
@@ -330,13 +334,15 @@ class PowerPlantTester(ThreadObject):
         self.assertAkkuschhutz(checkMsg=False)
 
         # teste auf Umschaltung auf Akku wenn SOC > schaltschwelleAkkuSchlechtesWetter
-        self.cycleAndCheckSwitchValue(16, "Netzladen ein bis schaltschwelleAkkuSchlechtesWetter erreicht ist",self.assertNetzLaden, self.assertAkkuBerieb, "schaltschwelleNetzLadenaus", "schaltschwelleAkkuSchlechtesWetter")
+        self.cycleAndCheckSwitchValue("Netzladen ein bis schaltschwelleAkkuSchlechtesWetter erreicht ist",self.assertNetzLaden, self.assertAkkuBerieb, "schaltschwelleNetzLadenaus", "schaltschwelleAkkuSchlechtesWetter")
         self.assertNetzLadenAus(checkMsg=False)
 
         # PowerPlant wieder in den Akkubetrieb setzen
         self.setPowerPlantBoolValueAndAssert("Akkuschutz", False)
 
-        # teste das Verhalten wenn einen Unterspannung auftritt und der SOC größer als schaltschwelleAkkuTollesWetter aus ist
+        self.TestName = "Unterspannung zu hoher SOC. SOC Fehler Test"
+        self.printTestBeginnAndIncrTestNumber()
+        # teste das Verhalten wenn eine Unterspannung auftritt und der SOC größer als schaltschwelleAkkuTollesWetter aus ist
         self.setAkkuSoc(self.getPowerPlantValue("schaltschwelleAkkuTollesWetter") + 1)
         self.assertNetzLadenAus(checkMsg=False, name="Pruefe Startsbedingung Unterspannung SOC Fehler Test")
         self.assertAkkuBerieb(checkMsg=False)
@@ -347,7 +353,9 @@ class PowerPlantTester(ThreadObject):
         self.assertNetzLaden(checkMsg=False)
         self.assertError(checkMsg=False)
 
-        self.printTestBeginnAndIncrTestNumber("Netzladen ein, egal welcher Akkustand")
+        # teste dass der powerplant im Fehlerfall nicht mehr regelt
+        self.TestName = "Netzladen ein, egal welcher Akkustand"
+        self.printTestBeginnAndIncrTestNumber()
         self.cycleSocAndAssert(1, 101, self.assertNetzLaden)
 
 

@@ -80,7 +80,7 @@ class MqttBrokerInterface(InterfaceBase):
             
             # If messageType == Publish we have to publish The Data to MQTT Broker
             if newMqttMessageDict["global"]:
-                self.logger.info(self, " received global queue message :" + str(newMqttMessageDict))
+                self.logger.debug(self, " received global queue message :" + str(newMqttMessageDict))
                 try:
                     self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = self.configuration["sendRetained"])
                     # we remember the msg to ignore incomming own msg
@@ -89,7 +89,7 @@ class MqttBrokerInterface(InterfaceBase):
                     self.logger.error(self, "Could not send MQTT msg to broker: "  + str(newMqttMessageDict))
             elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):
                 # check here msg for class Mosquitto
-                self.logger.info(self, " received queue message :" + str(newMqttMessageDict))
+                self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
 
 
     #def threadBreak(self):

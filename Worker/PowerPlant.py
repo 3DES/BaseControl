@@ -37,6 +37,7 @@ class PowerPlant(Worker):
                     
             SocMonitor:
                     Prozent                                                     float, key in Soc data dict
+                    SocMeter.InitAkkuProz                                       int, classVariable from SocMonitor normally -1    @todo evtl über ein bool nachdenken.
     optional:
             Wetter:
                     Tag_0                                                       dict, key in wetter data dict
@@ -350,6 +351,7 @@ class PowerPlant(Worker):
         msgTypeSegment = msgTypeSegment.split(".")[1]
         msgTypeSegment = msgTypeSegment.lower()
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + msgTypeSegment, msg, globalPublish = True, enableEcho = False)
+        #@todo sende an Messenger
         self.logger.message(msgType, self, msg)
 
     def autoInitInverter(self):
@@ -446,7 +448,6 @@ class PowerPlant(Worker):
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": False}
         self.sensorList = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
-        # (keys of self.SkriptWerte) - self.setableSkriptWerte = nonsetable or internal currentValues
         self.SkriptWerte = {}
         self.SkriptWerte.update(self.setableSlider)
         self.SkriptWerte.update(self.setableSwitch)
@@ -583,7 +584,7 @@ class PowerPlant(Worker):
                     # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenaus ausgelöst wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
                     self.NetzLadenAusGesperrt = True
                     self.SkriptWerte["Akkuschutz"] = True
-                    self.myPrint(Logger.LOG_LEVEL.ERROR, f'Ladestand weicht ab, UnterSpannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
+                    self.myPrint(Logger.LOG_LEVEL.ERROR, f'Ladestand fehlerhaft')
                 # wir setzen einen error weil das nicht plausibel ist und wir hin und her schalten sollte die freigabe wieder kommen
                 # wir wollen den Akku erst bis 100 P aufladen 
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
@@ -591,7 +592,8 @@ class PowerPlant(Worker):
                     # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
                     if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
                         raise Exception("SOC Wert unplaulibel und FloatMode Inverter aktiv!") 
-                    self.myPrint(Logger.LOG_LEVEL.ERROR, f'Ladestand unplausibel, Unterspannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
+                    self.myPrint(Logger.LOG_LEVEL.ERROR, 'Error wurde gesetzt, reset bei vollem Akku. FloatMode.')
+                self.myPrint(Logger.LOG_LEVEL.ERROR, f'Unterspannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
                 self.sendeMqtt = True
 
             self.passeSchaltschwellenAn()

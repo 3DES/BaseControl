@@ -175,7 +175,7 @@ class EffektaUartInterface(InterfaceBase):
                     cmd["response"] = self.getEffektaData(cmd["cmd"])
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"query":cmd}, globalPublish = False, enableEcho = False)
             elif "setValue" in newMqttMessageDict["content"]:
-                
+                # @todo msg mitloggen, wg schreibzugriffe
                 if self.cmdCounter >= 50:
                     raise Exception("Too much commands to inverter per hour!")
                 if self.timer(name = "resetMsgCounter", timeout = 60*60):
