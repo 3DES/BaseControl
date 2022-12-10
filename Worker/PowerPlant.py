@@ -13,7 +13,44 @@ import json
 
 class PowerPlant(Worker):
     '''
-    classdocs
+
+    Used values, devices and classmethods:
+    All required devices are blocking a startup until data arrives!
+    required:
+            Inverter:
+                    EffektaController.getCmdSwitchToBattery()                    returns cmd which is required to set inverter mode
+                    EffektaController.getCmdSwitchToUtility()                    returns cmd which is required to set inverter mode
+                    EffektaController.getCmdSwitchUtilityChargeOn()              returns cmd which is required to set inverter mode
+                    EffektaController.getCmdSwitchUtilityChargeOff()             returns cmd which is required to set inverter mode
+                    EffektaController.getCmdSwitchToUtilityWithUvDetection()     returns cmd which is required to set inverter mode
+                    EffektaController.getCmdSwitchUtilityFastChargeOn()          returns cmd which is required to set inverter mode
+                    EffektaController.getLinkedEffektaData()                     returns linked effekta data for given single effekta data
+                            FloatingModeOr                                       bool, key in returnValue from getLinkedEffektaData()
+                            OutputVoltageHighOr                                  bool, key in returnValue from getLinkedEffektaData()
+                            OutputVoltageHighAnd                                 bool, key in returnValue from getLinkedEffektaData()
+                            ErrorPresentOr                                       bool, key in returnValue from getLinkedEffektaData()
+                            InputVoltageAnd                                      bool, key in returnValue from getLinkedEffektaData()
+            
+            BMS:
+                    BmsEntladeFreigabe                                          bool, key in BMS data dict
+                    BmsMsgCounter                                               todo, implement! int, counter for required BMS msg to provide stuckAt errors. A new number triggers watchdog
+                    
+            SocMonitor:
+                    Prozent                                                     float, key in Soc data dict
+    optional:
+            Wetter:
+                    Tag_0                                                       dict, key in wetter data dict
+                        Sonnenstunden                                           int, key in Tag_0 dict
+                    Tag_1                                                       dict, key in wetter data dict
+                        Sonnenstunden                                           int, key in Tag_1 dict
+
+    Data output from powerPlant:
+            Inverter:
+                    Commands to each given inverter. (managedEffektas)
+            SocMonitor:
+                    sends "resetSoc" if floatMode from inverter is set (rising edge)
+
+
     '''
 
 
