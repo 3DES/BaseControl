@@ -2,7 +2,6 @@ import unittest
 import mock
 import GridLoad.EasyMeter
 import Base.Supporter
-from pickle import FALSE
 
 
 # execute tests in pydev Ctrl+F9, for debugger press shift while double-click the test case
