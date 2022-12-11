@@ -1,0 +1,153 @@
+{
+    "MqttBridge":
+    {
+        "class":      "MqttBridge.MqttBridge.MqttBridge",
+        "interfaces":
+        {
+            "Mosquitto":
+            {
+                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+                "server":       "localhost",
+                "port":         1883,
+                "user":         "user",
+                "password":     "password",
+                "sendRetained": true                       # for tests you can send not retained
+            }
+        }
+    },
+
+    "West":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrEffektaWest":
+            {
+                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "interface":    "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A9A5YBUE-if00-port0",
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "Ost":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrEffektaOst":
+            {
+                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "interface":    "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A9HSILDS-if00-port0",
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "BMS":
+    {
+        "class":        "BMS.WBMS.WBMS",
+        "interfaces":
+        {
+            "UartBMS":
+            {
+                "connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
+                "interface":    "/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller-if00-port0",
+                "baudrate":     9600
+            }
+        }
+    },
+
+    "SocMonitor":
+    {
+        "class":        "GridLoad.SocMeter.SocMeter",
+        "interfaces":
+        {
+            "UartSocMonitor":
+            {
+                "connection":   "Interface.Uart.BasicUartInterface.SocMeterUartInterface",
+                "interface":    "/dev/serial/by-path/platform-20980000.usb-usb-0:1.3.4:1.0-port0",
+                "baudrate":     115200
+            }
+        }
+    },
+
+    "UsbRelais":
+    {
+        "class":        "GPIO.UsbRelais.UsbRelais",
+        "interfaces":
+        {
+            "UartUsbRelais":
+            {
+                "connection":   "Interface.Uart.UsbRelaisUartInterface.UsbRelaisUartInterface",
+                "interface":    "/dev/serial/by-path/platform-20980000.usb-usb-0:1.2:1.0-port0",
+                "baudrate":     115200
+            }
+        }
+    },
+
+    "WatchDog":
+    {
+        "class":      "WatchDog.WatchDog.WatchDog",
+        "interfaces":
+        {
+            "WatchDogUart":
+            {
+                "connection":  "Interface.Uart.UartInterface.UartInterface",
+                #"interface":   "/dev/ttyUSB0",
+                "interface":   "COM6",
+                "baudrate":    9600
+            }
+        },
+        "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
+        "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
+        "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
+        "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
+        "expectThreads":                    # expected threads
+        [
+            "Logger",
+            "PowerPlant",
+            "Mosquitto",
+            "MqttBridge",
+            "West",
+            "Ost",
+            "BMS",
+            "SocMonitor",
+            "UsbRelais"
+        ],
+        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
+        [
+            "UartWrEffektaWest",
+            "UartWrEffektaOst",
+            "UartBMS",
+            "UartSocMonitor",
+            "UartUsbRelais",
+            "Wetter"
+        ],
+        "logUpTime":          60            # every 60 seconds create up time message
+    },
+
+    "PowerPlant":
+    {
+        "class": "Worker.PowerPlant.PowerPlant",
+        "managedEffektas": ["West, Ost"],
+        "socMonitorName": "SocMonitor",
+        "bmsName": "BMS",
+        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
+        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.  Fallback: Netz
+    },
+
+    "Wetter":
+    {
+        "class": "Weather.Weather.WetterOnline",
+        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
+    },
+
+    # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
+    # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
+    "@import": [
+        "./project.json",
+        "./secure.json"
+    ]
+}
+

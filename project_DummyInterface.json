@@ -1,0 +1,83 @@
+{
+
+    "MqttBridge":
+    {
+        "interfaces":
+        {
+            "Mosquitto":
+            {
+                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+                "port":         1883,
+                "sendRetained": false                       # for tests you can send not retained
+            }
+        }
+    },
+
+    "WrEffektaWest":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrEffektaWest":
+            {
+                #"connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "connection":   "Interface.Uart.DummyEffektaUartInterface.DummyEffektaUartInterface",
+                "interface":    "COM4",
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "BMS":
+    {
+        "class":        "BMS.WBMS.WBMS",
+        "interfaces":
+        {
+            "UartBMS":
+            {
+                #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
+                "connection":   "Interface.Uart.DummyWBmsUartInterface.DummyWBmsUartInterface",
+                "interface":    "COM4",
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "SocMonitor":
+    {
+        "class":        "GridLoad.SocMeter.SocMeter",
+        "interfaces":
+        {
+            "UartSocMonitor":
+            {
+                #"connection":   "Interface.Uart.BasicUartInterface.SocMeterUartInterface",
+                "connection":   "Interface.Uart.DummySocMeterUartInterface.DummySocMeterUartInterface",
+                "interface":    "COM4",
+                "baudrate":     9600
+            }
+        }
+    },
+
+    "UsbRelais":
+    {
+        "class":        "GPIO.UsbRelais.UsbRelais",
+        "interfaces":
+        {
+            "UartUsbRelais":
+            {
+                #"connection":   "Interface.Uart.UsbRelaisUartInterface.UsbRelaisUartInterface",
+                "connection":   "Interface.Uart.UartInterface.UartInterface",
+                "interface":    "COM7",
+                "baudrate":     115200
+            }
+        }
+    },
+
+    "Wetter":
+    {
+        "class": "Weather.Weather.WetterOnline",
+        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
+    }
+
+}
+

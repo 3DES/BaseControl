@@ -1,0 +1,12 @@
+{
+
+    "PowerPlantTester":
+    {
+        "class": "UnitTests.PowerPlantTester.PowerPlantTester",
+        "inverterName":   "WrEffektaWest",
+        "socMonitorName": "SocMonitor",
+        "bmsName": "BMS",
+        "powePlantName": "PowerPlant"
+    }
+
+}

@@ -1,34 +1,41 @@
 {
+    "PowerPlant":
+    {
+        "class": "Worker.PowerPlant.PowerPlant",
+        "managedEffektas": ["WrEffektaWest"],
+        "socMonitorName": "SocMonitor",
+        "bmsName": "BMS",
+        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
+        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
+    },
+
+    "Logger":
+    {
+        "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
+        "queueLength":   500,                       # log queue length is 100 per default but can be enlarged if it gets critically filled up
+        #"messageFilter": "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
+
+        # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
+        "projectName":   "AccuControl",              # project name for MQTT topics (<projectName>/<threadName>/...)
+        "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover"
+    },
+
     "MqttBridge":
     {
         "class":      "MqttBridge.MqttBridge.MqttBridge",
         "interfaces":
         {
-            "Mosquitto":
-            {
-                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-                "server":       "localhost",
-                "port":         1883,
-                "user":         "user",
-                "password":     "password",
-                "sendRetained": false                       # for tests you can send not retained
-            }
+#            "Mosquitto":
+#            {
+#                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+#                "server":       "localhost",
+#                "port":         1883,
+#                "user":         "user",
+#                "password":     "password",
+#                "sendRetained": false                       # for tests you can send not retained
+#            }
         }
     },
-
-#    "WrEffektaWest":
-#    {
-#        "class":        "Inverter.EffektaController.EffektaController",
-#        "interfaces":
-#        {
-#            "UartWrEffektaWest":
-#            {
-#                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
-#                "interface":    "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A9HSILDS-if00-port0",
-#                "baudrate":     2400
-#            }
-#        }
-#    },
 
 #    "WatchDog":
 #    {
@@ -68,36 +75,6 @@
 #        "logUpTime":          60            # every 60 seconds create up time message
 #    },
 #
-
-
-#    "Wetter":
-#    {
-#        "class": "Weather.Weather.WetterOnline",
-#        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
-#    }
-
-
-
-    "Logger":
-    {
-        "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
-        "queueLength":   500,                       # log queue length is 100 per default but can be enlarged if it gets critically filled up
-        #"messageFilter": "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
-
-        # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
-        "projectName":   "AccuControl",              # project name for MQTT topics (<projectName>/<threadName>/...)
-        "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover"
-    },
-
-    "PowerPlant":
-    {
-        "class": "Worker.PowerPlant.PowerPlant",
-        "managedEffektas": ["WrEffektaWest"],
-        "socMonitorName": "SocMonitor",
-        "bmsName": "BMS",
-        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
-        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.  Fallback: Netz
-    },
 
 #    "SignalMessenger":
 #    {
@@ -143,11 +120,31 @@
 #        }
 #    },
 
+#    "WrEffektaWest":
+#    {
+#        "class":        "Inverter.EffektaController.EffektaController",
+#        "interfaces":
+#        {
+#            "UartWrEffektaWest":
+#            {
+#                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+#                "interface":    "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A9HSILDS-if00-port0",
+#                "baudrate":     2400
+#            }
+#        }
+#    },
+
+#    "Wetter":
+#    {
+#        "class": "Weather.Weather.WetterOnline",
+#        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
+#    }
+
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
     "@import": [
-        "./project.json",
-        "./secure.json"
+        #"./project_PowerPlantTester.json"
+        #"./secure.json"
     ]
 }
 
