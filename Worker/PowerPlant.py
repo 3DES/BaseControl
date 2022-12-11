@@ -37,7 +37,7 @@ class PowerPlant(Worker):
                     
             SocMonitor:
                     Prozent                                                     float, key in Soc data dict
-                    SocMeter.InitAkkuProz                                       int, classVariable from SocMonitor normally -1    @todo evtl über ein bool nachdenken.
+                    SocMeter.InitAkkuProz                                       int, classVariable from SocMonitor normally -1    @todo evtl Ã¼ber ein bool nachdenken.
     optional:
             Wetter:
                     Tag_0                                                       dict, key in wetter data dict
@@ -68,7 +68,7 @@ class PowerPlant(Worker):
 
         # Russia Mode hat Vorrang ansonsten entscheiden wir je nach Wetter (Akkuschutz)
         if self.SkriptWerte["RussiaMode"]:
-            # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
+            # Wir wollen die Schaltschwellen nur Ã¼bernehmen wenn diese plausibel sind
             if self.SkriptWerte["schaltschwelleNetzRussia"] < self.SkriptWerte["schaltschwelleAkkuRussia"]:
                 if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuRussia"]:
                     self.sendeMqtt = True
@@ -76,14 +76,14 @@ class PowerPlant(Worker):
                 self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["schaltschwelleNetzRussia"]
         else:
             if self.SkriptWerte["Akkuschutz"]:
-                # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
+                # Wir wollen die Schaltschwellen nur Ã¼bernehmen wenn diese plausibel sind
                 if self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"] < self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
                     if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
                         self.sendeMqtt = True
                     self.SkriptWerte["schaltschwelleAkku"] = self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]
                     self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"]
             else:
-                # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
+                # Wir wollen die Schaltschwellen nur Ã¼bernehmen wenn diese plausibel sind
                 if self.SkriptWerte["MinSoc"] < self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
                     if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
                         self.sendeMqtt = True
@@ -158,7 +158,7 @@ class PowerPlant(Worker):
         if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
             if not self.ResetSocSended:
                 self.resetSocMonitor()
-                # Wir setzen hier einen eventuellen Skript error zurück. Wenn der Inverter in Floatmode schaltet dann ist der Akku voll und der SOC Monitor auf 100% gesetzt
+                # Wir setzen hier einen eventuellen Skript error zurÃ¼ck. Wenn der Inverter in Floatmode schaltet dann ist der Akku voll und der SOC Monitor auf 100% gesetzt
                 self.SkriptWerte["Error"] = False
             self.ResetSocSended = True
         else:
@@ -201,30 +201,30 @@ class PowerPlant(Worker):
                     modifyRelaisData(self.relNetzAus, self.aus)
                     modifyRelaisData(self.relPvAus, self.ein, True)
                 case 1:
-                    # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht währendessen abschalten
+                    # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht wÃ¤hrendessen abschalten
                     if self.timer(name = "timerToNetz", timeout = 30):
                         self.timer(name = "timerToNetz", remove = True)
                         self.transferToNetzState+=1
                         modifyRelaisData(self.relWr1, self.aus)
                         modifyRelaisData(self.relWr2, self.aus, True)
                 case 2:
-                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
+                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der SchÃ¼tz wieder an und fÃ¤llt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     #if self.timer(name = "timerToNetz", timeout = 35):
                     if self.timer(name = "timerToNetz", timeout = 500):
                         self.timer(name = "timerToNetz", remove = True)
                         tmpglobalEffektaData = self.getLinkedEffektaData()
                         if tmpglobalEffektaData["OutputVoltageHighOr"] == True:
-                            # Durch das ruecksetzten von PowersaveMode schalten wir als nächstes wieder zurück auf PV. 
+                            # Durch das ruecksetzten von PowersaveMode schalten wir als nÃ¤chstes wieder zurÃ¼ck auf PV. 
                             # Wir wollen im Fehlerfall keinen inkonsistenten Schaltzustand der Anlage darum schalten wir die Umrichter nicht aus.
                             self.SkriptWerte["PowerSaveMode"] = False
                             self.aufNetzSchaltenErlaubt = False
                             self.sendeMqtt = True
-                            # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zurück auf inverter geschaltet
+                            # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zurÃ¼ck auf inverter geschaltet
                             self.myPrint(Logger.LOG_LEVEL.ERROR, "Wechselrichter konnte nicht abgeschaltet werden. Er hat nach Wartezeit immer noch Spannung am Ausgang! Die Automatische Netzumschaltung wurde deaktiviert.")
-                            # Wir setzen den Status bereits hier ohne Rücklesen damit das relPvAus nicht zurückgesetzt wird. (siehe zurücklesen der Relais Werte)
+                            # Wir setzen den Status bereits hier ohne RÃ¼cklesen damit das relPvAus nicht zurÃ¼ckgesetzt wird. (siehe zurÃ¼cklesen der Relais Werte)
                         else:
                             modifyRelaisData(self.relPvAus, self.aus, True)
-                            # kurz warten damit das zurücklesen nicht zu schnell geht
+                            # kurz warten damit das zurÃ¼cklesen nicht zu schnell geht
                             time.sleep(0.5)
                         self.transferToNetzState = 0
                         # Wir wollen nicht zu oft am Tag umschalten. Maximal 1 mal am Tag auf Netz.
@@ -254,7 +254,7 @@ class PowerPlant(Worker):
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Die Automatische Netzumschaltung wurde deaktiviert.")
                     modifyRelaisData(self.relWr1, self.aus)
                     modifyRelaisData(self.relWr2, self.aus, True)
-                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
+                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der SchÃ¼tz wieder an und fÃ¤llt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     self.sleeptime = 600
                     self.TransferToPvState+=1
                     return self.OutputVoltageError
@@ -292,7 +292,7 @@ class PowerPlant(Worker):
                 if self.SkriptWerte["WrMode"] == self.Akkumode and switchToInverterAllowed():
                     self.aktualMode = schalteRelaisAufPv()
                 elif self.SkriptWerte["WrMode"] == self.NetzMode and switchToUtiliyAllowed():
-                    # prüfen ob alle WR vom Netz versorgt werden
+                    # prÃ¼fen ob alle WR vom Netz versorgt werden
                     if tmpglobalEffektaData["InputVoltageAnd"] == True:
                         self.aktualMode = schalteRelaisAufNetz()
             elif switchToInverterAllowed():
@@ -305,11 +305,11 @@ class PowerPlant(Worker):
             self.aktualMode = schalteRelaisAufNetz()
 
     def wetterPrognoseMorgenSchlecht(self):
-        # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
-        # Dazu wird geprüft wie das Wetter (Sonnenstunden) am nächsten Tag ist und dementsprechend früher oder später umgeschaltet.
-        # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.
-        # Die Prüfung ist nur Abends aktiv da man unter Tags eine andere Logig haben möchte.
-        # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
+        # Wir wollen abschÃ¤tzen ob wir auf Netz schalten mÃ¼ssen dazu soll abends geprÃ¼ft werden ob noch genug energie fÃ¼r die Nacht zur verfÃ¼gung steht
+        # Dazu wird geprÃ¼ft wie das Wetter (Sonnenstunden) am nÃ¤chsten Tag ist und dementsprechend frÃ¼her oder spÃ¤ter umgeschaltet.
+        # Wenn das Wetter am nÃ¤chsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu mÃ¼ssen.
+        # Die PrÃ¼fung ist nur Abends aktiv da man unter Tags eine andere Logig haben mÃ¶chte.
+        # In der Sommerzeit lÃ¶st now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
         if "Tag_1" in self.localDeviceData["Wetter"]:
             if self.localDeviceData["Wetter"]["Tag_1"] != None:
                 if self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
@@ -514,12 +514,12 @@ class PowerPlant(Worker):
                 self.initInverter()
 
 
-            # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
+            # Wir prÃ¼fen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] == True and self.SkriptWerte["Error"] == False:
-                # Wir wollen erst prüfen ob das skript automatisch schalten soll.
+                # Wir wollen erst prÃ¼fen ob das skript automatisch schalten soll.
                 if self.SkriptWerte["AutoMode"]:
 
-                    # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag auf Netz schalten müssen
+                    # Wir prÃ¼fen ob wir wegen zu wenig prognostiziertem Ertrag auf Netz schalten mÃ¼ssen
                     if now.hour >= 17 and now.hour < 23:
                         if self.wetterPrognoseMorgenSchlecht() and self.akkuStandAusreichend():
                             #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
@@ -534,7 +534,7 @@ class PowerPlant(Worker):
 
                     self.passeSchaltschwellenAn()
 
-                    # todo self.SkriptWerte["Akkuschutz"] = False Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
+                    # todo self.SkriptWerte["Akkuschutz"] = False Ãœber Wetter?? Was ist mit "Error: Ladestand weicht ab"
                     if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["AkkuschutzAbschalten"]:
                         self.SkriptWerte["Akkuschutz"] = False
 
@@ -578,10 +578,10 @@ class PowerPlant(Worker):
             elif self.EntladeFreigabeGesendet == False:
                 self.EntladeFreigabeGesendet = True
                 self.schalteAlleWrAufNetzMitNetzladen(self.configuration["managedEffektas"])
-                # Falls der Akkustand zu hoch ist würde nach einer Abschaltung das Netzladen gleich wieder abgeschaltet werden das wollen wir verhindern
+                # Falls der Akkustand zu hoch ist wÃ¼rde nach einer Abschaltung das Netzladen gleich wieder abgeschaltet werden das wollen wir verhindern
                 self.myPrint(Logger.LOG_LEVEL.ERROR, f'Schalte auf Netz mit laden. Trigger-> BMS: {not self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]}, Error: {self.SkriptWerte["Error"]}')
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleNetzLadenaus"]:
-                    # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenaus ausgelöst wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
+                    # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenaus ausgelÃ¶st wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
                     self.NetzLadenAusGesperrt = True
                     self.SkriptWerte["Akkuschutz"] = True
                     self.myPrint(Logger.LOG_LEVEL.ERROR, f'Ladestand fehlerhaft')
@@ -589,7 +589,7 @@ class PowerPlant(Worker):
                 # wir wollen den Akku erst bis 100 P aufladen 
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
                     self.SkriptWerte["Error"] = True
-                    # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
+                    # Wir setzen den Error zurÃ¼ck wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann mÃ¼ssen wir das Skript beenden da der Error sonst gleich wieder zurÃ¼ck gesetzt werden wÃ¼rde
                     if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
                         raise Exception("SOC Wert unplaulibel und FloatMode Inverter aktiv!") 
                     self.myPrint(Logger.LOG_LEVEL.ERROR, 'Error wurde gesetzt, reset bei vollem Akku. FloatMode.')
