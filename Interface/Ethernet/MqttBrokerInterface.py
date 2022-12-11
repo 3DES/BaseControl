@@ -42,7 +42,7 @@ class MqttBrokerInterface(InterfaceBase):
             timeout = 0.1
 
         # (re-)setup one-shot-timer with timeout of 2 seconds
-        self.timer(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, setup = True, timeout = timeout, firstTimeTrue = True)
+        self.timer(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, setup = True, timeout = timeout)
 
     def on_message(self, client, userdata, msg):
         tempTopic = str(msg.topic)
@@ -72,9 +72,10 @@ class MqttBrokerInterface(InterfaceBase):
             # RECONNECT_DELAY_SET(min_delay=1, max_delay=120)
 
     def threadMethod(self):
-        if self.timerExists(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME) and self.timer(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME):
-            # (re-)subscribe to projectName/# 
-            self.client.subscribe(f"{self.get_projectName()}/#")
+        if self.timerExists(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME):
+            if self.timer(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, oneShot = True):
+                # (re-)subscribe to projectName/# 
+                self.client.subscribe(f"{self.get_projectName()}/#")
 
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message

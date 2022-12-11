@@ -24,6 +24,14 @@ class Base(object):
         return f"timer_{self.name}_{name}"
 
 
+    def _getOneShotTimer(self, timerName : str):
+        '''
+        A timer name (created by self._getTimerName()) has to be given and it will be converted into a one shot timer name
+        A one-shot timer has to be renamed to <timerName>__oneshot when it shot once, so it will not shoot again
+        '''
+        return f"{timerName}__oneshot"
+
+
     def counterExists(self, name : str):
         '''
         To check if a counter already exists
@@ -37,7 +45,8 @@ class Base(object):
         To check if a timer already exists
         '''
         nameSpace = globals()
-        return self._getTimerName(name) in nameSpace
+        timerName = self._getTimerName(name)
+        return (timerName in nameSpace) or (self._getOneShotTimer(timerName) in nameSpace)
 
 
     def counter(self, name : str, value : int = 0, autoReset : bool = True, singularTrue : bool = False, remove : bool = False, getValue : bool = False, dontCount : bool = False, startWithOne : bool = False):
@@ -105,7 +114,7 @@ class Base(object):
                 return (nameSpace[counterName][0] == value) or (nameSpace[counterName][0] > value and not singularTrue) 
 
 
-    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, firstTimeTrue : bool = False):
+    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False):
         '''
         Simple timer returns True if given timeout has been reached or exceeded
         
@@ -125,6 +134,9 @@ class Base(object):
         If remainingTime is True timer handling is as usual but the remaining time will be given back instead of True or False, check can be done by comparing the returned value with 0, a positive value (= False) means there is still some time left, a negative value (= True) means time is already over 
 
         During setup call the timer usually returns with False but if firstTimeTrue is set to True it will return with True for the first time, so it's not necessary to handle it manually to get informed at setup call, too and not only for all following periods
+        
+        In case of oneShot is set to True the timer will only return True once when the time is over, it returns True independent from how long the time is already over but only for the first check after the timeout has been reached
+        oneShot has no effect if given when the timer is set up but it has to be given when the timer is checked
         '''
         def updateTime(startTime : int, period : int):
             '''
@@ -143,43 +155,66 @@ class Base(object):
                 return startTime + period * ((deltaTime // period) + 1)
 
         setupTurn = False
-        timerName = self._getTimerName(name)
+        timerName        = self._getTimerName(name)
+        oneShotTimerName = self._getOneShotTimer(timerName)
         nameSpace = globals()
+        if (timerName in nameSpace) or (oneShotTimerName in nameSpace):
+            timerAlreadySetUp = True
+            if timerName in nameSpace:
+                existingTimerName = timerName
+            else:
+                existingTimerName = oneShotTimerName
+        else:
+            timerAlreadySetUp = False
 
         if remove:
-            if timerName not in nameSpace:
+            if not timerAlreadySetUp:
                 raise Exception("timer " + timerName + " cannot be deleted since it doesn't exist")
-            del(nameSpace[timerName])
+            del(nameSpace[existingTimerName])
             return True
         else:
             # setup timer in global namespace if necessary
             if timeout > 0:
-                if (timerName not in nameSpace) or setup:
+                if (not timerAlreadySetUp) or setup:
                     if startTime == 0:
                         startTime = Supporter.getTimeStamp()                            # startTime is needed, if it hasn't been given take current time instead
+                    # timer doesn't exist so use "timerName" because "existingTimerName" is None
                     nameSpace[timerName] = [updateTime(startTime, timeout), timeout]    # create local variable with name given in string
                     setupTurn = True                                                    # timer has been setup in this call
+                    existingTimerName = timerName
                 else:
-                    nameSpace[timerName][1] = timeout                                   # update timer period for following interval but not for the currently running one
-            elif timerName not in nameSpace:
+                    nameSpace[existingTimerName][1] = timeout                           # update timer period for following interval but not for the currently running one
+            elif not timerAlreadySetUp:            # timeout is 0 otherwise we wouldn't be here!
                 raise Exception("a timer cannot be set up with a timeout of 0")
 
             currentTime = Supporter.getTimeStamp()
-            if currentTime >= nameSpace[timerName][0]:                                   # timeout happened?
-                originalTimeout = nameSpace[timerName][0]
-                nameSpace[timerName][0] = updateTime(nameSpace[timerName][0], nameSpace[timerName][1])
+            if currentTime >= nameSpace[existingTimerName][0]:                          # timeout happened?
+                if existingTimerName == timerName:                                      # common timer or one-shot-timer that is still active
+                    originalTimeout = nameSpace[existingTimerName][0]
+                    nameSpace[existingTimerName][0] = updateTime(nameSpace[existingTimerName][0], nameSpace[existingTimerName][1])
+    
+                    if strict:
+                        deltaTime = nameSpace[existingTimerName][0] - originalTimeout
+                        if deltaTime != nameSpace[existingTimerName][1]:    # delta must be 1 period otherwise throw exception
+                            raise Exception("Timer has been polled too slowly so more than one timeout period passed over and some events have been missed, event happened occurred " + str(deltaTime) + " seconds ago")
 
-                if strict:
-                    deltaTime = nameSpace[timerName][0] - originalTimeout
-                    if deltaTime != nameSpace[timerName][1]:    # delta must be 1 period otherwise throw exception
-                        raise Exception("Timer has been polled too slowly so more than one timeout period passed over and some events have been missed, event happened occurred " + str(deltaTime) + " seconds ago")
-                if remainingTime:
-                    return originalTimeout - currentTime
+                    # one-shot-timer will only shoot once!
+                    if oneShot:
+                        nameSpace[oneShotTimerName] = nameSpace[timerName]
+                        del(nameSpace[timerName])
+
+                    if remainingTime:
+                        return originalTimeout - currentTime
+                    else:
+                        return True
                 else:
-                    return True
+                    if remainingTime:
+                        return originalTimeout - currentTime
+                    else:
+                        return False            # one-shot-timer shot already so don't shoot again
             else:
                 if remainingTime:
-                    return nameSpace[timerName][0] - currentTime
+                    return nameSpace[existingTimerName][0] - currentTime
                 else: 
                     return False or (setupTurn and firstTimeTrue)
 
