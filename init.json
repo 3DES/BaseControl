@@ -9,6 +9,7 @@
         "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     },
 
+
     "Logger":
     {
         "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
@@ -19,6 +20,7 @@
         "projectName":   "AccuControl",              # project name for MQTT topics (<projectName>/<threadName>/...)
         "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover"
     },
+
 
     "MqttBridge":
     {
@@ -36,6 +38,7 @@
 #            }
         }
     },
+
 
 #    "WatchDog":
 #    {
@@ -143,8 +146,8 @@
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
     "@import": [
-        #"./project_PowerPlantTester.json"
-        #"./secure.json"
+        "./project.json",
+        "./secure.json"
     ]
 }
 

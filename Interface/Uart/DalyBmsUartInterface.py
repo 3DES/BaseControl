@@ -386,8 +386,10 @@ class DalyBmsUartInterface(BasicUartInterface):
             return False
 
         cell_voltages = self._split_frames(response_data=response_data, status_field="cells", structure=">b 3h x")
-        for id in cell_voltages:
-            cell_voltages[id] = cell_voltages[id] / 1000
+
+        if cell_voltages is not None:
+            for id in cell_voltages:
+                cell_voltages[id] = cell_voltages[id] / 1000
         return cell_voltages
 
 

@@ -209,7 +209,7 @@ class MqttBase(Base):
             if tagName not in configuration:
                 # in case of not optional throw an exception
                 if not optional:
-                    raise Exception(self.name() + " needs a \"" + tagName + "\" value in init file")
+                    raise Exception(self.name + " needs a \"" + tagName + "\" value in init file")
 
                 # if there was only one element to check and it doesn't exist, set default value
                 if len(tagNames) == 1:
