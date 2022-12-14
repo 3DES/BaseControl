@@ -1,0 +1,15 @@
+# run following cmd
+# cp BaseControl/base_control.service /etc/systemd/system/base_control.service
+# systemctl daemon-reload
+# systemctl enable base_control
+# systemctl start base_control
+
+[Unit]
+Description=BaseControl
+
+[Service]
+Type=simple
+ExecStart=python3 /home/pi/BaseControl/__main__.py 
+
+[Install]
+WantedBy=multi-user.target
