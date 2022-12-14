@@ -91,13 +91,6 @@
         "class":      "WatchDog.WatchDog.WatchDog",
         "interfaces":
         {
-            "WatchDogUart":
-            {
-                "connection":  "Interface.Uart.UartInterface.UartInterface",
-                #"interface":   "/dev/ttyUSB0",
-                "interface":   "COM6",
-                "baudrate":    9600
-            }
         },
         "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
         "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
