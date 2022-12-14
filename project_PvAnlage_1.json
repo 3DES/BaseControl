@@ -16,6 +16,11 @@
         }
     },
 
+    "Logger":
+    {
+     "projectName":   "HomeAccu"
+     },
+
     "West":
     {
         "class":        "Inverter.EffektaController.EffektaController",
