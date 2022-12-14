@@ -238,7 +238,10 @@ class Logger(ThreadBase):
 
 
     def threadInitMethod(self):
-        while (newLogEntry := self.get_preLogMessage()) is not None:
+        while True:
+            newLogEntry = self.get_preLogMessage()
+            if newLogEntry is None:
+                break
             self._handleMessage(newLogEntry)
 
 
