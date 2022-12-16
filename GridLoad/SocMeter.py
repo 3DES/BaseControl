@@ -61,7 +61,7 @@ class SocMeter(ThreadObject):
             temp["AkkuStrom"] = self.SocMonitorWerte["Current"]
             temp["AkkuProz"] = self.SocMonitorWerte["Prozent"]
             # todo initial timeout
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), temp, globalPublish = True, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/PvAnzeige", temp, globalPublish = True, enableEcho = False)
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
