@@ -178,7 +178,7 @@ class PowerPlant(Worker):
         self.transferToInverter = "transferToInverter"
         self.transferToNetz = "transferToNetz"
         self.OutputVoltageError = "OutputVoltageError"
-        self.aktualMode = self.NetzMode    # wir gehen davon aus, dass die Relais nach dem Starten aus sind, das entspricht NetzMode
+        self.aktualMode = self.NetzMode    # wir gehen davon aus, dass die Relais nach dem Starten aus sind, das entspricht NetzMode s.Aufruf von manageUtilityRelais()
         self.relWr1 = self.configuration["relaisNames"]["relWr1"]
         self.relWr2 = self.configuration["relaisNames"]["relWr2"]
         self.relPvAus = self.configuration["relaisNames"]["relPvAus"]
@@ -348,7 +348,7 @@ class PowerPlant(Worker):
         return self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"])
 
     def initInverter(self):
-        if self.configuration["initModeEffekta"] == "Auto":
+        if self.configuration["initModeEffekta"] == "Auto" and self.localDeviceData["AutoInitRequired"]:
             self.autoInitInverter()
         elif self.configuration["initModeEffekta"] == "Akku":
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
@@ -401,6 +401,8 @@ class PowerPlant(Worker):
             self.timer(name = "timeoutMqtt", timeout = 30)
             self.timer(name = "timeoutMqtt", remove = True)
             self.localDeviceData["initialMqttTimeout"] = True
+            # we got our own Data so we dont need a auto init
+            self.localDeviceData["AutoInitRequired"] = False
         else:
             # check if the incoming value is part of self.setableSkriptWerte and if true then take the new value
             for key in self.setableSkriptWerte:
@@ -460,7 +462,7 @@ class PowerPlant(Worker):
         self.expectedDevices += self.configuration["managedEffektas"]
 
         # init some variables
-        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "linkedEffektaData":{}, "Wetter":{}}
+        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "linkedEffektaData":{}, "Wetter":{}}
         # init lists of direct setable values, sensors or commands
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
