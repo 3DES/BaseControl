@@ -1,16 +1,12 @@
 {
     "MqttBridge":
     {
-        "class":      "MqttBridge.MqttBridge.MqttBridge",
         "interfaces":
         {
             "Mosquitto":
             {
                 "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-                "server":       "localhost",
                 "port":         1883,
-                "user":         "user",
-                "password":     "password",
                 "sendRetained": true                       # for tests you can send not retained
             }
         }
@@ -70,7 +66,7 @@
         {
             "UartSocMonitor":
             {
-                "connection":   "Interface.Uart.BasicUartInterface.SocMeterUartInterface",
+                "connection":   "Interface.Uart.SocMeterUartInterface.SocMeterUartInterface",
                 "interface":    "/dev/serial/by-path/platform-20980000.usb-usb-0:1.3.4:1.0-port0",
                 "baudrate":     115200
             }
@@ -128,7 +124,7 @@
     "PowerPlant":
     {
         "class": "Worker.PowerPlant.PowerPlant",
-        "managedEffektas": ["West, Ost"],
+        "managedEffektas": ["West", "Ost"],
         "socMonitorName": "SocMonitor",
         "bmsName": "BMS",
         "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
@@ -139,13 +135,6 @@
     {
         "class": "Weather.Weather.WetterOnline",
         "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
-    },
-
-    # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
-    # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
-    "@import": [
-        "./project.json",
-        "./secure.json"
-    ]
+    }
 }
 

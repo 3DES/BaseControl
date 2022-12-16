@@ -72,12 +72,13 @@ class SocMeterUartInterface(BasicUartInterface):
             except:
                 self.logger.error(self, f"Convert error!")
 
-        if len(self.cmdList):
+        while len(self.cmdList):
             tempcmd = self.cmdList[0]
             cmd = tempcmd.encode('utf-8')
             cmd = cmd + b'\n'
             self.serialWrite(cmd)
+            del self.cmdList[0]
 
         if lastLine:
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SocMonitorWerte, globalPublish = False, enableEcho = False)
     

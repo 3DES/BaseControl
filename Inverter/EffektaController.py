@@ -164,6 +164,7 @@ class EffektaController(ThreadObject):
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomation.mqttDiscoverySensor(self, self.EffektaData["EffektaWerte"])
+        self.initialMqttSend = True
 
     def threadMethod(self):
         '''
@@ -193,6 +194,8 @@ class EffektaController(ThreadObject):
                 # If valideChargeValues is emty we send a query and fill it if effekta answers
                 self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
 
+        self.sendeGlobalMqtt = False
+
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
 
@@ -203,7 +206,6 @@ class EffektaController(ThreadObject):
             except:
                 pass
 
-            self.sendeGlobalMqtt = False
 
             # First we check if the msg is not from our Interface
             if not (newMqttMessageDict["topic"] in self.interfaceOutTopics):
@@ -233,14 +235,13 @@ class EffektaController(ThreadObject):
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"]["response"], globalPublish = True, enableEcho = False)
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         # get setable charge values
-                        self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].slit()
+                        self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].split()
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
                             self.sendeGlobalMqtt = True
                             self.EffektaData["EffektaWerte"]["ActualMode"] = newMqttMessageDict["content"]["query"]["response"]
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QPIGS" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         (Netzspannung, Netzfrequenz, AcOutSpannung, AcOutFrequenz, AcOutPowerVA, AcOutPower, AcOutLoadProz, BusVoltage, BattSpannung, BattCharge, BattCapacity, InverterTemp, PvCurrent, PvVoltage, BattVoltageSCC, BattDischarge, DeviceStatus1, BattOffset, EeVersion, PvPower, DeviceStatus2) = newMqttMessageDict["content"]["query"]["response"].split()
-
                         self.EffektaData["EffektaWerte"]["AcOutSpannung"] = float(AcOutSpannung)
 
                         if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["Netzspannung"], int(float(Netzspannung)), 3, -1, 10000):
@@ -270,14 +271,11 @@ class EffektaController(ThreadObject):
 
                         self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
                         self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
-
-                        if self.sendeGlobalMqtt:
-                            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = True, enableEcho = False)
-                            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
-                        else:
-                            pass
-                            # @todo send aktual values here
-                            #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
+                        
+                        # If first data arrived, and software just start up we want to send. Powerplant checks this.
+                        if self.initialMqttSend:
+                            self.initialMqttSend = False
+                            self.sendeGlobalMqtt = True
 
         now = datetime.datetime.now()
         if now.hour == 23:
@@ -289,4 +287,13 @@ class EffektaController(ThreadObject):
             #tempDailyDischarge = 0.0
             #self.EffektaData["EffektaWerte"]["DailyCharge"] = 0.0
             #tempDailyCharge = 0.0
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData, globalPublish = True, enableEcho = False)
+                self.sendeGlobalMqtt = True
+
+        if self.sendeGlobalMqtt:
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = True, enableEcho = False)
+            self.sendeGlobalMqtt = False
+        else:
+            pass
+            # @todo send aktual values here
+            #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)

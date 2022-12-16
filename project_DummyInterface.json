@@ -13,6 +13,11 @@
         }
     },
 
+    "Logger":
+    {
+     "projectName":   "AccuTester"
+     },
+
     "WrEffektaWest":
     {
         "class":        "Inverter.EffektaController.EffektaController",

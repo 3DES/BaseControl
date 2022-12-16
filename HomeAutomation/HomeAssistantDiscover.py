@@ -50,7 +50,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def getDiscoverySensorTopic(cls, deviceName, sensorName):
-        return f"homeassistant/sensor/{deviceName}_{sensorName}/config"
+        return f"homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
     def getDiscoverySensorCmd(cls, deviceName, sensorName, niceName, unit):
@@ -79,7 +79,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         if len(unit):
             templateMsg["unit_of_measurement"] = unit
         else:
-            templateMsg["unit_of_measurement"] = cls._getUnitOfMeasurement(unit)
+            templateMsg["unit_of_measurement"] = cls._getUnitOfMeasurement(sensorName)
         # we assume that every value with unit is a int or float, and we have to use _getValueTemplateInt()
         if len(templateMsg["unit_of_measurement"]):
             templateMsg["value_template"] = cls._getValueTemplateInt(sensorName)
@@ -91,7 +91,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def getDiscoverySelectorTopic(cls, deviceName, sensorName):
-        return f"homeassistant/select/{deviceName}_{sensorName}/config"
+        return f"homeassistant/select/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
     def getDiscoverySelectorCmd(cls,  deviceName, optionList, niceName = ""):
@@ -124,7 +124,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def getDiscoveryInputNumberSliderTopic(cls, deviceName, sensorName):
-        return f"homeassistant/number/{deviceName}_{sensorName}/config"
+        return f"homeassistant/number/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
     def getDiscoveryInputNumberSliderCmd(cls,  deviceName, sensorName, niceName = "", minVal = 0, maxVal = 100):
@@ -160,7 +160,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def getDiscoverySwitchTopic(cls, deviceName, sensorName):
-        return f"homeassistant/switch/{deviceName}_{sensorName}/config"
+        return f"homeassistant/switch/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
     def getDiscoverySwitchCmd(cls,  deviceName, sensorName, niceName = ""):

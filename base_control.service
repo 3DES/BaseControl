@@ -9,7 +9,7 @@ Description=BaseControl
 
 [Service]
 Type=simple
-ExecStart=python3 /home/pi/BaseControl/__main__.py 
+ExecStart=python3 /home/pi/BaseControl/__main__.py -i /home/pi/BaseControl/init.json
 
 [Install]
 WantedBy=multi-user.target

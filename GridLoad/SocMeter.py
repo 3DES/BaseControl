@@ -46,6 +46,10 @@ class SocMeter(ThreadObject):
         self.SocMonitorWerte = { "Ah":-1, "Current":0, "Prozent": self.InitAkkuProz}
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomation.mqttDiscoverySensor(self, self.SocMonitorWerte)
+        self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()), globalSubscription = True)
+        
+        # subscribe global to own out topic to get old data and set timeout
+        self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
 
     def threadMethod(self):
 
@@ -56,6 +60,7 @@ class SocMeter(ThreadObject):
             temp = {}
             temp["AkkuStrom"] = self.SocMonitorWerte["Current"]
             temp["AkkuProz"] = self.SocMonitorWerte["Prozent"]
+            # todo initial timeout
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), temp, globalPublish = True, enableEcho = False)
 
         # check if a new msg is waiting
@@ -79,11 +84,15 @@ class SocMeter(ThreadObject):
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
             else:
                 if "cmd" in newMqttMessageDict["content"]:
-                    self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.interfaceInTopics[0], {"cmd":str(newMqttMessageDict["content"]["cmd"])}, globalPublish = False, enableEcho = False)
                 elif "resetSoc" in newMqttMessageDict["content"]:
                     self.mqttPublish(self.interfaceInTopics[0], {"cmd":"socResetMaxAndHold"}, globalPublish = False, enableEcho = False)
                     # Wir schreiben gleich 100 in den Akkustand um einen fehlerhaften Schaltvorgang aufgrund des aktuellen Akkustandes zu verhindern
-                    self.SocMonitorWerte["Prozent"] = 100 
+                    self.SocMonitorWerte["Prozent"] = 100
+                elif "Prozent" in newMqttMessageDict["content"] and newMqttMessageDict["global"]:
+                    self.mqttPublish(self.interfaceInTopics[0], {"cmd":"setSocToValue"}, globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.interfaceInTopics[0], {"cmd":str(int(newMqttMessageDict["content"]["Prozent"]))}, globalPublish = False, enableEcho = False)
+                    self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
 
 
                     # @todo -> soc monitor

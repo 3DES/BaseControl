@@ -124,7 +124,7 @@ class EffektaUartInterface(InterfaceBase):
         receivedCrc = serialInputByte[lenght - 3 : lenght - 1]
         del serialInputByte[lenght - 3 : lenght - 0]
 
-        if bytes(receivedCrc) == self.getEffektaCRC(bytes(serialInputByte)):
+        if bytes(receivedCrc) == self.getEffektaCRC(Supporter.decode(serialInputByte)):
             del serialInputByte[0]
             data = Supporter.decode(serialInputByte)
             self.logger.debug(self, f"CRC ok. Data: {data}")
