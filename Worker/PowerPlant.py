@@ -348,8 +348,9 @@ class PowerPlant(Worker):
         return self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"])
 
     def initInverter(self):
-        if self.configuration["initModeEffekta"] == "Auto" and self.localDeviceData["AutoInitRequired"]:
-            self.autoInitInverter()
+        if self.configuration["initModeEffekta"] == "Auto":
+            if self.localDeviceData["AutoInitRequired"]:
+                self.autoInitInverter()
         elif self.configuration["initModeEffekta"] == "Akku":
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
