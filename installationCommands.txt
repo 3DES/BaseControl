@@ -1,0 +1,10 @@
+pip install pyserial
+pip install paho-mqtt
+
+cp BaseControl/project_xxx.json BaseControl/project.json 
+# create secure.json #
+
+cp BaseControl/base_control.service /etc/systemd/system/base_control.service
+systemctl daemon-reload
+systemctl enable base_control
+systemctl start base_control
