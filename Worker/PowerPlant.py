@@ -422,19 +422,21 @@ class PowerPlant(Worker):
                         self.logger.error(self, "Wrong datatype globally received.")
 
             if message["content"] in self.manualCommands:
-                self.sendeMqtt = True
-                self.SkriptWerte["AutoMode"] = False
-                self.logger.info(self, "Die Anlage wurde auf Manuell gestellt")
-                if message["content"] == "NetzSchnellLadenEin":
-                    self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
-                elif message["content"] == "NetzLadenEin":
-                    self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
-                elif message["content"] == "NetzLadenAus":
-                    self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
-                elif message["content"] == "WrAufNetz":
-                    self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                elif message["content"] == "WrAufAkku":
-                    self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
+                # if it is a dummy command. we do nothing
+                if message["content"] != self.dummyCommand:
+                    self.sendeMqtt = True
+                    self.SkriptWerte["AutoMode"] = False
+                    self.logger.info(self, "Die Anlage wurde auf Manuell gestellt")
+                    if message["content"] == "NetzSchnellLadenEin":
+                        self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
+                    elif message["content"] == "NetzLadenEin":
+                        self.schalteAlleWrNetzLadenEin(self.configuration["managedEffektas"])
+                    elif message["content"] == "NetzLadenAus":
+                        self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
+                    elif message["content"] == "WrAufNetz":
+                        self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
+                    elif message["content"] == "WrAufAkku":
+                        self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
 
             # check if a expected device sended a msg and store it
             for key in self.expectedDevices:
@@ -469,7 +471,9 @@ class PowerPlant(Worker):
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": False}
         self.sensorList = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
-        self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku", "NoCommand"]
+        self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
+        self.dummyCommand = "NoCommand"
+        self.manualCommands.append(self.dummyCommand)
         self.SkriptWerte = {}
         self.SkriptWerte.update(self.setableSlider)
         self.SkriptWerte.update(self.setableSwitch)
@@ -498,8 +502,6 @@ class PowerPlant(Worker):
         # ABER a global subscriber subscribed automatisch a local, somit geht global und local immer an alle global subscriber und local nur an de local
 
         for device in self.expectedDevices:
-            self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
-        for device in self.configuration["managedEffektas"]:
             self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
