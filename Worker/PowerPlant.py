@@ -369,7 +369,8 @@ class PowerPlant(Worker):
         msgTypeSegment = msgTypeSegment.split(".")[1]
         msgTypeSegment = msgTypeSegment.lower()
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + msgTypeSegment, msg, globalPublish = True, enableEcho = False)
-        #@todo sende an Messenger
+        # @todo sende an Messenger
+        # @todo topics als sensor in der homeautomation anlegen
         self.logger.message(msgType, self, msg)
 
     def autoInitInverter(self):
@@ -402,7 +403,7 @@ class PowerPlant(Worker):
             self.timer(name = "timeoutMqtt", timeout = 30)
             self.timer(name = "timeoutMqtt", remove = True)
             self.localDeviceData["initialMqttTimeout"] = True
-            # we got our own Data so we dont need a auto init
+            # we got our own Data so we dont need a auto init inverters
             self.localDeviceData["AutoInitRequired"] = False
         else:
             # check if the incoming value is part of self.setableSkriptWerte and if true then take the new value
@@ -543,7 +544,6 @@ class PowerPlant(Worker):
                 self.initInverter()
 
 
-
             # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] == True and self.SkriptWerte["Error"] == False:
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
@@ -630,7 +630,7 @@ class PowerPlant(Worker):
 
             # @todo reset USRelais here All Relais off
             # Zum debuggen wollen wir das Relais nicht laufen ansteuern, darum warten wir
-            if self.timer(name = "timeoutTransferRelais", timeout = 10) or self.localDeviceData["initialRelaisTimeout"]:
+            if self.timer(name = "timeoutTransferRelais", timeout = 10*60) or self.localDeviceData["initialRelaisTimeout"]:
                 self.manageUtilityRelais(not self.localDeviceData["initialRelaisTimeout"])
                 self.localDeviceData["initialRelaisTimeout"] = True
 
