@@ -138,6 +138,17 @@ class PowerPlant(Worker):
     def resetSocMonitor(self):
         self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["socMonitorName"])), "resetSoc", globalPublish = False, enableEcho = False)
 
+    def addLinkedEffektaDataToHomeautomation(self):
+        # send Values to a homeAutomation to get there sensors
+        unitDict = {}
+        for key in self.localDeviceData["linkedEffektaData"]:
+            unitDict[key] = "none"
+        self.homeAutomation.mqttDiscoverySensor(self, self.localDeviceData["linkedEffektaData"], unitDict = unitDict, topicAd = "/linkedEffektaData")
+        self.sendLinkedEffektaData()
+
+    def sendLinkedEffektaData(self):
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + "linkedEffektaData", self.localDeviceData["linkedEffektaData"], globalPublish = True, enableEcho = False)
+
     def getLinkedEffektaData(self):
         dataList = {}
         for device in self.configuration["managedEffektas"]:
@@ -151,10 +162,13 @@ class PowerPlant(Worker):
         reset SocMonitor to 100% if floatMode is activ, and remember it
         send the data on topic ...out/linkedEffektaData if a new value arrived
         """
+
+        # Daten erzeugen und wenn diese von den localen abweichen dann senden wir sie
         tempData = self.getLinkedEffektaData()
         if tempData != self.localDeviceData["linkedEffektaData"]:
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + "linkedEffektaData", tempData, globalPublish = True, enableEcho = False)
-        self.localDeviceData["linkedEffektaData"] = tempData
+            self.localDeviceData["linkedEffektaData"] = tempData
+            self.sendLinkedEffektaData()
+
         if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
             if not self.ResetSocSended:
                 self.resetSocMonitor()
@@ -363,14 +377,15 @@ class PowerPlant(Worker):
             raise Exception("Unknown initModeEffekta given! Check configurationFile!")
         self.sendeMqtt = True
 
-    def myPrint(self, msgType, msg):
+    def strFromLoggerLevel(self, msgType):
         # convert LOGGER.INFO -> "info" and concat it to topic
         msgTypeSegment = str(msgType)
         msgTypeSegment = msgTypeSegment.split(".")[1]
-        msgTypeSegment = msgTypeSegment.lower()
-        self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + msgTypeSegment, msg, globalPublish = True, enableEcho = False)
+        return msgTypeSegment.lower()
+
+    def myPrint(self, msgType, msg):
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + self.strFromLoggerLevel(msgType), {self.strFromLoggerLevel(msgType):msg}, globalPublish = True, enableEcho = False)
         # @todo sende an Messenger
-        # @todo topics als sensor in der homeautomation anlegen
         self.logger.message(msgType, self, msg)
 
     def autoInitInverter(self):
@@ -482,7 +497,7 @@ class PowerPlant(Worker):
         self.setableSkriptWerte = []
         self.setableSkriptWerte += list(self.setableSlider.keys())
         self.setableSkriptWerte += list(self.setableSwitch.keys())
-        self.InitialInitWr = True
+        self.InitFirstLoop = True
         self.EntladeFreigabeGesendet = False
         self.NetzLadenAusGesperrt = False
         self.ResetSocSended = False
@@ -510,6 +525,9 @@ class PowerPlant(Worker):
         self.homeAutomation.mqttDiscoverySelector(self, self.manualCommands, niceName = "Pv Cmd")
         self.homeAutomation.mqttDiscoveryInputNumberSlider(self, self.setableSlider, nameDict = self.niceNameSlider)
         self.homeAutomation.mqttDiscoverySwitch(self, self.setableSwitch)
+
+        self.homeAutomation.mqttDiscoverySensor(self, sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO)], topicAd = "/" + self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO))
+        self.homeAutomation.mqttDiscoverySensor(self, sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR)], topicAd = "/" + self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR))
 
 
     def threadMethod(self):
@@ -539,8 +557,10 @@ class PowerPlant(Worker):
 
             self.passeSchaltschwellenAn()
 
-            if self.InitialInitWr:
-                self.InitialInitWr = False
+            if self.InitFirstLoop:
+                self.InitFirstLoop = False
+                self.addLinkedEffektaDataToHomeautomation()
+                self.homeAutomation.mqttDiscoverySensor(self, self.sensorList)
                 self.initInverter()
 
 

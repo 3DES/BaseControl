@@ -42,7 +42,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def _getUnitOfMeasurement(cls, valueName):
-        units = {"W":["power"], "A":["curr", "battdischarge", "battcharge"], "KWh":["daily", "produ"], "V":["spannung", "voltage"], "%":["prozent"]}
+        units = {"W":["power"], "A":["curr", "battdischarge", "battcharge"], "KWh":["daily", "produ"], "V":["spannung", "voltage", "vmin", "vmax"], "%":["prozent"]}
         for unit in units:
             for segment in units[unit]:
                 if segment in valueName.lower():
@@ -54,7 +54,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         return f"homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
-    def getDiscoverySensorCmd(cls, deviceName, sensorName, niceName, unit):
+    def getDiscoverySensorCmd(cls, deviceName, sensorName, niceName, unit, topicAd):
         """
         https://www.home-assistant.io/docs/mqtt/discovery/
         topic "homeassistant/sensor/garden/config"
@@ -72,20 +72,29 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         """
         templateMsg = {"state_topic":"", "name": "", "value_template":"", "unit_of_measurement":""}
 
-        templateMsg["state_topic"] = ThreadObject.createOutTopic(ThreadObject.createProjectTopic(deviceName))
+        templateMsg["state_topic"] = ThreadObject.createOutTopic(ThreadObject.createProjectTopic(deviceName)) + topicAd
         if len(niceName):
             templateMsg["name"] = niceName
         else:
             templateMsg["name"] = cls._getFrindlyName(deviceName, sensorName)
-        if len(unit):
+
+        if unit == "none":
+            del templateMsg["unit_of_measurement"]
+        elif len(unit):
             templateMsg["unit_of_measurement"] = unit
         else:
             templateMsg["unit_of_measurement"] = cls._getUnitOfMeasurement(sensorName)
+            if not len(templateMsg["unit_of_measurement"]):
+                del templateMsg["unit_of_measurement"]
+
         # we assume that every value with unit is a int or float, and we have to use _getValueTemplateInt()
-        if len(templateMsg["unit_of_measurement"]):
-            templateMsg["value_template"] = cls._getValueTemplateInt(sensorName)
+        if "unit_of_measurement" in templateMsg:
+            if len(templateMsg["unit_of_measurement"]):
+                templateMsg["value_template"] = cls._getValueTemplateInt(sensorName)
+            else:
+                templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
         else:
-            templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
+                templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
 
         return templateMsg
 
