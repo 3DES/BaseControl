@@ -90,9 +90,10 @@ class SocMeter(ThreadObject):
                     # Wir schreiben gleich 100 in den Akkustand um einen fehlerhaften Schaltvorgang aufgrund des aktuellen Akkustandes zu verhindern
                     self.SocMonitorWerte["Prozent"] = 100
                 elif "Prozent" in newMqttMessageDict["content"] and newMqttMessageDict["global"]:
-                    self.mqttPublish(self.interfaceInTopics[0], {"cmd":"setSocToValue"}, globalPublish = False, enableEcho = False)
-                    self.mqttPublish(self.interfaceInTopics[0], {"cmd":str(int(newMqttMessageDict["content"]["Prozent"]))}, globalPublish = False, enableEcho = False)
                     self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
+                    if self.SocMonitorWerte["Prozent"] != self.InitAkkuProz:
+                        self.mqttPublish(self.interfaceInTopics[0], {"cmd":"setSocToValue"}, globalPublish = False, enableEcho = False)
+                        self.mqttPublish(self.interfaceInTopics[0], {"cmd":str(int(newMqttMessageDict["content"]["Prozent"]))}, globalPublish = False, enableEcho = False)
 
 
                     # @todo -> soc monitor

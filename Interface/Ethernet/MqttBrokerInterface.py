@@ -49,7 +49,7 @@ class MqttBrokerInterface(InterfaceBase):
         #print(Supporter.hexAsciiDump(msg.payload))
         #print(Supporter.hexAsciiDump(tempTopic))
         tempMsg = str(Supporter.decode(msg.payload))
-        self.logger.info(self, f"MQTT message received: {tempMsg} from {tempTopic}")
+        self.logger.debug(self, f"MQTT message received: {tempMsg} from {tempTopic}")
         # if topic and msg is in dontCareList we will ignore the msg
         # we have to check first if topic is in the list
         if tempTopic in self.dontCareList:

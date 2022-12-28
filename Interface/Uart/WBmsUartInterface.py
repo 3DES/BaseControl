@@ -39,7 +39,7 @@ class WBmsUartInterface(BasicUartInterface):
                     self.BmsWerte["BmsEntladeFreigabe"] = False
                     self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
             except:
-                self.logger.error(self, f"Convert error!")
+                self.logger.warning(self, f"Convert error!")
 
         if lastLine:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)

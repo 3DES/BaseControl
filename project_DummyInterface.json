@@ -78,6 +78,38 @@
         }
     },
 
+#    "WatchDog":
+#    {
+#        "class":      "WatchDog.WatchDog.WatchDog",
+#        "interfaces":
+#        {
+#        },
+#        "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
+#        "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
+#        "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
+#        "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
+#        "expectThreads":                    # expected threads
+#        [
+#            "Logger",
+#            "PowerPlant",
+#            "Mosquitto",
+#            "MqttBridge",
+#            "WrEffektaWest",
+#            "BMS",
+#            "SocMonitor",
+#            "UsbRelais"
+#        ],
+#        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
+#        [
+#            "UartWrEffektaWest",
+#            "UartBMS",
+#            "UartSocMonitor",
+#            "UartUsbRelais",
+#            "Wetter"
+#        ],
+#        "logUpTime":          60            # every 60 seconds create up time message
+#    },
+
     "Wetter":
     {
         "class": "Weather.Weather.WetterOnline",

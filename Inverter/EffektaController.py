@@ -154,7 +154,7 @@ class EffektaController(ThreadObject):
 
 
     def threadInitMethod(self):
-        self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "DailyCharge": 0.0, "DailyDischarge": 0.0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
+        self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
         self.tempDailyProduction = 0.0
         self.timeStamp = time.time()
         self.valideChargeValues = []
@@ -246,7 +246,7 @@ class EffektaController(ThreadObject):
 
                         if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["Netzspannung"], int(float(Netzspannung)), 3, -1, 10000):
                             self.EffektaData["EffektaWerte"]["Netzspannung"] = int(float(Netzspannung))
-                            self.sendeGlobalMqtt = True                
+                            self.sendeGlobalMqtt = True
                         if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["AcOutPower"], int(AcOutPower), 10, -1, 10000) or self.sendeGlobalMqtt:
                             self.EffektaData["EffektaWerte"]["AcOutPower"] = int(AcOutPower)
                             self.sendeGlobalMqtt = True
@@ -271,7 +271,7 @@ class EffektaController(ThreadObject):
 
                         self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
                         self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
-                        
+
                         # If first data arrived, and software just start up we want to send. Powerplant checks this.
                         if self.initialMqttSend:
                             self.initialMqttSend = False
@@ -283,10 +283,6 @@ class EffektaController(ThreadObject):
                 self.EffektaData["EffektaWerte"]["CompleteProduction"] = self.EffektaData["EffektaWerte"]["CompleteProduction"] + round(self.EffektaData["EffektaWerte"]["DailyProduction"])
                 self.EffektaData["EffektaWerte"]["DailyProduction"] = 0.0
                 self.tempDailyProduction = 0.0
-            #self.EffektaData["EffektaWerte"]["DailyDischarge"] = 0.0
-            #tempDailyDischarge = 0.0
-            #self.EffektaData["EffektaWerte"]["DailyCharge"] = 0.0
-            #tempDailyCharge = 0.0
                 self.sendeGlobalMqtt = True
 
         if self.sendeGlobalMqtt:

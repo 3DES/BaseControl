@@ -70,7 +70,7 @@ class SocMeterUartInterface(BasicUartInterface):
                     elif i == b'Ah':
                         self.SocMonitorWerte["Ah"] = float(segmentList[2].decode())
             except:
-                self.logger.error(self, f"Convert error!")
+                self.logger.warning(self, f"Convert error!")
 
         while len(self.cmdList):
             tempcmd = self.cmdList[0]
