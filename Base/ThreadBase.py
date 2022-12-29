@@ -90,7 +90,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
     def threadBreak(self):
         '''
         This is to ensure that each thread has at least a little sleep per loop run
-        
+
         If the thread wants to handle this by itself it has to overwrite this method
         '''
         time.sleep(.1)          # give other threads a chance to run and ensure that a thread which writes to the logger doesn't flood it
@@ -113,26 +113,27 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
-        timeStamps = [0, 0, 0, 0, 0, 0]
+        timeStamps = [[0, 0, 0, 0, 0], None]
 
         # execute thread loop until thread gets killed
         try:
             # execute thread loop until we get killed
             while not self.killed:              # and not event.is_set():
-                timeStamps[0] = Supporter.getTimeStamp()
+                timeStamps[1] = timeStamps[0]
+                timeStamps[0] = [0, 0, 0, 0, 0]
+                timeStamps[0][0] = Supporter.getTimeStamp()            # remember current start time
                 self.threadTraceMethod()        # print tracing info
-                timeStamps[1] = Supporter.getTimeStamp()
+                timeStamps[0][1] = Supporter.getTimeStamp()            # time before thread main loop starts
                 self.threadMethod()
-                timeStamps[2] = Supporter.getTimeStamp()
+                timeStamps[0][2] = Supporter.getTimeStamp()            # time before thread main loop has been finished (delta is loop time)
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
 
-                timeStamps[3] = Supporter.getTimeStamp()
                 self.threadWatchdogTrigger()
-                timeStamps[4] = Supporter.getTimeStamp()
+                timeStamps[0][3] = Supporter.getTimeStamp()            # time after watchdog has been triggered
 
                 self.threadBreak()              # be nice!
-                timeStamps[5] = Supporter.getTimeStamp()
+                timeStamps[0][4] = Supporter.getTimeStamp()
 
         except Exception as exception:
             # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
@@ -141,7 +142,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         # final thread clean up
         try:
-            self.logger.info(self, f"timing of last turn: {'/'.join(str(timeStamp) for timeStamp in timeStamps)}")
+            self.logger.info(self, f"timing of last turn: {'/'.join(str(timeStamp) for timeStamp in timeStamps[0])} :: {'/'.join(str(timeStamp) for timeStamp in timeStamps[1])}")
             self.threadTearDownMethod()                         # call tear down method for the case the thread has sth. to clean up
 
             # stop interfaces after own tear down method since the tear down method could need the interface!
@@ -219,7 +220,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
     @classmethod
     def stopAllThreads(cls):
-        threadsToJoin = []
+        threadsToJoin = {}
 
         # find Logger
         tearDownLoggerObject = None
@@ -232,14 +233,14 @@ class ThreadBase(Base.MqttBase.MqttBase):
         for threadObject in reversed(cls.get_setupThreadObjects()):
             if not isinstance(threadObject, Logger.Logger.Logger):
                 cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down object " + Supporter.encloseString(threadObject.name))
-                thread = threadObject.killThread()      # send stop to thread containing object and get real thread back
-                threadsToJoin.append(thread)            # remember thread
+                thread = threadObject.killThread()          # send stop to thread containing object and get real thread back
+                threadsToJoin[threadObject.name]= thread    # remember thread
 
         # join all stopped workers
-        for thread in threadsToJoin:
-            thread.join()                               # join all stopped threads
-
-        time.sleep(0)                                   # give the logger task the chance to clear its queue content
+        for thread,threadObject in sorted(threadsToJoin.items()):
+            Logger.Logger.Logger.message(Logger.Logger.Logger.LOG_LEVEL.INFO, cls, f"joining {thread}")
+            threadObject.join()     # join all stopped threads
+            time.sleep(0)           # give the logger task the chance to clear its queue content
 
         # finally stop logger if available
         if tearDownLoggerObject is not None:

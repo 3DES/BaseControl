@@ -232,7 +232,7 @@ class MqttBase(Base):
         self.logger.info(self, "init (MqttBase)")
         self.startupTime = Supporter.getTimeStamp()                         # remember startup time
         self.watchDogTimer = Supporter.getTimeStamp()                       # remember time the watchdog has been contacted the last time, thread-wise!
-        self.mqttRxQueue = Queue(100)                                       # create RX MQTT listener queue
+        self.mqttRxQueue = Queue(200)                                       # create RX MQTT listener queue
 
         # thread topic handling
         self.objectTopic = self.getObjectTopic()                            # e.g. AccuControl/PowerPlant
