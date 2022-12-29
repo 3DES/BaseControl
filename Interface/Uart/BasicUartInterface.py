@@ -13,6 +13,7 @@ class BasicUartInterface(InterfaceBase):
 
 
     readData = b""
+    maxInitTries = 10
 
 
     def __init__(self, threadName : str, configuration : dict):
@@ -53,6 +54,7 @@ class BasicUartInterface(InterfaceBase):
         except Exception as exception:
             self.logger.error(self, f"Sending serial data failed: {exception}")
             success = False
+            self.reInitSerial()
         return success
 
 
@@ -133,18 +135,28 @@ class BasicUartInterface(InterfaceBase):
 
 
     def threadInitMethod(self):
-        self.serialConn = serial.Serial(
-            port         = self.configuration["interface"],
-            baudrate     = self.configuration["baudrate"],
-            bytesize     = self.configuration["bytesize"],
-            parity       = self.configuration["parity"],
-            stopbits     = self.configuration["stopbits"],
-            timeout      = self.configuration["timeout"],
-            xonxoff      = self.configuration["xonxoff"],
-            writeTimeout = self.configuration["writeTimeout"],
-            rtscts       = self.configuration["rtscts"]
-        )
-
+        self.tries = 0
+        while self.tries <= self.maxInitTries:
+            self.tries += 1
+            try:
+                self.serialConn = serial.Serial(
+                    port         = self.configuration["interface"],
+                    baudrate     = self.configuration["baudrate"],
+                    bytesize     = self.configuration["bytesize"],
+                    parity       = self.configuration["parity"],
+                    stopbits     = self.configuration["stopbits"],
+                    timeout      = self.configuration["timeout"],
+                    xonxoff      = self.configuration["xonxoff"],
+                    writeTimeout = self.configuration["writeTimeout"],
+                    rtscts       = self.configuration["rtscts"]
+                )
+                break
+            except:
+                time.sleep(2)
+                self.logger.info(self, f'Serial connection --{self.configuration["interface"]}-- init. {self.tries} of {self.maxInitTries} failed.')
+                if self.tries >= self.maxInitTries:
+                    raise Exception(f'Serial connection --{self.configuration["interface"]}-- could not established')
+        self.logger.info(self, f'Serial connection --{self.configuration["interface"]}-- initialised.')
 
     #def threadMethod(self):
 

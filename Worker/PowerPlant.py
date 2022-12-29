@@ -560,7 +560,6 @@ class PowerPlant(Worker):
             if self.InitFirstLoop:
                 self.InitFirstLoop = False
                 self.addLinkedEffektaDataToHomeautomation()
-                self.homeAutomation.mqttDiscoverySensor(self, self.sensorList)
                 self.initInverter()
 
 
