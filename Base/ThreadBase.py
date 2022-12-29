@@ -113,18 +113,27 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
+        timeStamps = []
+
         # execute thread loop until thread gets killed
         try:
             # execute thread loop until we get killed
             while not self.killed:              # and not event.is_set():
+                timeStamps = []
+                timeStamps.append(Supporter.getTimeStamp())
                 self.threadTraceMethod()        # print tracing info
+                timeStamps.append(Supporter.getTimeStamp())
                 self.threadMethod()
+                timeStamps.append(Supporter.getTimeStamp())
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
 
+                timeStamps.append(Supporter.getTimeStamp())
                 self.threadWatchdogTrigger()
+                timeStamps.append(Supporter.getTimeStamp())
 
                 self.threadBreak()              # be nice!
+                timeStamps.append(Supporter.getTimeStamp())
 
         except Exception as exception:
             # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
@@ -133,6 +142,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         # final thread clean up
         try:
+            self.logger.info(self, f"timing of last turn: {'/'.join(str(timeStamp) for timeStamp in timeStamps)}")
             self.threadTearDownMethod()                         # call tear down method for the case the thread has sth. to clean up
 
             # stop interfaces after own tear down method since the tear down method could need the interface!

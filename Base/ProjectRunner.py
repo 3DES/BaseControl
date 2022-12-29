@@ -95,7 +95,7 @@ class ProjectRunner(object):
 
             cls.projectLogger.trace(cls, "alive")
             if stopAfterSeconds:
-                if Supporter.getTimeStamp() - startTime > stopAfterSeconds:
+                if Supporter.getSecondsSince(startTime) > stopAfterSeconds:
                     cls.projectLogger.info(cls, "overall stop since given running time is over")
                     running = False
 

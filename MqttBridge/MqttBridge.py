@@ -247,8 +247,11 @@ class MqttBridge(ThreadObject):
         '''
         MqttBridge worker method executed periodically from ThreadBase.threadLoop()
         '''
+        threadLoopStartTime = Supporter.getTimeStamp()      # meassure time inside loop
+        messageCounter = 0                                  # count messages handled in current loop run
         # first of all handle the system wide TX Queue where MqttBridge is the only reader
         while not self.get_mqttTxQueue().empty():
+            messageCounter += 1
             newMqttMessageDict = self.get_mqttTxQueue().get(block = False)      # read a message
 
             # log received message in a more readable form
@@ -308,6 +311,9 @@ class MqttBridge(ThreadObject):
             else:
                 raise Exception("unknown type found in message " + str(newMqttMessageDict))
 
+            if Supporter.getSecondsSince(threadLoopStartTime) > 20:
+                self.logger.info(self, f"Thread loop took more than 20 seconds, last command was: {newMqttMessageDict['command'].value}, messages handled: {messageCounter}")
+                break
 
     #def threadBreak(self):
     #    pass
