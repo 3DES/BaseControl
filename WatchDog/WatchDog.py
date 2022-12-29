@@ -120,7 +120,9 @@ class WatchDog(ThreadObject):
                                 str(len(self.configuration["expectThreads"])) +
                                 "] but got only " +          # we know we have less since unknown threads are handled somewhere else and not stored in known thread list!
                                 Supporter.encloseString(str(len(self.watchDogLastInformedDict))) +
-                                " within timeout time, missing:\n" + "\n".join(missedThreads))
+                                " within timeout time (" +
+                                str(self.configuration["triggerTime"] + self.configuration["timeout"] + self.configuration["setupTime"]) + 
+                                "s), missing:\n" + "\n".join(missedThreads))
 
         # now check all (already stored) timeout times
         for thread in self.watchDogLastInformedDict:

@@ -1,5 +1,6 @@
 import time
 import inspect
+import os
 import logging
 import collections
 from enum import Enum
@@ -293,11 +294,16 @@ class Logger(ThreadBase):
 
 
     @classmethod
+    def _caller(cls):
+        return f" ({os.path.basename(inspect.stack()[2].filename)}:{inspect.stack()[2].lineno})"
+
+
+    @classmethod
     def debug(cls, sender, message):
         '''
         To log a debug message
         '''
-        cls.message(Logger.LOG_LEVEL.DEBUG, sender, message)
+        cls.message(Logger.LOG_LEVEL.DEBUG, sender, message + cls._caller())
 
 
     @classmethod
@@ -305,7 +311,7 @@ class Logger(ThreadBase):
         '''
         To log a trace message, usually to be used to see the steps through setup and tear down process as well as to see the threads working
         '''
-        cls.message(Logger.LOG_LEVEL.TRACE, sender, message)
+        cls.message(Logger.LOG_LEVEL.TRACE, sender, message + cls._caller())
 
 
     @classmethod
@@ -313,7 +319,7 @@ class Logger(ThreadBase):
         '''
         To log any information that could be from interest
         '''
-        cls.message(Logger.LOG_LEVEL.INFO, sender, message)
+        cls.message(Logger.LOG_LEVEL.INFO, sender, message + cls._caller())
 
 
     @classmethod
@@ -321,7 +327,7 @@ class Logger(ThreadBase):
         '''
         To log any warnings
         '''
-        cls.message(Logger.LOG_LEVEL.WARN, sender, message)
+        cls.message(Logger.LOG_LEVEL.WARN, sender, message + cls._caller())
 
 
     @classmethod
@@ -329,7 +335,7 @@ class Logger(ThreadBase):
         '''
         To log an error, usually in case of exceptions, that's usually the highest error level for any problems in the script
         '''
-        cls.message(Logger.LOG_LEVEL.ERROR, sender, message)
+        cls.message(Logger.LOG_LEVEL.ERROR, sender, message + cls._caller())
 
 
     @classmethod
@@ -337,7 +343,7 @@ class Logger(ThreadBase):
         '''
         To log an fatal errors, usually by detecting real critical hardware problems
         '''
-        cls.message(Logger.LOG_LEVEL.FATAL, sender, message)
+        cls.message(Logger.LOG_LEVEL.FATAL, sender, message + cls._caller())
 
 
     @classmethod
