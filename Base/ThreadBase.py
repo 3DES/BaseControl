@@ -113,27 +113,26 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
-        timeStamps = []
+        timeStamps = [0, 0, 0, 0, 0, 0]
 
         # execute thread loop until thread gets killed
         try:
             # execute thread loop until we get killed
             while not self.killed:              # and not event.is_set():
-                timeStamps = []
-                timeStamps.append(Supporter.getTimeStamp())
+                timeStamps[0] = Supporter.getTimeStamp()
                 self.threadTraceMethod()        # print tracing info
-                timeStamps.append(Supporter.getTimeStamp())
+                timeStamps[1] = Supporter.getTimeStamp()
                 self.threadMethod()
-                timeStamps.append(Supporter.getTimeStamp())
+                timeStamps[2] = Supporter.getTimeStamp()
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
 
-                timeStamps.append(Supporter.getTimeStamp())
+                timeStamps[3] = Supporter.getTimeStamp()
                 self.threadWatchdogTrigger()
-                timeStamps.append(Supporter.getTimeStamp())
+                timeStamps[4] = Supporter.getTimeStamp()
 
                 self.threadBreak()              # be nice!
-                timeStamps.append(Supporter.getTimeStamp())
+                timeStamps[5] = Supporter.getTimeStamp()
 
         except Exception as exception:
             # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
