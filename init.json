@@ -22,21 +22,14 @@
     },
 
 
-#    "MqttBridge":
+#    "Mosquitto":
 #    {
-#        "class":      "MqttBridge.MqttBridge.MqttBridge",
-#        "interfaces":
-#        {
-##            "Mosquitto":
-##            {
-##                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-##                "server":       "localhost",
-##                "port":         1883,
-##                "user":         "user",
-##                "password":     "password",
-##                "sendRetained": false                       # for tests you can send not retained
-##            }
-#        }
+#        "class":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+#        "server":       "localhost",
+#        "port":         1883,
+#        "user":         "user",
+#        "password":     "password",
+#        "sendRetained": false                       # for tests you can send not retained
 #    },
 
 

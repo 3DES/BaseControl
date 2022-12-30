@@ -710,7 +710,7 @@ class MqttBase(Base):
 
     def message_handler(self, newMqttMessageDict):
         # log received message in a more readable form
-        newMqttMessage = "message received: sender=" + newMqttMessageDict["sender"] + " type=" + str(newMqttMessageDict["command"])
+        newMqttMessage = "message sent: sender=" + newMqttMessageDict["sender"] + " type=" + str(newMqttMessageDict["command"])
         if newMqttMessageDict["topic"] is not None:
             newMqttMessage += " topic=" + newMqttMessageDict["topic"] 
         if newMqttMessageDict["content"] is not None:
