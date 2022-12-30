@@ -20,7 +20,7 @@ class MqttBase(Base):
 
     __threadLock_always_use_getters_and_setters                 = threading.Lock()      # class lock to access class variables
     __exception_always_use_getters_and_setters                  = None                  # will be set with first thrown exception but not overwritten anymore
-    __mqttTxQueue_always_use_getters_and_setters                = Queue(100)            # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
+    __mqttTxQueue_always_use_getters_and_setters                = Queue(300)            # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
     __projectName_always_use_getters_and_setters                = None                  # project name needed for MQTT's first level topic (i.e. <projectName>/<thread>/...)
     __watchDogMinimumTriggerTime_always_use_getters_and_setters = 0                     # project wide minimum watch dog time (if more than one watch dogs are running in the system the shortest time will be stored here!)
     __logger_always_use_getters_and_setters                     = None                  # project wide logger
