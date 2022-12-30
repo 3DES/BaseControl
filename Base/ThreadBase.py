@@ -3,7 +3,7 @@ import traceback
 import time
 
 
-import Base.MqttBase   # prevent circular import!
+import Base.MqttBase      # prevent circular import!
 import Logger.Logger        # prevent circular import!
 from Base.Supporter import Supporter 
 
@@ -239,12 +239,12 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # join all stopped workers
         for thread,threadObject in sorted(threadsToJoin.items()):
             Logger.Logger.Logger.message(Logger.Logger.Logger.LOG_LEVEL.INFO, cls, f"joining {thread}")
-            threadObject.join()     # join all stopped threads
+            threadObject.join(5)    # join all stopped threads
             time.sleep(0)           # give the logger task the chance to clear its queue content
 
         # finally stop logger if available
         if tearDownLoggerObject is not None:
             cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down logger " + Supporter.encloseString(tearDownLoggerObject.name))
             loggerThread = tearDownLoggerObject.killThread()
-            loggerThread.join()
+            loggerThread.join(5)
 

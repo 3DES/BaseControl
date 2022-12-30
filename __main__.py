@@ -37,7 +37,6 @@ object
             |   |   +---UartInterface
             |   +---EasyMeter
             |   +---SignalMessenger
-            |   +---MqttBridge
             |   +---WatchDog
             |   +---Worker                              (to be used as template for an own worker thread)
             |       +---PowerPlant
