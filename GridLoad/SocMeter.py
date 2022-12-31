@@ -13,6 +13,8 @@ class SocMeter(ThreadObject):
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
+
+        set SOC Value:    mosquitto_pub -h localhost -p 1883  -u xxx -P xxx -t "HomeAccu/SocMonitor/in" -m "{\"Prozent\":79}"
         '''
         super().__init__(threadName, configuration)
 

@@ -63,13 +63,21 @@ class MqttBrokerInterface(InterfaceBase):
     def threadInitMethod(self):
         # subscribe internally global to get all global msg
         self.mqttSubscribeTopic("#", globalSubscription = True)
-        try:
-            # Try to connect to MQTT server, there could be a exception if ethernet or server is not available
-            self.connectMqtt()
-        except:
-            self.logger.warning(self, "Could not establish initial MQTT connection")
-            # @todo nach einer Zeit wieder probieren Es gibt eine exception wenn kein LAN oder ethernet verfugbar ist
-            # RECONNECT_DELAY_SET(min_delay=1, max_delay=120)
+
+        self.tries = 0
+        self.maxInitTries = 10
+        while self.tries <= self.maxInitTries:
+            self.tries += 1
+            try:
+                # Try to connect to MQTT server, there could be a exception if ethernet or server is not available
+                self.connectMqtt()
+                break
+            except:
+                time.sleep(2)
+                self.logger.info(self, f'Mosquitto connection init. {self.tries} of {self.maxInitTries} failed.')
+                if self.tries >= self.maxInitTries:
+                    self.logger.warning(self, "Could not establish initial MQTT connection")
+
 
     def threadMethod(self):
         if self.timerExists(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME):
