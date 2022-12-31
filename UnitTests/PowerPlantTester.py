@@ -1,6 +1,5 @@
 import json
 from Base.ThreadObject import ThreadObject
-import datetime
 
 
 class PowerPlantTester(ThreadObject):
@@ -157,7 +156,7 @@ class PowerPlantTester(ThreadObject):
             if key in message["topic"]:
                 self.localDeviceData[key] = message["content"]
 
-    def wartenUndMsgTest(self, waitTime = 3, minMsg = 1, maxMsg = 2):
+    def wartenUndMsgTest(self, waitTime = 15, minMsg = 1, maxMsg = 2):
         # We loop x seconds, take and count the msg, test the msg counter on min and max
         msgCounter = 0
         while not self.timer(name = "timeoutMsg", timeout = waitTime):
