@@ -1,10 +1,15 @@
 {
-
-    "Mosquitto":
+    "MqttBridge":
     {
-        "class":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-        "port":         1883,
-        "sendRetained": true                       # for tests you can send not retained
+        "interfaces":
+        {
+        "Mosquitto":
+            {
+            "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+            "port":         1883,
+            "sendRetained": true                       # for tests you can send not retained
+            }
+        }
     },
 
     "Logger":
