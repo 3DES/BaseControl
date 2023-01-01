@@ -16,21 +16,17 @@ class MqttBase(Base):
     '''
     classdocs
     '''
-
-
-    __threadLock_always_use_getters_and_setters                 = threading.Lock()      # class lock to access class variables
-    __exception_always_use_getters_and_setters                  = None                  # will be set with first thrown exception but not overwritten anymore
-    __projectName_always_use_getters_and_setters                = None                  # project name needed for MQTT's first level topic (i.e. <projectName>/<thread>/...)
-    __watchDogMinimumTriggerTime_always_use_getters_and_setters = 0                     # project wide minimum watch dog time (if more than one watch dogs are running in the system the shortest time will be stored here!)
-    __logger_always_use_getters_and_setters                     = None                  # project wide logger
-    __threadNames_always_use_getters_and_setters                = set()                 # collect object names and ensure that they are all unique
-    __mqttListeners_always_use_getters_and_setters              = None                  # collect queues and names of all registered listeners
-    __localSubscribers_always_use_getters_and_setters           = {}                    # all subscriptions for local messages (all internal messages, even public published ones will be sent to these subscribers)
-    __globalSubscribers_always_use_getters_and_setters          = {}                    # all subscriptions for global messages (all received from an external broker will be sent to these subscribers)
+    __threadLock_always_use_getters_and_setters                 = threading.Lock()                                  # class lock to access class variables
+    __exception_always_use_getters_and_setters                  = None                                              # will be set with first thrown exception but not overwritten anymore
+    __mqttTxQueue_always_use_getters_and_setters                = Queue(Base.QUEUE_SIZE + Base.QUEUE_SIZE_EXTRA)    # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
+    __projectName_always_use_getters_and_setters                = None                                              # project name needed for MQTT's first level topic (i.e. <projectName>/<thread>/...)
+    __watchDogMinimumTriggerTime_always_use_getters_and_setters = 0                                                 # project wide minimum watch dog time (if more than one watch dogs are running in the system the shortest time will be stored here!)
+    __logger_always_use_getters_and_setters                     = None                                              # project wide logger
+    __threadNames_always_use_getters_and_setters                = set()                                             # collect object names and ensure that they are all unique
 
 
     class MQTT_TYPE(Enum):
-        CONNECT               = 0  # to register as listener own queue to MqttBase
+        CONNECT               = 0  # to register as listener own queue to MqttBridge 
         DISCONNECT            = 1  # will remove all subscriptions of the sender and the sender itself from listener list
         BROADCAST             = 2  # send broadcast message to all known listeners (independent from any subscriptions) 
 
@@ -44,7 +40,6 @@ class MqttBase(Base):
         SUBSCRIBE             = 7  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
         UNSUBSCRIBE           = 8  # remove local and global subscriptions
         SUBSCRIBE_GLOBAL      = 9  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
-
 
     @classmethod
     def _illegal_call(cls):
@@ -108,6 +103,22 @@ class MqttBase(Base):
         with cls.get_threadLock():
             if MqttBase._MqttBase__exception_always_use_getters_and_setters is None:
                 MqttBase._MqttBase__exception_always_use_getters_and_setters = exception
+
+
+    @classmethod
+    def get_mqttTxQueue(cls):
+        '''
+        Getter for __mqttTxQueue variable
+        '''
+        return MqttBase._MqttBase__mqttTxQueue_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_mqttTxQueue(cls, queue : Queue):
+        '''
+        Setter for __mqttTxQueue variable
+        '''
+        cls._illegal_call()
 
 
     @classmethod
@@ -215,12 +226,11 @@ class MqttBase(Base):
         super().__init__(baseName, configuration)
 
         self.add_threadNames(baseName)                                      # add thread name to thread names list to ensure they are unique (add method checks this!)
-        self.setup_mqttListeners()                                          # setup listeners structure
 
         self.logger.info(self, "init (MqttBase)")
         self.startupTime = Supporter.getTimeStamp()                         # remember startup time
         self.watchDogTimer = Supporter.getTimeStamp()                       # remember time the watchdog has been contacted the last time, thread-wise!
-        self.mqttRxQueue = Queue(100)                                       # create RX MQTT listener queue
+        self.mqttRxQueue = Queue(200)                                       # create RX MQTT listener queue
 
         # thread topic handling
         self.objectTopic = self.getObjectTopic()                            # e.g. AccuControl/PowerPlant
@@ -493,280 +503,6 @@ class MqttBase(Base):
         self.mqttSendPackage(MqttBase.MQTT_TYPE.DISCONNECT)
 
 
-    @classmethod
-    def setup_mqttListeners(cls):
-        '''
-        Setter for __mqttListeners
-        Doesn't really needs a list but will just setup one and ensures this is done only once
-        '''
-        with cls.get_threadLock():
-            if MqttBase._MqttBase__mqttListeners_always_use_getters_and_setters is None:
-                MqttBase._MqttBase__mqttListeners_always_use_getters_and_setters = {}           # create listeners dictionary
-
-
-    @classmethod
-    def get_mqttListeners(cls) -> list:
-        '''
-        Getter for __mqttListeners
-        '''
-        return MqttBase._MqttBase__mqttListeners_always_use_getters_and_setters
-
-
-    @classmethod
-    def add_mqttListeners(cls, listenerName : str, listenerRxQueue : Queue):
-        '''
-        Add a listener to the listeners list
-        Each mqtt listener has to register first before it can send subscribtions (for publishing only registering is not really necessary)
-        '''
-        # try to add new listener
-        with cls.get_threadLock():
-            if listenerName in cls.get_mqttListeners():
-                raise Exception("listener " + listenerName + " already registered to MqttBase")
-            cls.get_mqttListeners()[listenerName] = { "queue" : listenerRxQueue }
-
-
-    @classmethod
-    def remove_mqttListeners(cls, listenerName : str):
-        '''
-        Remove given listener from __mqttListeners
-        '''
-        with cls.get_threadLock():
-            if listenerName not in cls.get_mqttListeners():
-                raise Exception("listener " + listenerName + " is not registered to MqttBase")
-            del(cls.get_mqttListeners()[listenerName])
-
-
-    @classmethod
-    def get_localSubscribers(cls) -> list:
-        '''
-        Getter for __localSubscribers
-        '''
-        return MqttBase._MqttBase__localSubscribers_always_use_getters_and_setters
-
-
-    @classmethod
-    def get_globalSubscribers(cls) -> list:
-        '''
-        Getter for __globalSubscribers
-        '''
-        return MqttBase._MqttBase__globalSubscribers_always_use_getters_and_setters
-
-
-    def add_subscriber(self, subscriber : str, topicFilter : str, globalSubscription : bool = False, queue : Queue = None):
-        '''
-        Add a subscriber to the local or global subscriber list
-        '''
-        if subscriber not in self.get_mqttListeners():
-            raise Exception("subscriber is not a registered MQTT listener : " + str(subscriber))
-
-        # select local or global subscriber list
-        if globalSubscription:
-            subscriberDict = self.get_globalSubscribers()
-        else:
-            subscriberDict = self.get_localSubscribers()
-
-        # if the subscriber is not contained in subscriber list (i.e. first subscription) add a list for it first
-        if subscriber not in subscriberDict:
-            subscriberDict[subscriber] = []
-
-        # validate and split topic filter        
-        if not self.validateTopicFilter(topicFilter):
-            raise Exception("invalid topic filter given: " + Supporter.encloseString(topicFilter, "\"", "\""))
-
-        foundSubscription = False
-        for subscription in subscriberDict[subscriber]:
-            if "/".join(subscription) == topicFilter:   
-                foundSubscription = True
-                break
-
-        # add split filter to subscriber list
-        if not foundSubscription:
-            topicFilterLevels = self.splitTopic(topicFilter)            # split filter topic for faster search
-            subscriberDict[subscriber].append({
-                "topicFilter": topicFilterLevels,
-                "queue"      : queue,
-            })
-            self.logger.info(self, Supporter.encloseString(subscriber) + " subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))
-        else:
-            self.logger.warning(self, Supporter.encloseString(subscriber) + " already subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))            
-
-
-    def remove_subscriber(self, subscriber : str, topicFilter : str):
-        '''
-        Remove a subscriber from the local and global subscriber lists
-        '''
-        if subscriber not in self.get_mqttListeners():
-            raise Exception("un-subscriber is not a registered MQTT listener : " + str(subscriber))
-
-        # validate and split topic filter        
-        if not self.validateTopicFilter(topicFilter):
-            raise Exception("invalid topic filter given: " + Supporter.encloseString(topicFilter, "\"", "\""))
-
-        unsubscribed = False
-
-        # select local or global subscriber list
-        for subscriberDict in (self.get_globalSubscribers(), self.get_localSubscribers()):
-            if subscriber in subscriberDict:
-                #newTopicsList = [topic for topic in subscriberDict[subscriber] if (topicFilter == "/".join(topic))]
-                for index, topicAndQueue in enumerate(subscriberDict[subscriber]):
-                    topic = topicAndQueue["topicFilter"]
-                    checkTopic = "/".join(topic)
-                    if topicFilter == checkTopic:
-                        subscriberDict[subscriber].pop(index)
-                        unsubscribed = True
-                        break
-                if not len(subscriberDict[subscriber]):
-                    del(subscriberDict[subscriber])
-
-        if not unsubscribed:
-            self.logger.warning(self, Supporter.encloseString(subscriber) + " unsubscribed from not subscribed topic: " + Supporter.encloseString(topicFilter, "\"", "\""))
-        else:
-            self.logger.info(self, Supporter.encloseString(subscriber) + " unsubscribed from " + Supporter.encloseString(topicFilter))
-
-
-    def disconnect_subscriber(self, subscriber : str):
-        '''
-        Remove a subscriber from the local and the global subscriber lists
-        '''
-        if subscriber not in self.get_mqttListeners():
-            raise Exception("un-subscriber is not a registered MQTT listener : " + str(subscriber))
-
-        unsubscribed = False
-
-        # remove subscriber from global and local list
-        for subscriberDict in (self.get_globalSubscribers(), self.get_localSubscribers()):
-            if subscriber in subscriberDict:
-                del(subscriberDict[subscriber])
-                unsubscribed = True
-
-        # remove subscriber from listeners list (so its queue is not known any longer!)
-        self.remove_mqttListeners(subscriber)
-
-        if not unsubscribed:
-            self.logger.warning(self, Supporter.encloseString(subscriber) + " disconnected but haven't subscribed for anything so far")
-        else:
-            self.logger.info(self, Supporter.encloseString(subscriber) + " unsubscribed from all subscriptions")
-
-
-    def publish_message(self, sender : str, topic : str, content : str, globalPublishing : bool = True, enableEcho : bool = False):
-        '''
-        Usually a topic is published globally, if it is necessary that it's not sent out to the rest of the world it can be published locally, too
-        The globalPublishing flag in each messages allows a global subscriber to check if the message is a local or a global one 
-        '''
-        # validate and split topic filter        
-        if not self.validateTopic(topic):
-            raise Exception("invalid topic given: " + Supporter.encloseString(topic, "\"", "\""))
-
-        handledRecipients = set()         # never send a message twice to one and the same recipient
-
-        if not enableEcho:
-            handledRecipients.add(sender)
-
-        subscriberDictList = []
-        if globalPublishing:
-            # global subscribers receive global messages
-            subscriberDictList.append(self.get_globalSubscribers())
-        else:
-            # local subscribers receive local messages
-            subscriberDictList.append(self.get_localSubscribers())
-
-        # handle lists now        
-        for subscriberDict in subscriberDictList:
-            # handle all subscribers
-            for subscriber in subscriberDict:
-                # ignore already informed subscribers
-                if subscriber not in handledRecipients:
-                    for topicAndQueue in subscriberDict[subscriber]:
-                        topicFilterLevels = topicAndQueue["topicFilter"]
-                        # first matching filter stops handling of current subscriber
-                        if self.matchTopic(topic, topicFilterLevels):
-                            handledRecipients.add(subscriber)
-                            try:
-                                if topicAndQueue["queue"] is not None:
-                                    # subscriber subscribed with special queue so send it to this one instead of using the default one
-                                    self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
-                                else:
-                                    # no special queue for this subscription so send it to the default one
-                                    self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
-                                break
-                            except Exception as exception:
-                                # probably any full queue!
-                                raise Exception(f"{self.name} : {subscriber} {self.get_mqttListeners()[subscriber]['queue'].qsize()}")
-
-
-    def broadcast_message(self, sender : str, content : str):
-        '''
-        This kind of message will be sent to any known listeners
-        '''
-        # @todo das braucht vermutlich niemand... ersatzweise waere ein Broadcast topic zu ueberlegen, auf das jeder Interessierte subscribed...
-        # add global and local subscriber list into a set with unique elements and remove the sender
-        subscriberSet = set(list(self.get_globalSubscribers()))
-        subscriberSet.update(set(list(self.get_localSubscribers())))
-        subscriberSet.remove(sender)
-
-        for subscriber in subscriberSet:
-            self.get_mqttListeners()[subscriber]["queue"].put(content, block = False)
-
-
-    def message_handler(self, newMqttMessageDict):
-        # log received message in a more readable form
-        newMqttMessage = "message sent: sender=" + newMqttMessageDict["sender"] + " type=" + str(newMqttMessageDict["command"])
-        if newMqttMessageDict["topic"] is not None:
-            newMqttMessage += " topic=" + newMqttMessageDict["topic"] 
-        if newMqttMessageDict["content"] is not None:
-            newMqttMessage += " content=" + Supporter.encloseString(newMqttMessageDict["content"], "\"", "\"")
-
-        self.logger.info(self, newMqttMessage)
-
-        # handle type of received message
-        if newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.CONNECT.value:
-            # "sender" is the sender's name
-            # "content" has to be a queue.Queue here!
-            self.add_mqttListeners(newMqttMessageDict["sender"], newMqttMessageDict["content"])
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.DISCONNECT.value:
-            # "sender" is the sender's name
-            self.disconnect_subscriber(newMqttMessageDict["sender"])
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.BROADCAST.value:
-            # "sender" is the sender's name
-            # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-            self.broadcast_message(newMqttMessageDict["sender"], newMqttMessageDict["content"])
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH.value:
-            # "sender" is the sender's name
-            # "topic"  is a string containing the topic 
-            # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-            self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], enableEcho = True)
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL.value:
-            # "sender" is the sender's name
-            # "topic"  is a string containing the topic
-            # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-            self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False, enableEcho = True)
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO.value:
-            # "sender" is the sender's name
-            # "topic"  is a string containing the topic 
-            # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-            self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO.value:
-            # "sender" is the sender's name
-            # "topic"  is a string containing the topic
-            # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-            self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
-            # "sender" is the sender's name
-            # "topic"  is a string containing the topic filter 
-            self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.UNSUBSCRIBE.value:
-            # "sender" is the sender's name
-            # "topic"  is a string containing the topic filter 
-            self.remove_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
-        elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
-            # "sender" is the sender's name
-            # "topic"  is a string containing the topic filter 
-            self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"], globalSubscription = True)
-            self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])                                  # global subscribers subscribe for local and global list
-        else:
-            raise Exception("unknown type found in message " + str(newMqttMessageDict))
-
-
     def mqttPublish(self, topic : str, content, globalPublish : bool = True, enableEcho : bool = False):
         '''
         Publish some message locally or globally
@@ -930,7 +666,11 @@ class MqttBase(Base):
                 if not self.validateTopic(topic):
                     raise Exception(self.name + " tried to send invalid topic : " + str(mqttMessageDict)) 
 
-            self.message_handler(mqttMessageDict)
+            # ensure MqttBridge gets enough time to handle its queue!
+            while (self.get_mqttTxQueue().qsize() > Base.QUEUE_SIZE):
+                time.sleep(0)
+
+            self.get_mqttTxQueue().put(mqttMessageDict, block = False)
         else:
             raise Exception(self.name + " tried to send invalid mqtt type: " + str(mqttMessageDict)) 
 

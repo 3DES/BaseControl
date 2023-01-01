@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 
 '''
@@ -37,6 +37,7 @@ object
             |   |   +---UartInterface
             |   +---EasyMeter
             |   +---SignalMessenger
+            |   +---MqttBridge
             |   +---WatchDog
             |   +---Worker                              (to be used as template for an own worker thread)
             |       +---PowerPlant

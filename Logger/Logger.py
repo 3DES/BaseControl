@@ -60,29 +60,12 @@ class Logger(ThreadBase):
             raise Exception("cannot compare " + str(self.__class__) + " != " + str(other.__class__))
 
 
-    __logQueue_always_use_getters_and_setters       = None                          # to be a "singleton"
-    __logQueueLength_always_use_getters_and_setters = 100                           # can be overwritten via ini file entry
+    __logQueue_always_use_getters_and_setters       = None                          # ensures Logger is a "singleton"
     __logLevel_always_use_getters_and_setters       = LOG_LEVEL.DEBUG               # will be overwritten in __init__
     __logBuffer_always_use_getters_and_setters      = collections.deque([], 500)    # length of 500 elements
     __printAlways_always_use_getters_and_setters    = False                         # print log messages always even if level is not LOG_LEVEL.DEBUG
     __preLogBuffer_always_use_getters_and_setters   = []                            # list to collect all log messages created before logger has been started up (they should be printed too for the case the logger will never come up!), if the logger comes up it will log all these messages first!
     __logFilter_always_use_getters_and_setters      = r""                           # filter regex
-
-    @classmethod
-    def get_logQueueLength(cls):
-        '''
-        Getter for __logQueueLength variable
-        '''
-        return Logger._Logger__logQueueLength_always_use_getters_and_setters
-
-
-    @classmethod
-    def set_logQueueLength(cls, length : int):
-        '''
-        Setter for __logQueueLength variable
-        '''
-        Logger._Logger__logQueueLength_always_use_getters_and_setters = length
-
 
     @classmethod
     def get_logQueue(cls):
@@ -99,7 +82,7 @@ class Logger(ThreadBase):
         '''
         with cls.get_threadLock():
             if Logger._Logger__logQueue_always_use_getters_and_setters is None:
-                Logger._Logger__logQueue_always_use_getters_and_setters = Queue(cls.get_logQueueLength())          # create logger queue
+                Logger._Logger__logQueue_always_use_getters_and_setters = Queue(Base.Base.Base.QUEUE_SIZE + Base.Base.Base.QUEUE_SIZE_EXTRA)          # create logger queue
             else:
                 raise Exception("Logger already instantiated, no further instances allowed")
 
@@ -204,8 +187,6 @@ class Logger(ThreadBase):
         # check and prepare mandatory parameters
         self.tagsIncluded(["projectName"], configuration = configuration)
         self.set_projectName(configuration["projectName"])
-        if self.tagsIncluded(["queueLength"], optional = True, configuration = configuration):
-            self.set_logQueueLength(configuration["queueLength"])
         if not self.tagsIncluded(["homeAutomation"], optional = True, configuration = configuration):
             configuration["homeAutomation"] = "HomeAutomation.BaseHomeAutomation.BaseHomeAutomation"
 
@@ -214,7 +195,6 @@ class Logger(ThreadBase):
         self.logCounter = 0                                     # counts all logged messages
         self.set_logger(self if logger is None else logger)     # set project wide logger (since this is the base class for all loggers its it's job to set the project logger)
         self.set_homeAutomation(Supporter.loadClassFromFile(configuration["homeAutomation"])())
-        self.logQueueMaximumFilledLength = 0                    # to monitor queue fill length (for system stability)
 
         # now call super().__init() since all necessary pre-steps have been done
         super().__init__(threadName, configuration, interfaceQueues)
@@ -247,19 +227,10 @@ class Logger(ThreadBase):
 
 
     def threadMethod(self):
-        # get queue length for monitoring
-        queueLength = self.get_logQueue().qsize()
-
         printLine = False
         while not self.get_logQueue().empty():      # @todo ggf. sollten wir hier nur max. 100 Messages behandeln und danach die Loop verlassen, damit die threadLoop wieder dran kommt, andernfalls koennte diese komplett ausgehebelt werden
             newLogEntry = self.get_logQueue().get(block = False)
             printLine = self._handleMessage(newLogEntry)
-
-        # after the queue handling loop has (hopefully) cleared the loop it's ok to send a warning message now
-        if self.logQueueMaximumFilledLength < queueLength:
-            self.logQueueMaximumFilledLength = queueLength
-            if self.logQueueMaximumFilledLength > .8 * self.get_logQueueLength():
-                self.logger.warning(self, "logger queue fill level is very high: " + str(queueLength) + " of " + str(self.get_logQueueLength())) 
 
         if printLine:
             print("--------------")     # print is OK here
@@ -380,6 +351,9 @@ class Logger(ThreadBase):
 
             if cls.filter(senderName) or (level <= cls.LOG_LEVEL.ERROR):
                 if cls.get_logQueue() is not None:
+                    # ensure Logger gets enough time to handle its queue!
+                    while (cls.get_logQueue().qsize() > Base.Base.Base.QUEUE_SIZE):
+                        time.sleep(0)
                     # send message to log
                     cls.get_logQueue().put(logMessage, block = False)
                 else:

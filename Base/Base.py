@@ -7,6 +7,11 @@ class Base(object):
     '''
 
 
+    QUEUE_SIZE = 300            # length of Logger and MqttBridge Queues
+    QUEUE_SIZE_EXTRA = 100      # must be at least as large as the maximum number of expected threads and interfaces!
+    JOIN_TIME  = 5
+
+
     def __init__(self, baseName : str, configuration : dict):
         '''
         Constructor

@@ -3,7 +3,8 @@ import traceback
 import time
 
 
-import Base.MqttBase      # prevent circular import!
+import Base
+import Base.MqttBase   # prevent circular import!
 import Logger.Logger        # prevent circular import!
 from Base.Supporter import Supporter 
 
@@ -115,10 +116,14 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         timeStamps = [[0, 0, 0, 0, 0], None]
 
+        loopCount = 0
+
         # execute thread loop until thread gets killed
         try:
             # execute thread loop until we get killed
             while not self.killed:              # and not event.is_set():
+                loopCount += 1
+
                 timeStamps[1] = timeStamps[0]
                 timeStamps[0] = [0, 0, 0, 0, 0]
                 timeStamps[0][0] = Supporter.getTimeStamp()            # remember current start time
@@ -135,6 +140,8 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 self.threadBreak()              # be nice!
                 timeStamps[0][4] = Supporter.getTimeStamp()
 
+                self.logger.trace(self, f"loop turn: {loopCount}, duration: {timeStamps[0][4] - timeStamps[0][0]}s, delta since last start: {timeStamps[0][0] - timeStamps[1][0]}, turns {loopCount}")
+
         except Exception as exception:
             # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -143,14 +150,14 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # final thread clean up
         try:
             self.logger.info(self, f"timing of last turn: {'/'.join(str(timeStamp) for timeStamp in timeStamps[0])} :: {'/'.join(str(timeStamp) for timeStamp in timeStamps[1])}")
-            self.threadTearDownMethod()                         # call tear down method for the case the thread has sth. to clean up
+            self.threadTearDownMethod()                             # call tear down method for the case the thread has sth. to clean up
 
             # stop interfaces after own tear down method since the tear down method could need the interface!
             if self.interfaceThreads is not None:
                 for interface in self.interfaceThreads:                    
-                    interfaceThread = interface.killThread()    # send stop to thread containing object and get real thread back
+                    interfaceThread = interface.killThread()        # send stop to thread containing object and get real thread back
                 for interface in self.interfaceThreads:
-                    interfaceThread.join()                      # join all stopped threads
+                    interfaceThread.join(Base.Base.Base.JOIN_TIME)  # join all stopped threads
         except Exception as exception:
             # beside explicitly exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -239,12 +246,12 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # join all stopped workers
         for thread,threadObject in sorted(threadsToJoin.items()):
             Logger.Logger.Logger.message(Logger.Logger.Logger.LOG_LEVEL.INFO, cls, f"joining {thread}")
-            threadObject.join(10)    # join all stopped threads
-            time.sleep(0)           # give the logger task the chance to clear its queue content
+            threadObject.join(Base.Base.Base.JOIN_TIME)     # join all stopped threads
+            time.sleep(0)                                   # give the logger task the chance to clear its queue content
 
         # finally stop logger if available
         if tearDownLoggerObject is not None:
             cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down logger " + Supporter.encloseString(tearDownLoggerObject.name))
             loggerThread = tearDownLoggerObject.killThread()
-            loggerThread.join(10)
+            loggerThread.join(Base.Base.Base.JOIN_TIME)     # finally join the logger thread
 

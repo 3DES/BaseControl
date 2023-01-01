@@ -13,7 +13,6 @@
     "Logger":
     {
         "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
-        "queueLength":   500,                       # log queue length is 100 per default but can be enlarged if it gets critically filled up
         #"messageFilter": "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
 
         # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
@@ -22,15 +21,22 @@
     },
 
 
-#    "Mosquitto":
-#    {
-#        "class":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-#        "server":       "localhost",
-#        "port":         1883,
-#        "user":         "user",
-#        "password":     "password",
-#        "sendRetained": false                       # for tests you can send not retained
-#    },
+    "MqttBridge":
+    {
+        "class":      "MqttBridge.MqttBridge.MqttBridge",
+        "interfaces":
+        {
+#            "Mosquitto":
+#            {
+#                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+#                "server":       "localhost",
+#                "port":         1883,
+#                "user":         "user",
+#                "password":     "password",
+#                "sendRetained": false                       # for tests you can send not retained
+#            }
+        }
+    },
 
 
 #    "WatchDog":
