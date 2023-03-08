@@ -62,6 +62,8 @@ class PowerPlant(Worker):
         self.SkriptWerte["MinSoc"] = 10.0
         self.SkriptWerte["SchaltschwelleAkkuTollesWetter"] = 20.0
         self.SkriptWerte["AkkuschutzAbschalten"] = self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"] + 15.0
+        if self.SkriptWerte["AkkuschutzAbschalten"] > 100:
+            self.SkriptWerte["AkkuschutzAbschalten"] = 100
         # todo Automatisch ermitteln
         self.SkriptWerte["verbrauchNachtAkku"] = 25.0
         self.SkriptWerte["verbrauchNachtNetz"] = 3.0
@@ -568,18 +570,19 @@ class PowerPlant(Worker):
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
                 if self.SkriptWerte["AutoMode"]:
 
-                    # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag auf Netz schalten müssen
-                    if now.hour >= 17 and now.hour < 23:
-                        if self.wetterPrognoseMorgenSchlecht() and self.akkuStandAusreichend():
-                            #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                            self.SkriptWerte["Akkuschutz"] = True
-                            self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
-
-                    if now.hour >= 12 and now.hour < 23:
-                        if self.wetterPrognoseHeuteUndMorgenSchlecht() and self.akkuStandAusreichend():
-                            #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                            self.SkriptWerte["Akkuschutz"] = True
-                            self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
+                    # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag den Akkuschutz einschalten müssen. Der Akkuschutz schaltet auf einen höheren (einstellbar) SOC Bereich um.
+                    if not self.SkriptWerte["Akkuschutz"]:
+                        if now.hour >= 17 and now.hour < 23:
+                            if self.wetterPrognoseMorgenSchlecht() and not self.akkuStandAusreichend():
+                                #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
+                                self.SkriptWerte["Akkuschutz"] = True
+                                self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
+    
+                        if now.hour >= 12 and now.hour < 23:
+                            if self.wetterPrognoseHeuteUndMorgenSchlecht() and not self.akkuStandAusreichend():
+                                #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
+                                self.SkriptWerte["Akkuschutz"] = True
+                                self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
 
                     self.passeSchaltschwellenAn()
 

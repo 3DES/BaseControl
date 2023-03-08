@@ -173,6 +173,11 @@ class WetterOnline(ThreadObject):
     
         return wetterDaten
 
+    def discoverNestedDict(self, nestedDict, equalSubKey):
+        for key in nestedDict:
+            if equalSubKey in str(nestedDict[key]):
+                self.homeAutomation.mqttDiscoverySensor(self, [f"{key}.{equalSubKey}"])
+
     def threadInitMethod(self):
         self.wetterdaten = {"lastrequest":0}
         self.initWeather = True
@@ -191,7 +196,6 @@ class WetterOnline(ThreadObject):
 
         # Wir wollen das Wetter um 15 und um 6 Uhr holen
         if (now.hour == 14 and self.wetterdaten["lastrequest"] != 14) or (now.hour == 5 and self.wetterdaten["lastrequest"] != 5) or (now.hour == 19 and self.wetterdaten["lastrequest"] != 19) or self.initWeather:
-            self.initWeather = False
             self.wetterdaten["lastrequest"] = now.hour
             publishWeather = True
             try:
@@ -200,6 +204,11 @@ class WetterOnline(ThreadObject):
                 #self.wetterdaten.update( (k,v) for k,v in tempWetter.items() if v is not None)
             except:
                 self.logger.error(self, "Wetter Daten konnten nicht geholt werden! getSonnenStunden() fehlerhaft")
+
+            # Initial wollen wir unsere Sensoren bei der Homeautomation anlegen
+            if "Tag_1" in self.wetterdaten and self.initWeather:
+                self.discoverNestedDict(self.wetterdaten, "Sonnenstunden")
+            self.initWeather = False
 
         # Wenn der Tag_1 dem aktuellen Tag entspricht dann müssen wir die Tage um eins verrutschen
         # wir fragen zurest ab ob der key vorhanden ist denn es kann sein dass das Dict leer ist.
