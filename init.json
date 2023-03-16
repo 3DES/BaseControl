@@ -26,12 +26,15 @@
         "class":      "MqttBridge.MqttBridge.MqttBridge",
         "interfaces":
         {
-        #    "Mosquitto":
-        #    {
-        #        "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-        #       "port":         1883,
-        #       "sendRetained": false                       # for tests you can send not retained
-        #    }
+#            "Mosquitto":
+#            {
+#                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+#                "server":       "localhost",
+#                "port":         1883,
+#                "user":         "user",
+#                "password":     "password",
+#                "sendRetained": false                       # for tests you can send not retained
+#            }
         }
     },
 
@@ -142,6 +145,7 @@
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
     "@import": [
+#        "./project_DummyInterface.json",
         "./project.json",
         "./secure.json"
     ]
