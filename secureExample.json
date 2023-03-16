@@ -1,0 +1,8 @@
+{
+    "Mosquitto":
+    {
+        "server":     "192.123.123.123",
+        "user":         "User",
+        "password":     "Pass"
+    }
+}
