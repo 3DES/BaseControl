@@ -33,6 +33,7 @@ class MqttBrokerInterface(InterfaceBase):
 
     def on_connect(self, client, userdata, flags, rc):
         _MOSQUITTO_INITIAL_TIMEOUT = 2
+        self.InitialConnected = True
 
         self.logger.info(self, f"MQTT connected with result code " + str(rc))
 
@@ -64,6 +65,8 @@ class MqttBrokerInterface(InterfaceBase):
         # subscribe internally global to get all global msg
         self.mqttSubscribeTopic("#", globalSubscription = True)
 
+        self.InitialConnected = False
+
         self.tries = 0
         self.maxInitTries = 10
         while self.tries <= self.maxInitTries:
@@ -85,21 +88,27 @@ class MqttBrokerInterface(InterfaceBase):
                 # (re-)subscribe to projectName/# 
                 self.client.subscribe(f"{self.get_projectName()}/#")
 
-        while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+        if self.mqttRxQueue.qsize() >= (self.QUEUE_SIZE * 0.9):
+            # We set the Variable after timeout, if we are not connected yet the current msg in the queue will be deletet
+            self.InitialConnected = True
+            self.logger.error(self, "MQTT RX queue quiet full. Eventually we will lost messages.")
 
-            # If messageType == Publish we have to publish The Data to MQTT Broker
-            if newMqttMessageDict["global"]:
-                self.logger.debug(self, " received global queue message :" + str(newMqttMessageDict))
-                try:
-                    self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = self.configuration["sendRetained"])
-                    # we remember the msg to ignore incomming own msg
-                    self.dontCareList[newMqttMessageDict["topic"]] = newMqttMessageDict["content"]
-                except:
-                    self.logger.error(self, "Could not send MQTT msg to broker: "  + str(newMqttMessageDict))
-            elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):
-                # check here msg for class Mosquitto
-                self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
+        if self.InitialConnected:
+            while not self.mqttRxQueue.empty():
+                newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+    
+                # If messageType == Publish we have to publish The Data to MQTT Broker
+                if newMqttMessageDict["global"]:
+                    self.logger.debug(self, " received global queue message :" + str(newMqttMessageDict))
+                    try:
+                        self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = self.configuration["sendRetained"])
+                        # we remember the msg to ignore incomming own msg
+                        self.dontCareList[newMqttMessageDict["topic"]] = newMqttMessageDict["content"]
+                    except:
+                        self.logger.error(self, "Could not send MQTT msg to broker: "  + str(newMqttMessageDict))
+                elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):
+                    # check here msg for class Mosquitto
+                    self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
 
 
     #def threadBreak(self):

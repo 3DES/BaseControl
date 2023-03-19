@@ -30,7 +30,7 @@ class DummyEffektaUartInterface(InterfaceBase):
             except:
                 self.logger.error(self, f'Cannot convert {newMqttMessageDict["content"]} to dict')
 
-            self.logger.info(self, " received queue message :" + str(newMqttMessageDict))
+            self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
             # queryTemplate["query"] = {"cmd":"filledfromSender", "response":"filledFromInterface"}
             # setValueTemplate["setValue"] = {"cmd":"filledfromSender", "value":"filledfromSender", "success": filledFromInterface, "extern":filledfromSender}
             if "query" in newMqttMessageDict["content"]:
