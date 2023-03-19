@@ -185,12 +185,12 @@ class MqttBridge(ThreadObject):
         # validate and split topic filter        
         if not self.validateTopic(topic):
             raise Exception("invalid topic given: " + Supporter.encloseString(topic, "\"", "\""))
-
+    
         handledRecipients = set()         # never send a message twice to one and the same recipient
-
+    
         if not enableEcho:
             handledRecipients.add(sender)
-
+    
         subscriberDictList = []
         if globalPublishing:
             # global subscribers receive global messages
@@ -198,7 +198,7 @@ class MqttBridge(ThreadObject):
         else:
             # local subscribers receive local messages
             subscriberDictList.append(self.get_localSubscribers())
-
+    
         # handle lists now        
         for subscriberDict in subscriberDictList:
             # handle all subscribers
@@ -243,6 +243,7 @@ class MqttBridge(ThreadObject):
         self.logger.info(self, "init (MqttBridge)")
 
 
+    turn  = 0
     def threadMethod(self):
         '''
         MqttBridge worker method executed periodically from ThreadBase.threadLoop()
@@ -250,70 +251,79 @@ class MqttBridge(ThreadObject):
         threadLoopStartTime = Supporter.getTimeStamp()      # meassure time inside loop
         messageCounter = 0                                  # count messages handled in current loop run
         # first of all handle the system wide TX Queue where MqttBridge is the only reader
-        while not self.get_mqttTxQueue().empty():
-            messageCounter += 1
-            newMqttMessageDict = self.get_mqttTxQueue().get(block = False)      # read a message
-
-            # log received message in a more readable form
-            newMqttMessage = "message received: sender=" + newMqttMessageDict["sender"] + " type=" + str(newMqttMessageDict["command"])
-            if newMqttMessageDict["topic"] is not None:
-                newMqttMessage += " topic=" + newMqttMessageDict["topic"] 
-            if newMqttMessageDict["content"] is not None:
-                newMqttMessage += " content=" + Supporter.encloseString(newMqttMessageDict["content"], "\"", "\"")
-
-            self.logger.debug(self, newMqttMessage)
-
-            # handle type of received message
-            if newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.CONNECT.value:
-                # "sender" is the sender's name
-                # "content" has to be a queue.Queue here!
-                self.add_mqttListeners(newMqttMessageDict["sender"], newMqttMessageDict["content"])
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.DISCONNECT.value:
-                # "sender" is the sender's name
-                self.disconnect_subscriber(newMqttMessageDict["sender"])
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.BROADCAST.value:
-                # "sender" is the sender's name
-                # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.broadcast_message(newMqttMessageDict["sender"], newMqttMessageDict["content"])
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH.value:
-                # "sender" is the sender's name
-                # "topic"  is a string containing the topic 
-                # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], enableEcho = True)
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL.value:
-                # "sender" is the sender's name
-                # "topic"  is a string containing the topic
-                # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False, enableEcho = True)
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO.value:
-                # "sender" is the sender's name
-                # "topic"  is a string containing the topic 
-                # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO.value:
-                # "sender" is the sender's name
-                # "topic"  is a string containing the topic
-                # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
-                self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
-                # "sender" is the sender's name
-                # "topic"  is a string containing the topic filter 
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.UNSUBSCRIBE.value:
-                # "sender" is the sender's name
-                # "topic"  is a string containing the topic filter 
-                self.remove_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
-            elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
-                # "sender" is the sender's name
-                # "topic"  is a string containing the topic filter 
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"], globalSubscription = True)
-                self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])                                  # global subscribers subscribe for local and global list
-            else:
-                raise Exception("unknown type found in message " + str(newMqttMessageDict))
-
-            if Supporter.getSecondsSince(threadLoopStartTime) > 20:
-                self.logger.info(self, f"Thread loop took more than 20 seconds, last command was: {newMqttMessageDict['command'].value}, messages handled: {messageCounter}")
-                break
+        
+        try:
+            self.mqttLock()
+            self.logger.info(self, f"lock queue")
+            while not self.get_mqttTxQueue().empty():
+                messageCounter += 1
+                self.turn += 1
+                self.logger.info(self, f"{messageCounter} {self.turn} {self.get_mqttTxQueue().qsize()}")
+                newMqttMessageDict = self.get_mqttTxQueue().get(block = False)      # read a message
+    
+                # log received message in a more readable form
+                newMqttMessage = "message received: sender=" + newMqttMessageDict["sender"] + " type=" + str(newMqttMessageDict["command"])
+                if newMqttMessageDict["topic"] is not None:
+                    newMqttMessage += " topic=" + newMqttMessageDict["topic"] 
+                if newMqttMessageDict["content"] is not None:
+                    newMqttMessage += " content=" + Supporter.encloseString(newMqttMessageDict["content"], "\"", "\"")
+    
+                self.logger.debug(self, newMqttMessage)
+    
+                # handle type of received message
+                if newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.CONNECT.value:
+                    # "sender" is the sender's name
+                    # "content" has to be a queue.Queue here!
+                    self.add_mqttListeners(newMqttMessageDict["sender"], newMqttMessageDict["content"])
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.DISCONNECT.value:
+                    # "sender" is the sender's name
+                    self.disconnect_subscriber(newMqttMessageDict["sender"])
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.BROADCAST.value:
+                    # "sender" is the sender's name
+                    # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
+                    self.broadcast_message(newMqttMessageDict["sender"], newMqttMessageDict["content"])
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH.value:
+                    # "sender" is the sender's name
+                    # "topic"  is a string containing the topic 
+                    # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
+                    self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], enableEcho = True)
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL.value:
+                    # "sender" is the sender's name
+                    # "topic"  is a string containing the topic
+                    # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
+                    self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False, enableEcho = True)
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_NO_ECHO.value:
+                    # "sender" is the sender's name
+                    # "topic"  is a string containing the topic 
+                    # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
+                    self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"])
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.PUBLISH_LOCAL_NO_ECHO.value:
+                    # "sender" is the sender's name
+                    # "topic"  is a string containing the topic
+                    # "content" is the message that will be sent out to anybody else (in case of messages sent to the outer world the MqttInterace has to convert not string/int stuff into string stuff since nobody outside the project can handle our Queues or so!)
+                    self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
+                    # "sender" is the sender's name
+                    # "topic"  is a string containing the topic filter 
+                    self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.UNSUBSCRIBE.value:
+                    # "sender" is the sender's name
+                    # "topic"  is a string containing the topic filter 
+                    self.remove_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
+                elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
+                    # "sender" is the sender's name
+                    # "topic"  is a string containing the topic filter 
+                    self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"], globalSubscription = True)
+                    self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])                                  # global subscribers subscribe for local and global list
+                else:
+                    raise Exception("unknown type found in message " + str(newMqttMessageDict))
+    
+                if Supporter.getSecondsSince(threadLoopStartTime) > 20:
+                    self.logger.info(self, f"Thread loop took more than 20 seconds, last command was: {newMqttMessageDict['command'].value}, messages handled: {messageCounter}")
+                    break
+        finally:
+            self.logger.info(self, f"unlock queue")
+            self.mqttUnlock()
 
     #def threadBreak(self):
     #    pass

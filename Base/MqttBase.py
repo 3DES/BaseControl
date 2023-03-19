@@ -23,6 +23,7 @@ class MqttBase(Base):
     __watchDogMinimumTriggerTime_always_use_getters_and_setters = 0                                                 # project wide minimum watch dog time (if more than one watch dogs are running in the system the shortest time will be stored here!)
     __logger_always_use_getters_and_setters                     = None                                              # project wide logger
     __threadNames_always_use_getters_and_setters                = set()                                             # collect object names and ensure that they are all unique
+    __mqttLock_always_use_getters_and_setters                   = threading.Lock()                                  # class lock to access class variables
 
 
     class MQTT_TYPE(Enum):
@@ -64,6 +65,16 @@ class MqttBase(Base):
         Setter for __threadLock variable
         '''
         cls._illegal_call()
+
+
+    @classmethod
+    def mqttLock(cls):
+        MqttBase._MqttBase__mqttLock_always_use_getters_and_setters.acquire()
+
+
+    @classmethod
+    def mqttUnlock(cls):
+        MqttBase._MqttBase__mqttLock_always_use_getters_and_setters.release()
 
 
     @classmethod
@@ -230,7 +241,7 @@ class MqttBase(Base):
         self.logger.info(self, "init (MqttBase)")
         self.startupTime = Supporter.getTimeStamp()                         # remember startup time
         self.watchDogTimer = Supporter.getTimeStamp()                       # remember time the watchdog has been contacted the last time, thread-wise!
-        self.mqttRxQueue = Queue(200)                                       # create RX MQTT listener queue
+        self.mqttRxQueue = Queue(self.QUEUE_SIZE)                           # create RX MQTT listener queue
 
         # thread topic handling
         self.objectTopic = self.getObjectTopic()                            # e.g. AccuControl/PowerPlant
@@ -666,10 +677,9 @@ class MqttBase(Base):
                 if not self.validateTopic(topic):
                     raise Exception(self.name + " tried to send invalid topic : " + str(mqttMessageDict)) 
 
-            # ensure MqttBridge gets enough time to handle its queue!
-            while (self.get_mqttTxQueue().qsize() > Base.QUEUE_SIZE):
-                time.sleep(0)
-
+            # barrier so all writers can be blocked by the one reader
+            self.mqttLock()
+            self.mqttUnlock()
             self.get_mqttTxQueue().put(mqttMessageDict, block = False)
         else:
             raise Exception(self.name + " tried to send invalid mqtt type: " + str(mqttMessageDict)) 
