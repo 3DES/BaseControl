@@ -202,6 +202,7 @@ class PowerPlant(Worker):
         self.ein = "1"
         self.aus = "0"
         self.localRelaisData = {self.configuration["relaisNames"]["deviceName"]:{self.relNetzAus: "unknown", self.relPvAus: "unknown", self.relWr2: "unknown", self.relWr1: "unknown"}}
+        self.manageUtilityRelais(True)
 
     def manageUtilityRelais(self, initRelais=False):
         # @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
@@ -552,7 +553,7 @@ class PowerPlant(Worker):
                 self.logger.info(self, "MQTT init timeout.")
 
 
-        # if all devices has sended its work data then we will run the worker
+        # if all devices has sended its work data and timeout for external MQTT data is finished, then we will run the worker
         if self.localDeviceData["expectedDevicesPresent"] and self.localDeviceData["initialMqttTimeout"]:
             self.manageLogicalLinkedEffektaData()
             now = datetime.datetime.now()
@@ -650,10 +651,9 @@ class PowerPlant(Worker):
 
             self.passeSchaltschwellenAn()
 
-            # @todo reset USRelais here All Relais off
-            # Zum debuggen wollen wir das Relais nicht laufen ansteuern, darum warten wir
+            # Zum debuggen wollen wir das Relais nicht laufend ansteuern, darum warten wir
             if self.timer(name = "timeoutTransferRelais", timeout = 10*60) or self.localDeviceData["initialRelaisTimeout"]:
-                self.manageUtilityRelais(not self.localDeviceData["initialRelaisTimeout"])
+                self.manageUtilityRelais()
                 self.localDeviceData["initialRelaisTimeout"] = True
 
             if self.sendeMqtt == True: 
