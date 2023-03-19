@@ -21,18 +21,17 @@
     },
 
 
-#    "Mosquitto":
-#    {
-#        "class":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-#       "port":         1883,
-#       "sendRetained": false                       # for tests you can send not retained
-#    },
-
     "MqttBridge":
     {
         "class":      "MqttBridge.MqttBridge.MqttBridge",
         "interfaces":
         {
+        #    "Mosquitto":
+        #    {
+        #        "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+        #       "port":         1883,
+        #       "sendRetained": false                       # for tests you can send not retained
+        #    }
         }
     },
 
