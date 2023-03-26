@@ -22,7 +22,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def _getValueTemplateInt(cls, name):
-        return r"{{ value_json.%s | int }}" %name
+        return r"{{ value_json.%s | float|round(2) }}" %name
 
     @classmethod
     def _getValueTemplateNonInt(cls, name):
