@@ -1,10 +1,25 @@
+Software instllation:
+cd home/pi
 pip install pyserial
 pip install paho-mqtt
 
-cp BaseControl/project_xxx.json BaseControl/project.json 
-# create secure.json #
+git clone "https://github.com/3DES/BaseControl.git"
+
+# create and/or copy your own ...project....json #
+cp BaseControl/project_xxx.json BaseControl/project.json
+# create secure.json if needet, see secureExample.json #
 
 cp BaseControl/base_control.service /etc/systemd/system/base_control.service
 systemctl daemon-reload
 systemctl enable base_control
+systemctl start base_control
+
+
+
+
+
+Software update:
+cd home/pi/BaseControl
+systemctl stop base_control
+git pull
 systemctl start base_control
