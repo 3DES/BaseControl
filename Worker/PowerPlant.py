@@ -344,20 +344,22 @@ class PowerPlant(Worker):
         # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.
         # Die Prüfung ist nur Abends aktiv da man unter Tags eine andere Logig haben möchte.
         # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
-        if "Tag_1" in self.localDeviceData["Wetter"]:
-            if self.localDeviceData["Wetter"]["Tag_1"] != None:
-                if self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
+        if "Tag_1" in self.localDeviceData[self.configuration["weatherName"]]:
+            if self.localDeviceData[self.configuration["weatherName"]]["Tag_1"] != None:
+                if self.localDeviceData[self.configuration["weatherName"]]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
                     return True
             else:
+                # todo macht hier keinen Sinn, error zyklisch mit timer schicken wenn dict leer ist
                 self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
             return False
 
     def wetterPrognoseHeuteUndMorgenSchlecht(self):
-        if "Tag_0" in self.localDeviceData["Wetter"] and "Tag_1" in self.localDeviceData["Wetter"]:
-            if self.localDeviceData["Wetter"]["Tag_0"] != None and self.localDeviceData["Wetter"]["Tag_1"] != None:
-                if self.localDeviceData["Wetter"]["Tag_0"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"] and self.localDeviceData["Wetter"]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
+        if "Tag_0" in self.localDeviceData[self.configuration["weatherName"]] and "Tag_1" in self.localDeviceData[self.configuration["weatherName"]]:
+            if self.localDeviceData[self.configuration["weatherName"]]["Tag_0"] != None and self.localDeviceData[self.configuration["weatherName"]]["Tag_1"] != None:
+                if self.localDeviceData[self.configuration["weatherName"]]["Tag_0"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"] and self.localDeviceData[self.configuration["weatherName"]]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
                     return True
             else:
+                # todo macht hier keinen Sinn, error zyklisch mit timer schicken wenn dict leer ist
                 self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
         return False
 
@@ -462,6 +464,10 @@ class PowerPlant(Worker):
                 if key in message["topic"]:
                     self.localDeviceData[key] = message["content"]
 
+            for key in self.optionalDevices:
+                if key in message["topic"]:
+                    self.localDeviceData[key] = message["content"]
+
             # check if all expected devices sent data
             if self.localDeviceData["expectedDevicesPresent"] == False:
                 # set expectedDevicesPresent. If a device is not present we reset the value
@@ -476,6 +482,7 @@ class PowerPlant(Worker):
 
     def threadInitMethod(self):
         self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName", "relaisNames"])
+        self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
         # Threadnames we have to wait for a initial message. The worker need this data.
         self.expectedDevices = []
         self.expectedDevices.append(self.configuration["socMonitorName"])
@@ -483,8 +490,11 @@ class PowerPlant(Worker):
         # add managedEffekta List, funktion getLinkedEffektaData nedds this data
         self.expectedDevices += self.configuration["managedEffektas"]
 
+        self.optionalDevices = []
+        self.optionalDevices.append(self.configuration["weatherName"])
+
         # init some variables
-        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "linkedEffektaData":{}, "Wetter":{}}
+        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "linkedEffektaData":{}, self.configuration["weatherName"]:{}}
         # init lists of direct setable values, sensors or commands
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
@@ -521,6 +531,9 @@ class PowerPlant(Worker):
         # ABER a global subscriber subscribed automatisch a local, somit geht global und local immer an alle global subscriber und local nur an de local
 
         for device in self.expectedDevices:
+            self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
+
+        for device in self.optionalDevices:
             self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
@@ -578,7 +591,7 @@ class PowerPlant(Worker):
                                 #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                                 self.SkriptWerte["Akkuschutz"] = True
                                 self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
-    
+
                         if now.hour >= 12 and now.hour < 23:
                             if self.wetterPrognoseHeuteUndMorgenSchlecht() and not self.akkuStandAusreichend():
                                 #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])

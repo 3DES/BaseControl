@@ -229,6 +229,7 @@ class WetterOnline(ThreadObject):
 
         if publishWeather:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.wetterdaten, globalPublish = True, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.wetterdaten, globalPublish = False, enableEcho = False)
 
 
     def threadBreak(self):

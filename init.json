@@ -5,6 +5,7 @@
         "managedEffektas": ["WrEffektaWest"],
         "socMonitorName": "SocMonitor",
         "bmsName": "BMS",
+        "weatherName": "Wetter",                            # optional
         "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
         "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     },
