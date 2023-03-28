@@ -34,7 +34,7 @@
 #                "port":         1883,
 #                "user":         "user",
 #                "password":     "password",
-#                "sendRetained": false                       # for tests you can send not retained
+#                "sendRetained": true                       # for tests you can send not retained
 #            }
         }
     },
