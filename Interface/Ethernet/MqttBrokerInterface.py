@@ -111,8 +111,8 @@ class MqttBrokerInterface(InterfaceBase):
                     self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
 
 
-    #def threadBreak(self):
-    #    pass
+    def threadBreak(self):
+        time.sleep(0.1)
 
 
     #def threadTearDownMethod(self):

@@ -76,3 +76,7 @@ class WBMS(ThreadObject):
                     # @todo trigger wd only here
                     self.bmsWerte = newMqttMessageDict["content"]
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.bmsWerte, globalPublish = False, enableEcho = False)
+
+
+    def threadBreak(self):
+        time.sleep(0.1)

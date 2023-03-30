@@ -293,3 +293,6 @@ class EffektaController(ThreadObject):
             pass
             # @todo send aktual values here
             #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
+
+    def threadBreak(self):
+        time.sleep(0.1)

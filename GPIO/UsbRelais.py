@@ -1,5 +1,5 @@
 import json
-import datetime
+import time
 from Base.ThreadObject import ThreadObject
 
 
@@ -85,3 +85,5 @@ class UsbRelais(ThreadObject):
 
         # auslesen triggern
 
+    def threadBreak(self):
+        time.sleep(0.1)

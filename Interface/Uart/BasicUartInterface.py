@@ -161,8 +161,8 @@ class BasicUartInterface(InterfaceBase):
     #def threadMethod(self):
 
 
-    #def threadBreak(self):
-    #    pass
+    def threadBreak(self):
+        time.sleep(0.1)
 
 
     def threadTearDownMethod(self):
