@@ -197,7 +197,6 @@ class PowerPlant(Worker):
         self.transferToInverter = "transferToInverter"
         self.transferToNetz = "transferToNetz"
         self.OutputVoltageError = "OutputVoltageError"
-        self.aktualMode = self.NetzMode    # wir gehen davon aus, dass die Relais nach dem Starten aus sind, das entspricht NetzMode s.Aufruf von manageUtilityRelais()
         self.relWr1 = self.configuration["relaisNames"]["relWr1"]
         self.relWr2 = self.configuration["relaisNames"]["relWr2"]
         self.relPvAus = self.configuration["relaisNames"]["relPvAus"]
@@ -304,6 +303,10 @@ class PowerPlant(Worker):
             modifyRelaisData(self.relPvAus, self.aus)
             modifyRelaisData(self.relWr1, self.aus)
             modifyRelaisData(self.relWr2, self.aus, True)
+            # todo evtl überlegen ob es hier nicht sinnvoll ist, schalteRelaisAufNetz() aufzurufen. Dann schaltet die Anlage definiert um.
+            self.aktualMode = self.NetzMode
+            self.SkriptWerte["NetzRelais"] = self.aktualMode
+            self.sendeMqtt = True
         else:
             now = datetime.datetime.now()
 
