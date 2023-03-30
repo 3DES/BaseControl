@@ -61,12 +61,15 @@ class PowerPlant(Worker):
         self.SkriptWerte["schaltschwelleNetzLadenein"] = 6.0
         self.SkriptWerte["MinSoc"] = 10.0
         self.SkriptWerte["SchaltschwelleAkkuTollesWetter"] = 20.0
-        self.SkriptWerte["AkkuschutzAbschalten"] = self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"] + 15.0
-        if self.SkriptWerte["AkkuschutzAbschalten"] > 100:
-            self.SkriptWerte["AkkuschutzAbschalten"] = 100
         # todo Automatisch ermitteln
         self.SkriptWerte["verbrauchNachtAkku"] = 25.0
         self.SkriptWerte["verbrauchNachtNetz"] = 3.0
+        self.SkriptWerte["AkkuschutzAbschalten"] = self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"] + 15.0
+        # AkkuschutzAbschalten muss größer als minAkkustandNacht() damit der Akkuschutz nicht 
+        if self.SkriptWerte["AkkuschutzAbschalten"] < self.minAkkustandNacht():
+            self.SkriptWerte["AkkuschutzAbschalten"] = self.minAkkustandNacht() -1 
+        if self.SkriptWerte["AkkuschutzAbschalten"] > 100:
+            self.SkriptWerte["AkkuschutzAbschalten"] = 100
 
         # Russia Mode hat Vorrang ansonsten entscheiden wir je nach Wetter (Akkuschutz)
         if self.SkriptWerte["RussiaMode"]:
@@ -363,8 +366,11 @@ class PowerPlant(Worker):
                 self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
         return False
 
+    def minAkkustandNacht(self):
+        return self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]
+
     def akkuStandAusreichend(self):
-        return self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"])
+        return self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.minAkkustandNacht()
 
     def initInverter(self):
         if self.configuration["initModeEffekta"] == "Auto":
@@ -584,25 +590,24 @@ class PowerPlant(Worker):
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
                 if self.SkriptWerte["AutoMode"]:
 
+                    # todo self.SkriptWerte["Akkuschutz"] = False Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
+                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["AkkuschutzAbschalten"]:
+                        self.SkriptWerte["Akkuschutz"] = False
+
                     # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag den Akkuschutz einschalten müssen. Der Akkuschutz schaltet auf einen höheren (einstellbar) SOC Bereich um.
                     if not self.SkriptWerte["Akkuschutz"]:
                         if now.hour >= 17 and now.hour < 23:
                             if self.wetterPrognoseMorgenSchlecht() and not self.akkuStandAusreichend():
                                 #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                                 self.SkriptWerte["Akkuschutz"] = True
-                                self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
-
+                                self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte Akkuschutz ein." %self.SkriptWerte["wetterSchaltschwelleNetz"])
                         if now.hour >= 12 and now.hour < 23:
                             if self.wetterPrognoseHeuteUndMorgenSchlecht() and not self.akkuStandAusreichend():
                                 #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                                 self.SkriptWerte["Akkuschutz"] = True
-                                self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte auf Netz." %self.SkriptWerte["wetterSchaltschwelleNetz"])
+                                self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte Akkuschutz ein." %self.SkriptWerte["wetterSchaltschwelleNetz"])
 
                     self.passeSchaltschwellenAn()
-
-                    # todo self.SkriptWerte["Akkuschutz"] = False Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
-                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.SkriptWerte["AkkuschutzAbschalten"]:
-                        self.SkriptWerte["Akkuschutz"] = False
 
                     # behandeln vom Laden in RussiaMode (USV)
                     if self.SkriptWerte["RussiaMode"]:
