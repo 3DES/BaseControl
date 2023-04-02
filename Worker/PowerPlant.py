@@ -439,7 +439,7 @@ class PowerPlant(Worker):
         # check if its our own topic
         if self.createOutTopic(self.getObjectTopic()) in message["topic"]:
             # we use it and unsubscribe
-            self.SkriptWerte = message["content"]
+            self.SkriptWerte.update(message["content"])
             self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
             # We set the timer because it is possible that the timer is not set yet and the it raise an exc
             self.timer(name = "timeoutMqtt", timeout = 30)

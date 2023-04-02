@@ -1,5 +1,6 @@
 import json
 from Base.ThreadObject import ThreadObject
+import time
 
 
 class PowerPlantTester(ThreadObject):
@@ -160,6 +161,7 @@ class PowerPlantTester(ThreadObject):
         # We loop x seconds, take and count the msg, test the msg counter on min and max
         msgCounter = 0
         while not self.timer(name = "timeoutMsg", timeout = waitTime):
+            time.sleep(0) # be nice to other threads
             while not self.mqttRxQueue.empty():
                 newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
                 self.logger.info(self, "received message :" + str(newMqttMessageDict["content"]))

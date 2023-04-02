@@ -254,7 +254,7 @@ class MqttBridge(ThreadObject):
         
         try:
             self.mqttLock()
-            self.logger.info(self, f"lock queue")
+            self.logger.debug(self, f"lock queue")
             while not self.get_mqttTxQueue().empty():
                 messageCounter += 1
                 self.turn += 1
@@ -322,7 +322,7 @@ class MqttBridge(ThreadObject):
                     self.logger.info(self, f"Thread loop took more than 20 seconds, last command was: {newMqttMessageDict['command'].value}, messages handled: {messageCounter}")
                     break
         finally:
-            self.logger.info(self, f"unlock queue")
+            self.logger.debug(self, f"unlock queue")
             self.mqttUnlock()
 
     #def threadBreak(self):
