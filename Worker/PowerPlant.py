@@ -34,11 +34,12 @@ class PowerPlant(Worker):
             BMS:
                     BmsEntladeFreigabe                                          bool, key in BMS data dict
                     BmsMsgCounter                                               todo, implement! int, counter for required BMS msg to provide stuckAt errors. A new number triggers watchdog
-                    
             SocMonitor:
                     Prozent                                                     float, key in Soc data dict
                     SocMeter.InitAkkuProz                                       int, classVariable from SocMonitor normally -1    @todo evtl über ein bool nachdenken.
     optional:
+            BMS:
+                    FullChargeRequired                                          bool, optional key in BMS data dict. On rising edge it will set switch FullChargeRequired to on and force SchaltschwelleAkkuXXX to 100%. No transfer to utility is triggerd,switch FullChargeRequired will be reseted if soc is 100%. 
             Wetter:
                     Tag_0                                                       dict, key in wetter data dict
                         Sonnenstunden                                           int, key in Tag_0 dict
@@ -75,7 +76,7 @@ class PowerPlant(Worker):
         if self.SkriptWerte["RussiaMode"]:
             # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
             if self.SkriptWerte["schaltschwelleNetzRussia"] < self.SkriptWerte["schaltschwelleAkkuRussia"]:
-                if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuRussia"]:
+                if self.SkriptWerte["schaltschwelleNetz"] != self.SkriptWerte["schaltschwelleNetzRussia"]:
                     self.sendeMqtt = True
                 self.SkriptWerte["schaltschwelleAkku"] = self.SkriptWerte["schaltschwelleAkkuRussia"]
                 self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["schaltschwelleNetzRussia"]
@@ -83,17 +84,22 @@ class PowerPlant(Worker):
             if self.SkriptWerte["Akkuschutz"]:
                 # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
                 if self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"] < self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
-                    if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]:
+                    if self.SkriptWerte["schaltschwelleNetz"] != self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"]:
                         self.sendeMqtt = True
                     self.SkriptWerte["schaltschwelleAkku"] = self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"]
                     self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["schaltschwelleNetzSchlechtesWetter"]
             else:
                 # Wir wollen die Schaltschwellen nur übernehmen wenn diese plausibel sind
                 if self.SkriptWerte["MinSoc"] < self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
-                    if self.SkriptWerte["schaltschwelleAkku"] != self.SkriptWerte["schaltschwelleAkkuTollesWetter"]:
+                    if self.SkriptWerte["schaltschwelleNetz"] != self.SkriptWerte["MinSoc"]:
                         self.sendeMqtt = True
                     self.SkriptWerte["schaltschwelleAkku"] = self.SkriptWerte["schaltschwelleAkkuTollesWetter"]
                     self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["MinSoc"]
+
+        if self.SkriptWerte["FullChargeRequired"]:
+            self.SkriptWerte["schaltschwelleAkku"] = 100
+        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 100:
+            self.SkriptWerte["FullChargeRequired"] = False
 
         if self.SkriptWerte["schaltschwelleNetz"] < self.SkriptWerte["MinSoc"]:
             self.SkriptWerte["schaltschwelleNetz"] = self.SkriptWerte["MinSoc"]
@@ -416,6 +422,13 @@ class PowerPlant(Worker):
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
             self.myPrint(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Akku") 
 
+    def checkForKeyAndCheckRisingEdge(self, oldDataDict, newMessageDict, key):
+        retval = False
+        if key in oldDataDict and key in newMessageDict:
+            if newMessageDict[key] and not oldDataDict[key]:
+                retval = True
+        return retval
+
     def handleMessage(self, message):
         """
         sort the incoming msg to the localDeviceData variable
@@ -471,6 +484,10 @@ class PowerPlant(Worker):
             # check if a expected device sended a msg and store it
             for key in self.expectedDevices:
                 if key in message["topic"]:
+                    if key in self.localDeviceData: # Filter first run
+                        # check FullChargeRequired from BMS for rising edge
+                        if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]], message["content"], "FullChargeRequired"):
+                                self.SkriptWerte["FullChargeRequired"] = True
                     self.localDeviceData[key] = message["content"]
 
             for key in self.optionalDevices:
@@ -507,7 +524,7 @@ class PowerPlant(Worker):
         # init lists of direct setable values, sensors or commands
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
-        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": False}
+        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": False, "FullChargeRequired": False}
         self.sensorList = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
         self.dummyCommand = "NoCommand"
