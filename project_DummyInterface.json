@@ -36,7 +36,7 @@
 
     "BMS":
     {
-        "class":        "BMS.WBMS.WBMS",
+        "class":        "BMS.BasicBms.BasicBms",
         "interfaces":
         {
             "UartBMS":
@@ -56,7 +56,7 @@
         {
             "UartSocMonitor":
             {
-                #"connection":   "Interface.Uart.BasicUartInterface.SocMeterUartInterface",
+                #"connection":   "Interface.Uart.SocMeterUartInterface.SocMeterUartInterface",
                 "connection":   "Interface.Uart.DummySocMeterUartInterface.DummySocMeterUartInterface",
                 "interface":    "COM4",
                 "baudrate":     9600

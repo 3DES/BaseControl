@@ -4,11 +4,16 @@ import json
 from Base.ThreadObject import ThreadObject
 
 
-class WBMS(ThreadObject):
+class BasicBms(ThreadObject):
     '''
-    classdocs
+    This class forwards BMS messages to global and noGlobal subscribers. 
+    The value have to change in a sensible range/jump to be published globally.
+    This class discovers device infos as sensor to a given homeautommation
+    This class needs key Vmin, Vmax, BmsEntladeFreigabe and toggleIfMsgSeen in a dict from given BMS interface.
+    Optional is Current and Prozent which will be also checked for sensible range/jump.
+    Optional is any other Value.
+    A global publish is also triggert every 120 seconds
     '''
-
 
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -68,15 +73,21 @@ class WBMS(ThreadObject):
                     takeDataAndSend()
                 elif self.checkWerteSprung(newMqttMessageDict["content"]["Vmax"], self.bmsWerte["Vmax"], 1, -1, 10):
                     takeDataAndSend()
-                elif newMqttMessageDict["content"]["Ladephase"] != self.bmsWerte["Ladephase"]:
-                    takeDataAndSend()
                 elif newMqttMessageDict["content"]["BmsEntladeFreigabe"] != self.bmsWerte["BmsEntladeFreigabe"]:
                     takeDataAndSend()
                 elif newMqttMessageDict["content"]["toggleIfMsgSeen"] != self.bmsWerte["toggleIfMsgSeen"]:
-                    # @todo trigger wd only here
                     self.bmsWerte = newMqttMessageDict["content"]
+                if "Current" in newMqttMessageDict["content"]:
+                    if self.checkWerteSprung(newMqttMessageDict["content"]["Current"], self.bmsWerte["Current"], 20, -200, 200, 5):
+                        takeDataAndSend()
+                if "Prozent" in newMqttMessageDict["content"]:
+                    if self.checkWerteSprung(newMqttMessageDict["content"]["Prozent"], self.bmsWerte["Prozent"], 1, -1, 101):
+                        takeDataAndSend()
+
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.bmsWerte, globalPublish = False, enableEcho = False)
 
+                if self.timer(name = "timerBasicBmsPublish", timeout = 120):
+                    takeDataAndSend()
 
     def threadBreak(self):
         time.sleep(0.1)

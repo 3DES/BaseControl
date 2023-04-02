@@ -10,6 +10,17 @@
         "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     },
 
+# another example
+#    "PowerPlant":
+#    {
+#        "class": "Worker.PowerPlant.PowerPlant",
+#        "managedEffektas": ["WrEffektaWest"],
+#        "socMonitorName": "Pylontech",
+#        "bmsName": "Pylontech",
+#        "weatherName": "Wetter",                            # optional
+#        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
+#        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
+#    },
 
     "Logger":
     {
@@ -27,6 +38,7 @@
         "class":      "MqttBridge.MqttBridge.MqttBridge",
         "interfaces":
         {
+# If you have a real Mosquitto server enter here your connection
 #            "Mosquitto":
 #            {
 #                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
@@ -122,6 +134,7 @@
 #            }
 #        }
 #    },
+
 
 #    "WrEffektaWest":
 #    {

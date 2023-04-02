@@ -48,7 +48,7 @@
 
     "BMS":
     {
-        "class":        "BMS.WBMS.WBMS",
+        "class":        "BMS.BasicBms.BasicBms",
         "interfaces":
         {
             "UartBMS":
