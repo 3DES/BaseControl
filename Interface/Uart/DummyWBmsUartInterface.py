@@ -16,7 +16,7 @@ class DummyWBmsUartInterface(InterfaceBase):
         super().__init__(threadName, configuration)
 
     def threadInitMethod(self):
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "toggleIfMsgSeen":False, "BmsEntladeFreigabe":True}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True}
 
 
     def threadMethod(self):
@@ -34,13 +34,22 @@ class DummyWBmsUartInterface(InterfaceBase):
             self.timer(name = "timerSoc", remove = True)
             if self.BmsWerte["Vmax"] == 4.0:
                 self.BmsWerte["Vmax"] = 3.0
+                self.BmsWerte["Current"] = 50
             else:
                 self.BmsWerte["Vmax"] = 4.0
+                self.BmsWerte["Current"] = 10
             if self.BmsWerte["toggleIfMsgSeen"]:
                 self.BmsWerte["toggleIfMsgSeen"] = False
             else:
                 self.BmsWerte["toggleIfMsgSeen"] = True
+        
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
+
+        #if self.timer(name = "timerFullChargeRequiredTest", timeout = 40):
+        #       self.BmsWerte["FullChargeRequired"] = True
+
+
+
 
     #def threadBreak(self):
     #    pass

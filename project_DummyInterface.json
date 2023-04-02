@@ -72,12 +72,33 @@
             "UartUsbRelais":
             {
                 #"connection":   "Interface.Uart.UsbRelaisUartInterface.UsbRelaisUartInterface",
-                "connection":   "Interface.Uart.UartInterface.UartInterface",
-                "interface":    "COM7",
+                "connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
+                "interface":    "COM4",
                 "baudrate":     115200
             }
         }
     },
+
+#    "Pylontech":
+#    {
+#        "class":        "BMS.BasicBms.BasicBms",
+#        "interfaces":
+#        {
+#            "PylontechInterface":
+#            {
+#                "connection":   "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
+#                "interface":    "COM7",
+#                "battCount":    1,
+#                "baudrate":     115200
+#            }
+#        }
+#    },
+
+#    "PowerPlant":
+#    {
+#        "socMonitorName": "Pylontech",
+#        "bmsName": "Pylontech"
+#    },
 
 #    "WatchDog":
 #    {

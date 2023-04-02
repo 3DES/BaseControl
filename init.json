@@ -135,6 +135,20 @@
 #        }
 #    },
 
+#    "Pylontech":
+#    {
+#        "class":        "BMS.BasicBms.BasicBms",
+#        "interfaces":
+#        {
+#            "PylontechInterface":
+#            {
+#                "connection":   "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
+#                "interface":    "COM7",
+#                "battCount":    1,
+#                "baudrate":     115200
+#            }
+#        }
+#    },
 
 #    "WrEffektaWest":
 #    {
