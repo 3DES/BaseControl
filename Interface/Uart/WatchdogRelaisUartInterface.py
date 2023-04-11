@@ -90,10 +90,15 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
     def processMsg(self, msg):
         if not len(msg):
-            self.logger.error(self, f"No Msg to process!")
+            self.logger.error(self, f"Empty msg to process!")
             return {"Error":"noMsg"}
 
         msg = msg.split(";")
+
+        if len(msg) < 3:
+            self.logger.error(self, f"No valid msg to process! Msg: {msg}")
+            return {"Error":"noMsg"}
+
         framenumber = 0
         cmd         = 1
         port        = 2
