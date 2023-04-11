@@ -1,0 +1,304 @@
+import time
+import json
+
+from Interface.Uart.BasicUartInterface import BasicUartInterface
+from Base.Supporter import Supporter
+import Base.Crc
+import os
+import subprocess
+import re
+
+class WatchdogRelaisUartInterface(BasicUartInterface):
+    '''
+    This class is a Interface for a watchdog relay.
+    This is a Arduino Nano with special Relays which have to be pulsed.
+    If not the relay switch off.
+    If Nanos firmware is not triggered via uart it will switch also off.
+    https://github.com/3DES/WatchdogBoard
+    
+    This class will forward a watchdog msg (normally from BaseControlls Watchdog) with crc to the usb Relay.
+    This class checks the firmware of usb relay and update if its neccessary.
+
+        > 0;V;5971;\n                       # get version
+        < 0;V;1.0_4xUNPULSED;63918;\n       # returns version information
+        > 1;W;1;43612;\n                    # trigger watchdog
+        < 1;W;0;1;17361;\n                  # OK, watchdog state switched from 0 to 1
+        > 2;W;0;1;333;\n                    # simulate communication error
+        < 2;E;2;[2;W;0;1;333;];44598;\n     # OK, error responded
+        > 2;W;1;42529;\n                    # re-trigger watchdog
+        < 2;W;1;1;54714;\n                  # OK, watchdog state stayed at 1
+        > 3;S;0;1;22546;\n                  # switch output 0 to ON
+        < 3;S;0;0;1;19258;\n                # OK, output 0 was 0 and changed to 1
+        > 4;S;1;1;55463;\n                  # switch output 1 to ON
+        < 4;S;1;0;1;35812;\n                # OK, output 1 was 0 and changed to 1
+        > 5;W;1;47856;\n                    # re-trigger watchdog
+        < 5;W;1;1;18868;\n                  # OK, watchdog state stayed at 1
+        > 6;R;0;49410;\n                    # read input 0
+        < 6;R;0;0;53888;\n                  # OK, input 0 is 0
+        -- switch ON input 0 now --
+        > 7;R;0;50473;\n                    # read input 0
+        < 7;R;0;1;19175;\n                  # OK, input 0 is 1 now
+        > 8;S;1;0;64029;\n                  # switch output 1 to OFF again
+        < 8;S;1;1;0;22322;\n                # OK, output 1 was 1 and changed to 0
+        
+        
+        todo: aktuell bekomme ich nicht mit mit wenn der WD abfällt wenn ihn keiner triggert.
+        todo: wd trigger cmd {"cmd":"triggerWdRelay"} in den watchdog.py einbauen und an alle wd schicken (Liste über init.json übergeben)
+        todo: getFirmwarePath() und getAvrDudePath() an linux final anpassen und ggf zwisch windows und linux unterscheiden
+
+        todo: neue Firmware einchecken und getAndLogDiagnosis() anpassen und testen
+
+    '''
+    magicWord = "4D4853574D485357"          # MHSWMHSW
+    maxUpdateTries = 4
+
+
+    def __init__(self, threadName : str, configuration : dict):
+        '''
+        Constructor
+        '''
+        super().__init__(threadName, configuration)
+        self.separator = ";"
+        self.comandEnd = ";\n"
+        self.frameCounter = 0
+        self.relayMapping = {"Relay0": "0", "Relay1": "1", "Relay2": "2", "Relay3": "3", "Relay4": "4", "Relay5": "5", "Relay6": "6"}
+        self.inputMapping = {"Input0": "0", "Input1": "1", "Input2": "2", "Input3": "3"}
+
+        self.tagsIncluded(["firmware"])
+        self.firstLoop = True
+        self.getDiagnosis = False
+
+
+    # some helper funktions
+    def getKeyFromVal(self, dic, val):
+        for key in list(dic):
+            if val == dic[key]:
+                return key
+
+    def getCRC(self, cmd):
+        crc = Base.Crc.Crc.crc16EasyMeter(Supporter.encode(cmd))
+        return str(crc)
+
+    def getCommand(self, cmdStr):
+        cmdStr = f"{self.frameCounter}{self.separator}" + cmdStr
+        cmdStr += self.separator
+        crc = self.getCRC(cmdStr)
+        cmd = cmdStr + crc
+        cmd = cmd + self.comandEnd
+        cmd = Supporter.encode(cmd)
+        return cmd
+
+    def processMsg(self, msg):
+        if not len(msg):
+            self.logger.error(self, f"No Msg to process!")
+            return {"Error":"noMsg"}
+
+        msg = msg.split(";")
+        framenumber = 0
+        cmd         = 1
+        port        = 2
+        errorType   = 2
+        firmwareName= 2
+        value       = 3
+        newValue    = 4
+        # now the ErrorCodings from Relais
+        eERROR_NO_ERROR = "0"
+        eERROR_UNKNOWN_COMMAND = "1"
+        eERROR_UNKNOWN_STATE = "2"
+        eERROR_INVALID_FRAME_NUMBER = "3"
+        eERROR_UNEXPECTED_FRAME_NUMBER = "4"
+        eERROR_INVALID_VALUE = "5"
+        eERROR_INVALID_INDEX = "6"
+        eERROR_INVALID_CRC = "7"
+        eERROR_OVERFLOW = "8"
+        eERROR_INVALID_STARTUP = "9"
+        del msg[-1]                                         # delete /r/n
+        msgCrc = msg[len(msg)-1]                            # ectract crc
+        del msg[-1]                                         # delete crc
+        crc = self.getCRC(";".join(msg)+self.separator)     # calculate crc
+        if crc != msgCrc:
+            self.logger.error(self, f"Wrong CRC received")
+            return {"Error":"crc"}
+        if not int(msg[framenumber]) == self.frameCounter:
+            self.logger.error(self, f"Framenumber not same. {self.frameCounter} {msg[framenumber]}")
+            return {"Error":"framenumber", "requiredFramenumber":int(msg[framenumber])}
+        if msg[cmd] == "S":
+            return {self.getKeyFromVal(self.relayMapping, msg[port]):msg[newValue]}
+        elif msg[cmd] == "R":
+            return {self.getKeyFromVal(self.inputMapping, msg[port]):msg[value]}
+        elif msg[cmd] == "V":
+            return msg[firmwareName]
+        elif msg[cmd] == "W":
+            return msg[value]
+        elif msg[cmd] == "E":
+            self.logger.error(self, f"Relay respondet an error: {msg}")
+            if msg[errorType] == eERROR_INVALID_CRC:
+                # We actual dont make a difference between internal crc error or relais crc error. Just resend msg.
+                return {"Error":"crc"}
+            elif msg[errorType] == eERROR_INVALID_STARTUP:
+                return {"Error":"invalidStartup"}
+            else:
+                return {"Error":"E"}
+
+    def processSerialCmd(self, cmd):
+        for tries in range(5):
+            self.serialReset_input_buffer()
+            self.serialWrite(self.getCommand(cmd))
+            response = self.serialReadLine()
+            procMsg = self.processMsg(Supporter.decode(response))
+            if not "Error" in procMsg:
+                self.frameCounter +=1
+                if self.frameCounter > 0xFFFF:
+                    self.frameCounter = 0
+                return procMsg
+            else:
+                if procMsg["Error"] == "noMsg" and cmd == "V":
+                    # If we got no msg on version request we suggess that there is a new Arduino plugged in.
+                    return "newArduino"
+                if self.getDiagnosis:
+                    raise Exception("Prevent Recursion! Got a error during diagnosis reading!")
+                self.getAndLogDiagnosis()
+                if procMsg["Error"] == "framenumber":
+                    self.logger.error(self, f"We try to set right framenumber, and resend msg. Tries: {tries}")
+                    self.frameCounter = procMsg["requiredFramenumber"]
+                    # todo wenn framenumber 0 dann sollten wir evtl einen eventuellen Reset des wdRel behandeln
+                elif procMsg["Error"] == "invalidStartup":
+                    raise Exception("Got an invalid startup error from watchdog!")
+                elif procMsg["Error"] == "crc":
+                    self.logger.error(self, f"Crc Error! We try to resend msg. Tries: {tries}")
+        raise Exception("After few relais errors we stop Basceontrol")
+
+    def sendCommand(self, command):
+        cmdstr = f"{command}"
+        return self.processSerialCmd(cmdstr)
+
+    def sendRequest(self, command, port):
+        cmdstr = f"{command}{self.separator}{port}"
+        return self.processSerialCmd(cmdstr)
+
+    def sendValue(self, command, port, value):
+        cmdstr = f"{command}{self.separator}{port}{self.separator}{value}"
+        return self.processSerialCmd(cmdstr)
+
+    def getHwVersion(self):
+        version = self.sendCommand("V")
+        return version
+
+    def getFirmwarePath(self):
+        #return f'/Firmware/{self.configuration["firmware"]}'
+        return r'C:\Users\sebas\Documents\BaseControl\Firmware\firmware.hex'
+
+    def getAvrDudePath(self):
+        return r'C:\Program Files (x86)\AVRDUDESS\avrdude.exe'
+
+    def runAvrDude(self):
+        return subprocess.run([self.getAvrDudePath(), '-c', 'arduino', '-p', 'm328p', '-P', self.configuration["interface"], '-b', '115200', '-U', fr'flash:w:{self.getFirmwarePath()}:a'], capture_output=True)
+
+    def getOurVersion(self):
+        # Coding in .hex file MHSWMHSW*MHSWMHSW, where * is name of the firmware
+        f = open(self.getFirmwarePath(), "r")
+        rawData = ""
+        for line in f:
+            rawData += line[9:-3]
+        ourFw = re.findall(f'{self.magicWord}(.*){self.magicWord}', rawData)
+        if not len(ourFw):
+            return ""
+        else:
+            ourFw = ourFw[0]
+            # delete 00
+            while ourFw[-2:] == '00':
+                ourFw = ourFw[:-2]
+            return bytes.fromhex(ourFw).decode('utf-8')
+
+    def updateArduio(self):
+        self.serialWrite(b"ReleaseReset\n") # support old USB Relais
+        try:
+            self.deleteWdRelay()
+        except:
+            self.logger.error(self, f"Arduino update. deleteWdRelay() failed!")
+
+        self.serialClose()
+        tries = 0
+        while self.maxUpdateTries >= tries:
+            tries += 1
+            avrDudeRet = self.runAvrDude()
+            if avrDudeRet.returncode:
+                self.logger.error(self, f"Arduino update Error! RetVal: {avrDudeRet.stdout}, {avrDudeRet.stderr}")
+                self.logger.error(self, f"Arduino update. Wait 35s and Retry.")
+                time.sleep(35)    # Wait because the reset of arduino migth be locked. It will be unlocked 30s after resetWdRelay.
+            else:
+                self.logger.info(self, f"Arduino update Ok. RetVal: {avrDudeRet.stdout}, {avrDudeRet.stderr}")
+                self.reInitSerial()
+                self.frameCounter = 0
+                time.sleep(2.5)   # Firmware and Bootloader needs 1.5s for startup. If wd is 0 (and therewith ResetLock) the watchdogrelais will restart with opening com port.
+                self.getAndLogDiagnosis()
+                break
+
+    def getVersionAndUpdate(self):
+        hwFw = self.getHwVersion()
+        ourFw = self.getOurVersion()
+        if hwFw != ourFw:
+            self.logger.info(self, f"Watchdog firmware differs from ours. We will update. Ours: --{ourFw}-- Wd: --{hwFw}--")
+            self.updateArduio()
+
+            hwFw = self.getHwVersion()
+            if hwFw != ourFw:
+                raise Exception(f"Wrong firmware after update Ours: --{ourFw}-- Wd: --{hwFw}--")
+        else:
+            self.logger.info(self, f"Watchdog firmware is up to date. Ours: --{ourFw}-- Wd: --{hwFw}--")
+
+    def getAndLogDiagnosis(self):
+        #self.getDiagnosis = True        # To Prevent Recursion during handling error and get a error during getAndLogDiagnosis()
+        #self.logger.error(self,f'Watchdog Diagnosis: {self.sendCommand("D")}')
+        #self.getDiagnosis = False
+        self.logger.info(self, f"Watchdog diagnosis is not supportet in this firmware.")
+
+
+
+
+    # now the funktions to manage relay
+    def triggerWdRelay(self):
+        retval = self.sendRequest("W", "1")
+        if not retval == "1":
+            self.getAndLogDiagnosis()
+            raise Exception("Watchdog was not 1 after trigger. We StopPowerplant.")
+        return retval
+
+    def deleteWdRelay(self):
+        self.sendRequest("W", "0")
+
+    def readInputState(self):
+        inputs = {}
+        for pin in list(self.inputMapping):
+            inputs.update(self.sendRequest("R", self.inputMapping[pin]))
+        return inputs
+
+    def setRelayStates(self, RelayState):
+        for relay in list(RelayState):
+            self.sendValue("S", self.relayMapping[relay], RelayState[relay])
+
+    def threadMethod(self):
+        if self.firstLoop:
+            time.sleep(2.5)   # Firmware and Bootloader needs 1.5s for startup. If wd is 0 (and therewith ResetLock) the watchdogrelais will restart during opening com port.
+            self.firstLoop = False
+            self.getVersionAndUpdate()
+            self.setRelayStates({"Relay0": "0", "Relay1": "0", "Relay2": "0", "Relay3": "0", "Relay4": "0", "Relay5": "0", "Relay6": "0"})
+
+        # check if a new msg is waiting
+        while not self.mqttRxQueue.empty():
+            newMqttMessageDict = self.mqttRxQueue.get(block = False)
+            try:
+                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
+            except:
+                pass
+
+            if "cmd" in newMqttMessageDict["content"]:
+                if "readInputState" == newMqttMessageDict["content"]["cmd"]:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"readInputState":self.readInputState()}, globalPublish = False, enableEcho = False)
+                elif "triggerWdRelay" == newMqttMessageDict["content"]["cmd"]:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"triggerWd":self.triggerWdRelay()}, globalPublish = False, enableEcho = False)
+            elif "setRelay" in newMqttMessageDict["content"]:
+                self.setRelayStates(newMqttMessageDict["content"]["setRelay"])
+
+    def threadBreak(self):
+        time.sleep(0.1)

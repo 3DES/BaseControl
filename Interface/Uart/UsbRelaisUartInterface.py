@@ -17,6 +17,7 @@ class UsbRelaisUartInterface(BasicUartInterface):
         super().__init__(threadName, configuration)
         self.separator = b" "
         self.comandEnd = b"\n"
+        self.firstLoop = True
 
     def readRelayState(self):
 
@@ -46,6 +47,11 @@ class UsbRelaisUartInterface(BasicUartInterface):
             self.serialWrite(Supporter.encode(relay) + self.separator + Supporter.encode(RelayState[relay]) + self.comandEnd)
 
     def threadMethod(self):
+        if self.firstLoop:
+            self.firstLoop = False
+            self.readRelayState()
+            self.sendRelayState({"Relay1": "0", "Relay2": "0", "Relay3": "0", "Relay4": "0"})
+
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)
@@ -54,8 +60,11 @@ class UsbRelaisUartInterface(BasicUartInterface):
             except:
                 pass
 
-            if "readRelayState" in newMqttMessageDict["content"]:
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.readRelayState(), globalPublish = False, enableEcho = False)
-            elif "cmd" in newMqttMessageDict["content"]:
-                self.sendRelayState(newMqttMessageDict["content"]["cmd"])
+            if "cmd" in newMqttMessageDict["content"]:
+                if "readRelayState" == newMqttMessageDict["content"]["cmd"]:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.readRelayState(), globalPublish = False, enableEcho = False)
+            elif "setRelay" in newMqttMessageDict["content"]:
+                self.sendRelayState(newMqttMessageDict["content"]["setRelay"])
 
+    def threadBreak(self):
+        time.sleep(0.1)

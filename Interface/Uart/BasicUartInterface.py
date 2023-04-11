@@ -46,6 +46,8 @@ class BasicUartInterface(InterfaceBase):
             # @todo perhaps wait a little bit
         return success
 
+    def serialClose(self):
+        self.serialConn.close()
 
     def serialWrite(self, data):
         success = True

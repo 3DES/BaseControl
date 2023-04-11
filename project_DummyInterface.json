@@ -79,6 +79,23 @@
         }
     },
 
+#    "WdUsbRelais":
+#    {
+#        "class":        "GPIO.UsbRelais.UsbRelais",
+#        "interfaces":
+#        {
+#            "WdUartUsbRelais":
+#            {
+#                #"connection":   "Interface.Uart.UsbRelaisUartInterface.UsbRelaisUartInterface",
+#                #"connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
+#                "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
+#                "firmware":     "firmware.hex",
+#                "interface":    "COM5",
+#                "baudrate":     9600
+#            }
+#        }
+#    },
+
 #    "Pylontech":
 #    {
 #        "class":        "BMS.BasicBms.BasicBms",
