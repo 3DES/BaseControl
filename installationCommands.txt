@@ -12,6 +12,14 @@ cp BaseControl/project_xxx.json BaseControl/project.json
 cp BaseControl/base_control.service /etc/systemd/system/base_control.service
 systemctl daemon-reload
 systemctl enable base_control
+
+
+pip install pylontech
+pip install epevermodbus
+install Avrdude
+
+
+
 systemctl start base_control
 
 

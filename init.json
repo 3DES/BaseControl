@@ -135,6 +135,20 @@
 #        }
 #    },
 
+#    "Epever":
+#    {
+#        "class":        "Charger.GenericCharger.GenericCharger",
+#        "interfaces":
+#        {
+#            "EpeverInterface":
+#            {
+#                "connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
+#                "interface":    "COM9",
+#                "address":     1
+#            }
+#        }
+#    },
+
 #    "Pylontech":
 #    {
 #        "class":        "BMS.BasicBms.BasicBms",

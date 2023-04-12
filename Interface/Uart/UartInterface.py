@@ -39,8 +39,8 @@ class UartInterface(InterfaceBase):
 
 
     def threadMethod(self):
-        pass
-
+        while not self.mqttRxQueue.empty():
+            self.mqttRxQueue.get(block = False)
 
     #def threadBreak(self):
     #    pass
