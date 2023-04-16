@@ -18,6 +18,14 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     
     This class will forward a watchdog msg (normally from BaseControlls Watchdog) with crc to the usb Relay.
     This class checks the firmware of usb relay and update if its neccessary.
+    This class polls inputs an publish if ther is a new value
+
+    Messages:
+    {"cmd":"readInputState"} publishes the localInputState
+    {"cmd":"triggerWdRelay"} trigger the external wd relay
+    {"cmd":"testWdRelay"} send the Test Command to the wd relay
+    {"setRelay":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} set the Relay state
+
 
         > 0;V;5971;\n                       # get version
         < 0;V;1.0_4xUNPULSED;63918;\n       # returns version information
@@ -63,8 +71,11 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         self.frameCounter = 0
         self.relayMapping = {"Relay0": "0", "Relay1": "1", "Relay2": "2", "Relay3": "3", "Relay4": "4", "Relay5": "5", "Relay6": "6"}
         self.inputMapping = {"Input0": "0", "Input1": "1", "Input2": "2", "Input3": "3"}
+        self.localInputState = {"Input0": "None", "Input1": "None", "Input2": "None", "Input3": "None"}
 
         self.tagsIncluded(["firmware"])
+        self.tagsIncluded(["avrdudePath"], optional = True, default = r'C:\Program Files (x86)\AVRDUDESS\avrdude.exe')
+        #self.tagsIncluded(["avrdudePath"], optional = True, default = fr'{os.getcwd()}\avrdude\avrdude.elf')
         self.firstLoop = True
         self.getDiagnosis = False
 
@@ -160,9 +171,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 if procMsg["Error"] == "noMsg" and cmd == "V":
                     # If we got no msg on version request we suggess that there is a new Arduino plugged in.
                     return "newArduino"
-                if self.getDiagnosis:
-                    raise Exception("Prevent Recursion! Got a error during diagnosis reading!")
-                self.getAndLogDiagnosis()
+                if not self.getDiagnosis:
+                    # prevent recursion if we get an error while getAndLogDiagnosis()
+                    self.getAndLogDiagnosis()
                 if procMsg["Error"] == "framenumber":
                     self.logger.error(self, f"We try to set right framenumber, and resend msg. Tries: {tries}")
                     self.frameCounter = procMsg["requiredFramenumber"]
@@ -171,7 +182,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     raise Exception("Got an invalid startup error from watchdog!")
                 elif procMsg["Error"] == "crc":
                     self.logger.error(self, f"Crc Error! We try to resend msg. Tries: {tries}")
-        raise Exception("After few relais errors we stop Basceontrol")
+        raise Exception("After few relais errors we stop Basecontrol")
 
     def sendCommand(self, command):
         cmdstr = f"{command}"
@@ -190,14 +201,10 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         return version
 
     def getFirmwarePath(self):
-        #return f'/Firmware/{self.configuration["firmware"]}'
-        return r'C:\Users\sebas\Documents\BaseControl\Firmware\firmware.hex'
-
-    def getAvrDudePath(self):
-        return r'C:\Program Files (x86)\AVRDUDESS\avrdude.exe'
+        return fr'{os.getcwd()}\Firmware\{self.configuration["firmware"]}'
 
     def runAvrDude(self):
-        return subprocess.run([self.getAvrDudePath(), '-c', 'arduino', '-p', 'm328p', '-P', self.configuration["interface"], '-b', '115200', '-U', fr'flash:w:{self.getFirmwarePath()}:a'], capture_output=True)
+        return subprocess.run([self.configuration["avrdudePath"], '-c', 'arduino', '-p', 'm328p', '-P', self.configuration["interface"], '-b', '115200', '-U', fr'flash:w:{self.getFirmwarePath()}:a'], capture_output=True)
 
     def getOurVersion(self):
         # Coding in .hex file MHSWMHSW*MHSWMHSW, where * is name of the firmware
@@ -224,7 +231,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
         self.serialClose()
         tries = 0
-        while self.maxUpdateTries >= tries:
+        while self.maxUpdateTries > tries:
             tries += 1
             avrDudeRet = self.runAvrDude()
             if avrDudeRet.returncode:
@@ -254,9 +261,13 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
     def getAndLogDiagnosis(self):
         #self.getDiagnosis = True        # To Prevent Recursion during handling error and get a error during getAndLogDiagnosis()
-        #self.logger.error(self,f'Watchdog Diagnosis: {self.sendCommand("D")}')
+        #self.logger.error(self,f'Watchdog Diagnosis: {self.sendCommand("D")}')  todo support in process msg
         #self.getDiagnosis = False
         self.logger.info(self, f"Watchdog diagnosis is not supportet in this firmware.")
+
+    def testWdRelay(self):
+        #return self.sendCommand("T") todo support in process msg
+        self.logger.info(self, f"Watchdog Test is not supportet in this firmware.")
 
 
 
@@ -289,6 +300,12 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             self.getVersionAndUpdate()
             self.setRelayStates({"Relay0": "0", "Relay1": "0", "Relay2": "0", "Relay3": "0", "Relay4": "0", "Relay5": "0", "Relay6": "0"})
 
+        # Polling inputs in each loop an publish if there is a new value
+        tempInputState = self.readInputState()
+        if self.localInputState != tempInputState:
+            self.localInputState = tempInputState
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"Inputs":tempInputState}, globalPublish = False, enableEcho = False)
+
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.mqttRxQueue.get(block = False)
@@ -299,11 +316,13 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
             if "cmd" in newMqttMessageDict["content"]:
                 if "readInputState" == newMqttMessageDict["content"]["cmd"]:
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"readInputState":self.readInputState()}, globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"Inputs":self.localInputState}, globalPublish = False, enableEcho = False)
                 elif "triggerWdRelay" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"triggerWd":self.triggerWdRelay()}, globalPublish = False, enableEcho = False)
+                elif "testWdRelay" == newMqttMessageDict["content"]["cmd"]:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"testWdRelay":self.testWdRelay()}, globalPublish = False, enableEcho = False)
             elif "setRelay" in newMqttMessageDict["content"]:
                 self.setRelayStates(newMqttMessageDict["content"]["setRelay"])
 
     def threadBreak(self):
-        time.sleep(0.1)
+        time.sleep(0.3)

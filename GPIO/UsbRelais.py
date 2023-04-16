@@ -5,7 +5,13 @@ from Base.ThreadObject import ThreadObject
 
 class UsbRelais(ThreadObject):
     '''
-    classdocs
+    This class generates a {"cmd":"readRelayState"} and {"cmd":"readInputState"} msg all 60s and publishes it to the interface
+    This class forwards all msg globally from interface
+
+    Messages:
+    {"cmd":"..."} will be forwarded to the interface
+    {"cmd":"triggerWdRelay"} check if sender is .*WatchDog.* and forward to the interface
+    {"self.name":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} will be renamed to {"setRelay":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} and sendet to the interface
     '''
 
     def __init__(self, threadName : str, configuration : dict):
@@ -32,8 +38,9 @@ class UsbRelais(ThreadObject):
 
             # check if we got a msg from our interface
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
-                #ausgelesenen wert mit localen vergleichen
-                pass
+                #todo evtl ausgelesenen wert mit localen vergleichen und nur dann weiterschicken
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
             else:
                 # We assume that cmd or self.name is a key in this dict. Other keys will raise a key error. 
                 if "cmd" in newMqttMessageDict["content"]:
@@ -46,7 +53,7 @@ class UsbRelais(ThreadObject):
                     if self.name in newMqttMessageDict["content"]:
                         self.mqttPublish(self.interfaceInTopics[0], {"setRelay":newMqttMessageDict["content"][self.name]}, globalPublish = False, enableEcho = False)
 
-        if self.timer(name = "timerStateReq", timeout = 3):
+        if self.timer(name = "timerStateReq", timeout = 60):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readRelayState"}, globalPublish = False, enableEcho = False)
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readInputState"}, globalPublish = False, enableEcho = False)
 
