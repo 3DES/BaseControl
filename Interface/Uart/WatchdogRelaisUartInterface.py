@@ -23,6 +23,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     Messages:
     {"cmd":"readInputState"} publishes the localInputState
     {"cmd":"triggerWdRelay"} trigger the external wd relay
+    {"cmd":"resetWdRelay"} resets the external wd relay
     {"cmd":"testWdRelay"} send the Test Command to the wd relay
     {"setRelay":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} set the Relay state
 
@@ -75,7 +76,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
         self.tagsIncluded(["firmware"])
         self.tagsIncluded(["avrdudePath"], optional = True, default = r'C:\Program Files (x86)\AVRDUDESS\avrdude.exe')
-        #self.tagsIncluded(["avrdudePath"], optional = True, default = fr'{os.getcwd()}\avrdude\avrdude.elf')
+        #self.tagsIncluded(["avrdudePath"], optional = True, default = "avrdude")
         self.firstLoop = True
         self.getDiagnosis = False
 
@@ -225,9 +226,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     def updateArduio(self):
         self.serialWrite(b"ReleaseReset\n") # support old USB Relais
         try:
-            self.deleteWdRelay()
+            self.resetWdRelay()
         except:
-            self.logger.error(self, f"Arduino update. deleteWdRelay() failed!")
+            self.logger.error(self, f"Arduino update. resetWdRelay() failed!")
 
         self.serialClose()
         tries = 0
@@ -280,7 +281,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             raise Exception("Watchdog was not 1 after trigger. We StopPowerplant.")
         return retval
 
-    def deleteWdRelay(self):
+    def resetWdRelay(self):
         self.sendRequest("W", "0")
 
     def readInputState(self):
@@ -321,6 +322,8 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"triggerWd":self.triggerWdRelay()}, globalPublish = False, enableEcho = False)
                 elif "testWdRelay" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"testWdRelay":self.testWdRelay()}, globalPublish = False, enableEcho = False)
+                elif "resetWdRelay" == newMqttMessageDict["content"]["cmd"]:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"resetWdRelay":self.resetWdRelay()}, globalPublish = False, enableEcho = False)
             elif "setRelay" in newMqttMessageDict["content"]:
                 self.setRelayStates(newMqttMessageDict["content"]["setRelay"])
 

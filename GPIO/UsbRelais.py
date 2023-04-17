@@ -19,6 +19,7 @@ class UsbRelais(ThreadObject):
         Constructor
         '''
         super().__init__(threadName, configuration)
+        self.tagsIncluded(["triggerThread"], optional = True, default = "noTriggerThreadDefined")
 
 
     def threadInitMethod(self):
@@ -44,9 +45,13 @@ class UsbRelais(ThreadObject):
             else:
                 # We assume that cmd or self.name is a key in this dict. Other keys will raise a key error. 
                 if "cmd" in newMqttMessageDict["content"]:
-                    if newMqttMessageDict["content"]["cmd"] == "triggerWdRelay" and "WatchDog" in newMqttMessageDict["topic"]:
-                        # This is a special msg, it will be only forwarded from a thread called WatchDog
-                        self.mqttPublish(self.interfaceInTopics[0], "triggerWdRelay", globalPublish = False, enableEcho = False)
+                    if newMqttMessageDict["content"]["cmd"] == "triggerWdRelay":
+                        if self.configuration["triggerThread"] in newMqttMessageDict["topic"]:
+                            # This is a special msg, it will be only forwarded from a thread called WatchDog
+                            self.mqttPublish(self.interfaceInTopics[0], "triggerWdRelay", globalPublish = False, enableEcho = False)
+                        else:
+                            # We got a watchdog trigger msg from a not authorised thread
+                            raise Exception(f'Not authourised thread wants to trigger watchdog! Check usbRelais parameter -triggerThread- and watchdogName from topic {newMqttMessageDict["topic"]}. Current accepted thread is {self.configuration["triggerThread"]}')
                     else:
                         self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
                 else:

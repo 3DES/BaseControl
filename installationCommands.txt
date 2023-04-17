@@ -2,6 +2,9 @@ Software instllation:
 cd home/pi
 pip install pyserial
 pip install paho-mqtt
+pip install pylontech
+pip install epevermodbus
+sudo apt-get install avrdude
 
 git clone "https://github.com/3DES/BaseControl.git"
 
@@ -12,13 +15,6 @@ cp BaseControl/project_xxx.json BaseControl/project.json
 cp BaseControl/base_control.service /etc/systemd/system/base_control.service
 systemctl daemon-reload
 systemctl enable base_control
-
-
-pip install pylontech
-pip install epevermodbus
-install Avrdude
-
-
 
 systemctl start base_control
 
