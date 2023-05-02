@@ -18,7 +18,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         deletes all "."
         return devicename + converted valueName
         """
-        newName = " ".join(re.findall('[A-Z][^A-Z]*', valueName))
+        newName = " ".join(re.findall('[a-z]+|[A-Z][^A-Z]*', valueName))
         sensorName = deviceName + " " + newName
         return sensorName.replace(".", "")
 
