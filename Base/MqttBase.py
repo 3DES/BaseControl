@@ -256,11 +256,17 @@ class MqttBase(Base):
         if "interfaces" in configuration:
             self.interfaceInTopics = []
             self.interfaceOutTopics = []
+            self.interfaceInTopicOwner = {}
+            self.interfaceOutTopicOwner = {}
             self.interfaceThreads = InterfaceFactory.createInterfaces(self.name, configuration["interfaces"])
             for interface in self.interfaceThreads:
                 topic = interface.getObjectTopic()
-                self.interfaceInTopics.append(self.createInTopic(topic))    # add IN topic of this interface to send messages
-                self.interfaceOutTopics.append(self.createOutTopic(topic))  # add OUT topic of this interface to send messages
+                inTopic = self.createInTopic(topic)
+                outTopic = self.createOutTopic(topic)
+                self.interfaceInTopics.append(inTopic)    # add IN topic of this interface to send messages
+                self.interfaceOutTopics.append(outTopic)  # add OUT topic of this interface to send messages
+                self.interfaceInTopicOwner[inTopic] = interface.name
+                self.interfaceOutTopicOwner[outTopic] = interface.name
                 if (interfaceQueues is not None) and (interface in interfaceQueues):
                     self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[interface])   # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
                 else:
@@ -482,6 +488,20 @@ class MqttBase(Base):
         Create topic for actual messages
         '''
         return topic + "/out/actual"
+
+
+    def getInterfaceNameFromOutTopic(self, topic):
+        if hasattr(self, 'interfaceOutTopicOwner') and topic in self.interfaceOutTopicOwner:
+            return self.interfaceOutTopicOwner[topic]
+        else:
+            return None
+
+
+    def getInterfaceNameFromInTopic(self, topic):
+        if hasattr(self, 'interfaceInTopicOwner') and topic in self.interfaceInTopicOwner:
+            return self.interfaceInTopicOwner[topic]
+        else:
+            return None
 
 
     def mqttSubscribeTopic(self, topic : str, globalSubscription : bool = False, queue : Queue = None):

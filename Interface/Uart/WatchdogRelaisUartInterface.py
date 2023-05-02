@@ -318,7 +318,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             if "cmd" in newMqttMessageDict["content"]:
                 if "readInputState" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"Inputs":self.localInputState}, globalPublish = False, enableEcho = False)
-                elif "triggerWdRelay" == newMqttMessageDict["content"]["cmd"]:
+                elif "triggerWd" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"triggerWd":self.triggerWdRelay()}, globalPublish = False, enableEcho = False)
                 elif "testWdRelay" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"testWdRelay":self.testWdRelay()}, globalPublish = False, enableEcho = False)

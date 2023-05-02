@@ -14,9 +14,15 @@ class DummyWBmsUartInterface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
+        self.HmaxVal = 3.7
+        self.LmaxVal = 3.5
+        
+        self.LminVal = 3.2
+        self.HminVal = 3.4
 
     def threadInitMethod(self):
         self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True}
+        #self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "VoltageList":[3.33,3.22,3.55,3.77], "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True}
 
 
     def threadMethod(self):
@@ -30,13 +36,15 @@ class DummyWBmsUartInterface(InterfaceBase):
 
             self.logger.info(self, " received queue message :" + str(newMqttMessageDict))
 
-        if self.timer(name = "timerSoc", timeout = 10):
+        if self.timer(name = "timerSoc", timeout = 8):
             self.timer(name = "timerSoc", remove = True)
-            if self.BmsWerte["Vmax"] == 4.0:
-                self.BmsWerte["Vmax"] = 3.0
+            if self.BmsWerte["Vmax"] == self.HmaxVal:
+                self.BmsWerte["Vmax"] = self.LmaxVal
+                self.BmsWerte["Vmin"] = self.LminVal
                 self.BmsWerte["Current"] = 50
             else:
-                self.BmsWerte["Vmax"] = 4.0
+                self.BmsWerte["Vmax"] = self.HmaxVal
+                self.BmsWerte["Vmin"] = self.HminVal
                 self.BmsWerte["Current"] = 10
             if self.BmsWerte["toggleIfMsgSeen"]:
                 self.BmsWerte["toggleIfMsgSeen"] = False
