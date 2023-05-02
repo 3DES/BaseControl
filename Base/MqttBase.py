@@ -634,7 +634,7 @@ class MqttBase(Base):
             senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 
 
-    def mqttDiscoverySwitch(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}):
+    def mqttDiscoverySwitch(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, onCmd = "", offCmd= ""):
         """
         sensorList: dict oder List der sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
@@ -649,7 +649,10 @@ class MqttBase(Base):
             if key not in ignoreKeys:
                 if key in nameDict:
                     niceName = nameDict[key]
-                preparedMsg = self.homeAutomation.getDiscoverySwitchCmd(senderObj.name, key, niceName)
+                if len(onCmd):
+                    preparedMsg = self.homeAutomation.getDiscoverySwitchOptimisticStringCmd(senderObj.name, key, onCmd, offCmd, niceName)
+                else:
+                    preparedMsg = self.homeAutomation.getDiscoverySwitchCmd(senderObj.name, key, niceName)
                 sensorTopic = self.homeAutomation.getDiscoverySwitchTopic(senderObj.name, key)
                 if sensorTopic:
                     senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)

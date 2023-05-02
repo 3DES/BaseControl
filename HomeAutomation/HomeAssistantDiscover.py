@@ -15,10 +15,12 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         """
         devicename: normally objectname
         valuename: normally keyname from a dict. "PvPower" will be converted to "Pv Power"
+        deletes all "."
         return devicename + converted valueName
         """
         newName = " ".join(re.findall('[A-Z][^A-Z]*', valueName))
-        return deviceName + " " + newName
+        sensorName = deviceName + " " + newName
+        return sensorName.replace(".", "")
 
     @classmethod
     def _getValueTemplateInt(cls, name):
@@ -41,6 +43,13 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         return r'{"%s" : false}' %name
 
     @classmethod
+    def prepareNameForTopicUse(cls, name):
+        forbiddenChar = [".","/"]
+        for char in forbiddenChar:
+            name = name.replace(char, "_")
+        return name
+
+    @classmethod
     def _getUnitOfMeasurement(cls, valueName):
         units = {"W":["power"], "A":["curr", "battdischarge", "battcharge"], "KWh":["daily", "produ"], "V":["spannung", "voltage", "vmin", "vmax"], "%":["prozent"]}
         for unit in units:
@@ -51,12 +60,12 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def getDiscoverySensorTopic(cls, deviceName, sensorName):
-        return f"homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
+        return f'homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config'
 
     @classmethod
     def getDiscoverySensorCmd(cls, deviceName, sensorName, niceName, unit, topicAd):
         """
-        https://www.home-assistant.io/docs/mqtt/discovery/
+        https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/sensor/garden/config"
         garden muss uniqe sein, die MSG muss retained sein,
         
@@ -106,7 +115,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     @classmethod
     def getDiscoverySelectorCmd(cls,  deviceName, optionList, niceName = ""):
         """
-        https://www.home-assistant.io/docs/mqtt/discovery/
+        https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/switch/garden/config"
         garden muss uniqe sein, die MSG muss retained sein,
         
@@ -139,7 +148,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     @classmethod
     def getDiscoveryInputNumberSliderCmd(cls,  deviceName, sensorName, niceName = "", minVal = 0, maxVal = 100):
         """
-        https://www.home-assistant.io/docs/mqtt/discovery/
+        https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/number/garden/config"
         garden muss uniqe sein, die MSG muss retained sein,
         
@@ -175,7 +184,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     @classmethod
     def getDiscoverySwitchCmd(cls,  deviceName, sensorName, niceName = ""):
         """
-        https://www.home-assistant.io/docs/mqtt/discovery/
+        https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/switch/garden/config"
         garden muss uniqe sein, die MSG muss retained sein,
 
@@ -198,5 +207,32 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
         templateMsg["payload_on"] = cls._getPayloadOn(sensorName)
         templateMsg["payload_off"] = cls._getPayloadOff(sensorName)
+        return templateMsg
+
+
+    @classmethod
+    def getDiscoverySwitchOptimisticStringCmd(cls,  deviceName, sensorName, onCmd, offCmd, niceName = ""):
+        """
+        https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
+        topic "homeassistant/switch/garden/config"
+        garden muss uniqe sein, die MSG muss retained sein,
+
+        message '{"name": "garden", "device_class": "motion", "state_topic": "homeassistant/switch/garden/state"}'
+        alle REQUIRED Values muessen enthalten sein, siehe dokumentation von z.b. binary_sensor oder sensor
+
+        Wenn kein niceName angegeben ist dann wird er gebildet. s. _getFrindlyName
+        deviceName: wird zum bilden des SensorTopics verwendet "BMS" wird zu "ProjektName/BMS/out"
+        sensorName: Name des Sensors
+        niceName: Hier kann der FrindlyName drin stehen
+        """
+        templateMsg = {"command_topic":"", "name": "", "payload_on":"", "payload_off":""}
+
+        templateMsg["command_topic"] = ThreadObject.createInTopic(ThreadObject.createProjectTopic(deviceName))
+        if len(niceName):
+            templateMsg["name"] = niceName
+        else:
+            templateMsg["name"] = cls._getFrindlyName(deviceName, sensorName)
+        templateMsg["payload_on"] = onCmd
+        templateMsg["payload_off"] = offCmd
         return templateMsg
 

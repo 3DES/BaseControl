@@ -164,6 +164,7 @@ class EffektaController(ThreadObject):
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomation.mqttDiscoverySensor(self, self.EffektaData["EffektaWerte"])
+        self.homeAutomation.mqttDiscoverySwitch(self, ["OverloadUtility"], onCmd="peb", offCmd="pdb")
         self.initialMqttSend = True
 
     def threadMethod(self):

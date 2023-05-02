@@ -45,3 +45,7 @@ class BaseHomeAutomation(Base.MqttBase.MqttBase):
     @classmethod
     def getDiscoverySwitchCmd(cls,  deviceName, sensorName, niceName = ""):
         pass
+    
+    @classmethod
+    def getDiscoverySwitchOptimisticStringCmd(cls,  deviceName, sensorName, onCmd, offCmd, niceName = ""):
+        pass
