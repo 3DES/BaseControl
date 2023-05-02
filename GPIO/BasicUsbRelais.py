@@ -3,7 +3,7 @@ import time
 from Base.ThreadObject import ThreadObject
 
 
-class UsbRelais(ThreadObject):
+class BasicUsbRelais(ThreadObject):
     '''
     This class generates a {"cmd":"readRelayState"} and {"cmd":"readInputState"} msg all 60s and publishes it to the interface
     This class forwards all msg globally from interface
@@ -47,8 +47,8 @@ class UsbRelais(ThreadObject):
                 if "cmd" in newMqttMessageDict["content"]:
                     if newMqttMessageDict["content"]["cmd"] == "triggerWdRelay":
                         if self.configuration["triggerThread"] in newMqttMessageDict["topic"]:
-                            # This is a special msg, it will be only forwarded from a thread called WatchDog
-                            self.mqttPublish(self.interfaceInTopics[0], "triggerWdRelay", globalPublish = False, enableEcho = False)
+                            # This is a special msg. Watchdog will be only triggered if the sender thread is accepted. We convert the Msg to prevent that a thread can trigger interface directly.
+                            self.mqttPublish(self.interfaceInTopics[0], {"cmd":"triggerWd"}, globalPublish = False, enableEcho = False)
                         else:
                             # We got a watchdog trigger msg from a not authorised thread
                             raise Exception(f'Not authourised thread wants to trigger watchdog! Check usbRelais parameter -triggerThread- and watchdogName from topic {newMqttMessageDict["topic"]}. Current accepted thread is {self.configuration["triggerThread"]}')

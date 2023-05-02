@@ -76,7 +76,7 @@
 
     "UsbRelais":
     {
-        "class":        "GPIO.UsbRelais.UsbRelais",
+        "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
         "interfaces":
         {
             "UartUsbRelais":

@@ -36,10 +36,21 @@
 
     "BMS":
     {
-        "class":        "BMS.BasicBms.BasicBms",
+        "class":         "BMS.BasicBms.BasicBms",
+        "relaisNames":   {"deviceName": "UsbRelais", "balanceRelais": "Relay6"},    # optional, but needs vbal in paramters
+        "watchdogName":  "WdUsbRelais",                                               # optional
+        #"parameters":    {"vBal": 3.5},                                             # optional
+        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional
         "interfaces":
         {
-            "UartBMS":
+            "BmsEins":
+            {
+                #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
+                "connection":   "Interface.Uart.DummyWBmsUartInterface.DummyWBmsUartInterface",
+                "interface":    "COM4",
+                "baudrate":     2400
+            },
+            "BmsZwei":
             {
                 #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
                 "connection":   "Interface.Uart.DummyWBmsUartInterface.DummyWBmsUartInterface",
@@ -66,7 +77,7 @@
 
     "UsbRelais":
     {
-        "class":        "GPIO.UsbRelais.UsbRelais",
+        "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
         "interfaces":
         {
             "UartUsbRelais":
@@ -81,7 +92,8 @@
 
 #    "WdUsbRelais":
 #    {
-#        "class":        "GPIO.UsbRelais.UsbRelais",
+#        "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
+#        "triggerThread":   "BMS",
 #        "interfaces":
 #        {
 #            "WdUartUsbRelais":
@@ -107,6 +119,20 @@
 #                "interface":    "COM7",
 #                "battCount":    1,
 #                "baudrate":     115200
+#            }
+#        }
+#    },
+
+#    "Epever":
+#    {
+#        "class":        "Charger.GenericCharger.GenericCharger",
+#        "interfaces":
+#        {
+#            "EpeverInterface":
+#            {
+#                "connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
+#                "interface":    "COM9",
+#                "address":     1
 #            }
 #        }
 #    },

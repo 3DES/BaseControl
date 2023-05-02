@@ -562,13 +562,24 @@ class MqttBase(Base):
 
     def mqttDiscoverySensor(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, unitDict = {}, topicAd = ""):
         """
-        sensorList: dict oder List der Sensoren die angelegt werden sollen
+        sensorList: dict, nestedDict oder List der Sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         nameDict: dict. Hier koennen einzelne keys mit einzelnen frindlyNames drin stehen
         unitDict: dict. Hier koennen einzelne keys mit einzelnen Einheiten drin stehen
         """
         if type(sensorList) == dict:
-            nameList = list(sensorList.keys())
+            nameList = []
+            for key in sensorList:
+                # dedect a nested dict
+                if type(sensorList[key]) == dict:
+                    for nestedKey in sensorList[key]:
+                        nameList.append(f"{key}.{nestedKey}")
+                        # check if key is a topic then extract threadname and create niceName with threadname and nested key
+                        if "/" in key:
+                            threadName = key.split("/")[1]
+                            nameDict[f"{key}.{nestedKey}"] = f"{threadName} {nestedKey}"
+                else:
+                    nameList.append(key)
         else:
             nameList = sensorList
         for key in nameList:
