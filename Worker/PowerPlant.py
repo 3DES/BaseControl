@@ -213,7 +213,7 @@ class PowerPlant(Worker):
         self.manageUtilityRelais(True)
 
     def manageUtilityRelais(self, initRelais=False):
-        # @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
+        # sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
         # Diese sollte aber bevor sie auf Netz schaltet in diesem Fall ca 1 min warten damit sich die Inverter synchronisieren können.
         def modifyRelaisData(relais, value, sendValue = False):
             self.localRelaisData[self.configuration["relaisNames"]["deviceName"]].update({relais:value})
@@ -221,7 +221,11 @@ class PowerPlant(Worker):
                 self.mqttPublish(self.getGpioTopic(), self.localRelaisData, globalPublish = False, enableEcho = False)
 
         def schalteRelaisAufNetz():
-            if self.transferToNetzState == 0:
+            # prüfen ob alle WR vom Netz versorgt werden
+            if not tmpglobalEffektaData["InputVoltageAnd"]:
+                if self.timer(name = "timerToNetz", timeout = 600, firstTimeTrue = True):
+                    self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden")
+            elif self.transferToNetzState == 0:
                 self.transferToNetzState+=1
                 self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Netz.")
                 modifyRelaisData(self.relNetzAus, self.aus)
@@ -304,6 +308,8 @@ class PowerPlant(Worker):
             return self.aufPvSchaltenErlaubt == True and (self.aktualMode == self.NetzMode or self.aktualMode == self.transferToInverter)
 
 
+        # todo hier input abfragen der ein Rückfallen bei stromausfall und Netzbetrieb liest (inverter schütz)
+
         if initRelais:
             modifyRelaisData(self.relNetzAus, self.aus)
             modifyRelaisData(self.relPvAus, self.aus)
@@ -329,13 +335,12 @@ class PowerPlant(Worker):
                     if self.SkriptWerte["WrMode"] == self.Akkumode and switchToInverterAllowed():
                         self.aktualMode = schalteRelaisAufPv()
                     elif self.SkriptWerte["WrMode"] == self.NetzMode and switchToUtiliyAllowed():
-                        # prüfen ob alle WR vom Netz versorgt werden
-                        if tmpglobalEffektaData["InputVoltageAnd"] == True:
-                            self.aktualMode = schalteRelaisAufNetz()
-                elif switchToInverterAllowed():
-                    # Wir resetten die Variable hier auch damit man durch aus und einchalten von PowerSaveMode das Umschalten auf Netz wieder frei gibt.
+                        self.aktualMode = schalteRelaisAufNetz()
+                else: # Powersave off
+                    # Wir resetten die Verriegelung hier auch, damit man durch aus und einchalten von PowerSaveMode das Umschalten auf Netz wieder frei gibt.
                     self.aufNetzSchaltenErlaubt = True
-                    self.aktualMode = schalteRelaisAufPv()
+                    if self.SkriptWerte["WrMode"] == self.Akkumode and switchToInverterAllowed():
+                        self.aktualMode = schalteRelaisAufPv()
                     if self.aktualMode == self.OutputVoltageError:
                         self.aufPvSchaltenErlaubt = False
             else:
