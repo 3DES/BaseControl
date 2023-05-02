@@ -43,7 +43,10 @@ class BasicUartInterface(InterfaceBase):
         except Exception as exception:
             self.logger.error(self, f"Serial Port {self.name} reInit failed: {exception}")
             success = False
-            # @todo perhaps wait a little bit
+            if self.timer(name = "timeoutReinit", timeout = 10*60):
+                raise Exception("Tried to reinit serial port since 10 min. Give up!")
+        if success and self.timerExists("timeoutReinit"):
+            self.timer(name = "timeoutReinit", remove = True)
         return success
 
     def serialClose(self):
