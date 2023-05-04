@@ -24,9 +24,7 @@ class BasicUsbRelais(ThreadObject):
 
     def threadInitMethod(self):
         self.mqttPublish(self.interfaceInTopics[0], "readRelayState", globalPublish = False, enableEcho = False)
-        #reset triggern
-        #auslesen triggern
-        pass
+        self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(self.configuration["triggerThread"]), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), globalSubscription = False)
 
     def threadMethod(self):
         # check if a new msg is waiting

@@ -562,10 +562,10 @@ class PowerPlant(Worker):
         # ABER a global subscriber subscribed automatisch a local, somit geht global und local immer an alle global subscriber und local nur an de local
 
         for device in self.expectedDevices:
-            self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
+            self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(device)), globalSubscription = False)
 
         for device in self.optionalDevices:
-            self.mqttSubscribeTopic(self.createOutTopicFilter(self.createProjectTopic(device)), globalSubscription = False)
+            self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(device)), globalSubscription = False)
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomation.mqttDiscoverySensor(self, self.sensorList)

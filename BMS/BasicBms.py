@@ -29,7 +29,6 @@ class BasicBms(ThreadObject):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.tagsIncluded(["watchdogName"], optional = True, default = "")
         self.tagsIncluded(["parameters"], optional = True, default = {})
         self.tagsIncluded(["relaisNames"], optional = True, default = {})
         self.allBmsDataTopicExtension = "/allData"
@@ -116,8 +115,7 @@ class BasicBms(ThreadObject):
                 toggleList.append(False)
                 self.globalBmsWerte["merged"]["toggleIfMsgSeen"] = False
         if all(toggleList):
-            if len(self.configuration["watchdogName"]):
-                self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["watchdogName"])), {"cmd":"triggerWdRelay"}, globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), {"cmd":"triggerWdRelay"}, globalPublish = False, enableEcho = False)
             for topic in list(self.bmsWerte):
                 self.bmsWerte[topic]["toggleSeen"] = False
             try:

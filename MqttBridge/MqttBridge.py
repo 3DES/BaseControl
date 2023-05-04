@@ -258,7 +258,7 @@ class MqttBridge(ThreadObject):
             while not self.get_mqttTxQueue().empty():
                 messageCounter += 1
                 self.turn += 1
-                self.logger.info(self, f"{messageCounter} {self.turn} {self.get_mqttTxQueue().qsize()}")
+                # self.logger.info(self, f"{messageCounter} {self.turn} {self.get_mqttTxQueue().qsize()}")
                 newMqttMessageDict = self.get_mqttTxQueue().get(block = False)      # read a message
     
                 # log received message in a more readable form

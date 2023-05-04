@@ -5,6 +5,7 @@ import threading
 import inspect
 from enum import Enum
 from queue import Queue
+from strenum import StrEnum    # pip install StrEnum
 
 
 from Base.Supporter import Supporter
@@ -41,6 +42,11 @@ class MqttBase(Base):
         SUBSCRIBE             = 7  # subscribe for local messages only, to un-subscribe use UNSUBSCRIBE
         UNSUBSCRIBE           = 8  # remove local and global subscriptions
         SUBSCRIBE_GLOBAL      = 9  # subscribe for local and global messages, to un-subscribe use UNSUBSCRIBE
+
+
+    class MQTT_SUBTOPIC(StrEnum):
+        TRIGGER_WATCHDOG      = 'watchdog'
+
 
     @classmethod
     def _illegal_call(cls):
@@ -475,19 +481,14 @@ class MqttBase(Base):
 
 
     @classmethod
-    def createOutTopic(cls, topic : str):
+    def createOutTopic(cls, topic : str, subTopic = None):
         '''
         Create topic for OUT messages
         '''
-        return topic + "/out"
-
-
-    @classmethod
-    def createActualTopic(cls, topic : str):
-        '''
-        Create topic for actual messages
-        '''
-        return topic + "/out/actual"
+        if subTopic is None:
+            return topic + "/out"
+        else:
+            return topic + "/out" + "/" + str(subTopic)
 
 
     def getInterfaceNameFromOutTopic(self, topic):
