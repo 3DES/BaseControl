@@ -38,7 +38,6 @@
     {
         "class":         "BMS.BasicBms.BasicBms",
         "relaisNames":   {"deviceName": "UsbRelais", "balanceRelais": "Relay6"},    # optional, but needs vbal in paramters
-        "watchdogName":  "WdUsbRelais",                                               # optional
         #"parameters":    {"vBal": 3.5},                                             # optional
         "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional
         "interfaces":
@@ -102,6 +101,7 @@
 #                #"connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
 #                "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
 #                "firmware":     "firmware.hex",
+#                #"avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
 #                "interface":    "COM5",
 #                "baudrate":     9600
 #            }

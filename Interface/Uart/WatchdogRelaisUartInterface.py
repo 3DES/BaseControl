@@ -75,8 +75,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         self.localInputState = {"Input0": "None", "Input1": "None", "Input2": "None", "Input3": "None"}
 
         self.tagsIncluded(["firmware"])
-        self.tagsIncluded(["avrdudePath"], optional = True, default = r'C:\Program Files (x86)\AVRDUDESS\avrdude.exe')
-        #self.tagsIncluded(["avrdudePath"], optional = True, default = "avrdude")
+        self.tagsIncluded(["avrdudePath"], optional = True, default = "avrdude")
         self.firstLoop = True
         self.getDiagnosis = False
 
