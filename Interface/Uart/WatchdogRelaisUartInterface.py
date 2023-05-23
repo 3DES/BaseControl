@@ -227,7 +227,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         try:
             self.resetWdRelay()
         except:
-            self.logger.error(self, f"Arduino update. resetWdRelay() failed!")
+            self.logger.error(self, f"Arduino update. resetWdRelay() not possible! Try to update now.")
 
         self.serialClose()
         tries = 0
@@ -255,7 +255,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
             hwFw = self.getHwVersion()
             if hwFw != ourFw:
-                raise Exception(f"Wrong firmware after update Ours: --{ourFw}-- Wd: --{hwFw}--")
+                raise Exception(f"Wrong firmware after update Ours: --{ourFw}-- Wd: --{hwFw}--. Required Bootloader: optiboot_atmega328.hex. Please check.")
         else:
             self.logger.info(self, f"Watchdog firmware is up to date. Ours: --{ourFw}-- Wd: --{hwFw}--")
 
