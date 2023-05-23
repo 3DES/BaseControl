@@ -17,8 +17,61 @@ class Epever485Interface(InterfaceBase):
         super().__init__(threadName, configuration)
         self.chargerValues = {"PvCurrent":0.0, "PvVoltage":0.0, "Power":0.0, "BattVoltage":0.0, "BattCurrent":0.0, "Error":False}
 
+    def readAndSetParameters(self):
+
+        '''
+        • When the battery type is "USE," the battery voltage parameters 
+        follow the following logic:
+        
+        A． Over Voltage Disconnect Voltage > Charging Limit Voltage ≥ 
+        Equalize Charging Voltage ≥ Boost Charging Voltage ≥ Float Charging 
+        Voltage > Boost Reconnect Charging Voltage.
+        B． Over Voltage Disconnect Voltage > Over Voltage Reconnect Voltage
+        C． Low Voltage Reconnect Voltage > Low Voltage Disconnect Voltage ≥ 
+        Discharging Limit Voltage.
+        D． Under Voltage Warning Reconnect Voltage>Under Voltage Warning 
+        Voltage≥ Discharging Limit Voltage;
+        E． Boost Reconnect Charging voltage >Low Voltage Reconnect Voltage.
+        '''
+        if self.configuration["floatVoltage"] and self.configuration["boostVoltage"]:
+            battery_voltage_control_registers = {
+                'over_voltage_disconnect_voltage': self.configuration["boostVoltage"] + 2.0,
+                'charging_limit_voltage': self.configuration["boostVoltage"] + 0.5,
+                'over_voltage_reconnect_voltage': self.configuration["boostVoltage"] + 0.5,
+                'equalize_charging_voltage': self.configuration["boostVoltage"],
+                'boost_charging_voltage': self.configuration["boostVoltage"],
+                'float_charging_voltage': self.configuration["floatVoltage"],
+                'boost_reconnect_charging_voltage': self.configuration["floatVoltage"] - 1.0
+            }
+
+            # get actual parameter values, update charge parameters and write it to charge controller
+            actual_battery_voltage_control_registers = self.controller.get_battery_voltage_control_registers()
+            set_battery_voltage_control_registers ={}
+            set_battery_voltage_control_registers.update(actual_battery_voltage_control_registers)
+            set_battery_voltage_control_registers.update(battery_voltage_control_registers)
+            if actual_battery_voltage_control_registers == set_battery_voltage_control_registers:
+                self.logger.info(self, "Epever parameters already set")
+            else:
+                self.controller.set_battery_voltage_control_registers_dict(set_battery_voltage_control_registers)
+
+                actual_battery_voltage_control_registers = self.controller.get_battery_voltage_control_registers()
+    
+                self.logger.info(self, "Epever parameters now set to:")
+                for param_name, param_value in actual_battery_voltage_control_registers.items():
+                    self.logger.info(self, f"{param_name}: {param_value}")
+    
+                # todo vergleichen und evtl exception
+                if actual_battery_voltage_control_registers == set_battery_voltage_control_registers:
+                    self.logger.info(self, "Epever parameters Ok")
+                else:
+                    raise Exception(f'Device --{self.name}-- Parameters are different to ours')
+        else:
+            self.logger.info(self, "No Voltage Parameters given!")
+
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "address"])
+        self.tagsIncluded(["boostVoltage"], optional = True, default = 0)
+        self.tagsIncluded(["floatVoltage"], optional = True, default = 0)
         self.tries = 0
         while self.tries <= self.maxInitTries:
             self.tries += 1
@@ -30,6 +83,7 @@ class Epever485Interface(InterfaceBase):
                 self.logger.info(self, f"Device --{self.name}-- {self.tries} from {self.maxInitTries} inits failed.")
                 if self.tries >= self.maxInitTries:
                     raise Exception(f'{self.name} connection could not established! Check interface and address')
+        self.readAndSetParameters()
 
     def threadMethod(self):
 
