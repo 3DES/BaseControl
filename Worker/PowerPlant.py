@@ -198,8 +198,10 @@ class PowerPlant(Worker):
         self.aufPvSchaltenErlaubt = True
         self.transferToNetzState = 0
         self.TransferToPvState = 0
+        self.errorTimerfinished = False
         #self.netzMode = "Netz"
         self.pvMode = "Inverter"
+        self.errorMode = "Error"
         self.transferToInverter = "transferToInverter"
         self.transferToNetz = "transferToNetz"
         self.OutputVoltageError = "OutputVoltageError"
@@ -210,33 +212,41 @@ class PowerPlant(Worker):
         self.ein = "1"
         self.aus = "0"
         self.localRelaisData = {self.configuration["relaisNames"]["deviceName"]:{self.relNetzAus: "unknown", self.relPvAus: "unknown", self.relWr2: "unknown", self.relWr1: "unknown"}}
-        self.manageUtilityRelais(True)
+        self.modifyRelaisData(self.relNetzAus, self.aus)
+        self.modifyRelaisData(self.relPvAus, self.aus)
+        self.modifyRelaisData(self.relWr1, self.aus)
+        self.modifyRelaisData(self.relWr2, self.aus, True)
+        # todo evtl überlegen ob es hier nicht sinnvoll ist, schalteRelaisAufNetz() aufzurufen. Dann schaltet die Anlage definiert um.
+        self.aktualMode = self.NetzMode
+        self.SkriptWerte["NetzRelais"] = self.aktualMode
+        self.sendeMqtt = True
 
-    def manageUtilityRelais(self, initRelais=False):
+    def modifyRelaisData(self, relais, value, sendValue = False):
+        self.localRelaisData[self.configuration["relaisNames"]["deviceName"]].update({relais:value})
+        if sendValue:
+            self.mqttPublish(self.getGpioTopic(), self.localRelaisData, globalPublish = False, enableEcho = False)
+
+    def manageUtilityRelais(self):
         # sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
         # Diese sollte aber bevor sie auf Netz schaltet in diesem Fall ca 1 min warten damit sich die Inverter synchronisieren können.
-        def modifyRelaisData(relais, value, sendValue = False):
-            self.localRelaisData[self.configuration["relaisNames"]["deviceName"]].update({relais:value})
-            if sendValue:
-                self.mqttPublish(self.getGpioTopic(), self.localRelaisData, globalPublish = False, enableEcho = False)
-
         def schalteRelaisAufNetz():
             # prüfen ob alle WR vom Netz versorgt werden
+            tmpglobalEffektaData = self.getLinkedEffektaData()
             if not tmpglobalEffektaData["InputVoltageAnd"]:
                 if self.timer(name = "timerToNetz", timeout = 600, firstTimeTrue = True):
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden")
             elif self.transferToNetzState == 0:
                 self.transferToNetzState+=1
                 self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Netz.")
-                modifyRelaisData(self.relNetzAus, self.aus)
-                modifyRelaisData(self.relPvAus, self.ein, True)
+                self.modifyRelaisData(self.relNetzAus, self.aus)
+                self.modifyRelaisData(self.relPvAus, self.ein, True)
             elif self.transferToNetzState == 1:
                 # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht währendessen abschalten
                 if self.timer(name = "timerToNetz", timeout = 30):
                     self.timer(name = "timerToNetz", remove = True)
                     self.transferToNetzState+=1
-                    modifyRelaisData(self.relWr1, self.aus)
-                    modifyRelaisData(self.relWr2, self.aus, True)
+                    self.modifyRelaisData(self.relWr1, self.aus)
+                    self.modifyRelaisData(self.relWr2, self.aus, True)
             elif self.transferToNetzState == 2:
                 # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                 #if self.timer(name = "timerToNetz", timeout = 35):
@@ -249,17 +259,17 @@ class PowerPlant(Worker):
                         self.SkriptWerte["PowerSaveMode"] = False
                         self.aufNetzSchaltenErlaubt = False
                         self.sendeMqtt = True
-                        # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zurück auf inverter geschaltet
+                        # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zurück auf inverter geschaltet wenn kein Fehler am Inverter anliegt
                         self.myPrint(Logger.LOG_LEVEL.ERROR, "Wechselrichter konnte nicht abgeschaltet werden. Er hat nach Wartezeit immer noch Spannung am Ausgang! Die Automatische Netzumschaltung wurde deaktiviert.")
                         # Wir setzen den Status bereits hier ohne Rücklesen damit das relPvAus nicht zurückgesetzt wird. (siehe zurücklesen der Relais Werte)
                     else:
-                        modifyRelaisData(self.relPvAus, self.aus, True)
+                        self.modifyRelaisData(self.relPvAus, self.aus, True)
                         # kurz warten damit das zurücklesen nicht zu schnell geht
                         time.sleep(0.5)
                     self.transferToNetzState = 0
                     # Wir wollen nicht zu oft am Tag umschalten. Maximal 1 mal am Tag auf Netz.
                     self.aufNetzSchaltenErlaubt = False
-                    self.myPrint(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf Inverter.")
+                    self.myPrint(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf Netz.")
                     return self.NetzMode
             return self.transferToNetz
 
@@ -269,10 +279,10 @@ class PowerPlant(Worker):
                 if self.timer(name = "timerToPv", timeout = 30):
                     self.timer(name = "timerToPv", remove = True)
                     self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf PV.")
-                    modifyRelaisData(self.relNetzAus, self.aus)
-                    modifyRelaisData(self.relPvAus, self.ein)
-                    modifyRelaisData(self.relWr1, self.ein)
-                    modifyRelaisData(self.relWr2, self.ein, True)
+                    self.modifyRelaisData(self.relNetzAus, self.aus)
+                    self.modifyRelaisData(self.relPvAus, self.ein)
+                    self.modifyRelaisData(self.relWr1, self.ein)
+                    self.modifyRelaisData(self.relWr2, self.ein, True)
                     self.TransferToPvState+=1
             elif self.TransferToPvState == 1:
                 if self.timer(name = "timeoutAcOut", timeout = 100):
@@ -282,8 +292,8 @@ class PowerPlant(Worker):
                     self.SkriptWerte["PowerSaveMode"] = False
                     self.sendeMqtt = True
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Die Automatische Netzumschaltung wurde deaktiviert.")
-                    modifyRelaisData(self.relWr1, self.aus)
-                    modifyRelaisData(self.relWr2, self.aus, True)
+                    self.modifyRelaisData(self.relWr1, self.aus)
+                    self.modifyRelaisData(self.relWr2, self.aus, True)
                     # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     self.sleeptime = 600
                     self.TransferToPvState+=1
@@ -295,9 +305,9 @@ class PowerPlant(Worker):
             elif self.TransferToPvState == 2:
                 if self.timer(name = "waitForOut", timeout = self.sleeptime):
                     self.timer(name = "waitForOut", remove = True)
-                    modifyRelaisData(self.relPvAus, self.aus, True)
+                    self.modifyRelaisData(self.relPvAus, self.aus, True)
                     self.TransferToPvState = 0
-                    self.myPrint(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf PV.")
+                    self.myPrint(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf Inverter.")
                     return self.pvMode
             return self.transferToInverter
 
@@ -307,52 +317,61 @@ class PowerPlant(Worker):
         def switchToInverterAllowed():
             return self.aufPvSchaltenErlaubt == True and (self.aktualMode == self.NetzMode or self.aktualMode == self.transferToInverter)
 
+        def switchToDeciredMode(mode):
+            if mode == self.Akkumode:
+                mode = self.pvMode
+            # VerbraucherAkku -> schalten auf PV, VerbraucherNetz -> schalten auf Netz, VerbraucherPVundNetz -> zwischen 6-22 Uhr auf PV sonst Netz 
+            if mode == self.pvMode and switchToInverterAllowed():
+                self.aktualMode = schalteRelaisAufPv()
+            elif mode == self.NetzMode and switchToUtiliyAllowed():
+                self.aktualMode = schalteRelaisAufNetz()
+            # Wenn der transfer noch nicht beendet wurde dann rufen wir die Funktionen so lange auf bis das der Fall ist
+            elif mode == self.pvMode and self.aktualMode == self.transferToNetz:
+                self.aktualMode = schalteRelaisAufNetz()
+            elif mode == self.NetzMode and self.aktualMode == self.transferToInverter:
+                self.aktualMode = schalteRelaisAufPv()
 
         # todo hier input abfragen der ein Rückfallen bei stromausfall und Netzbetrieb liest (inverter schütz)
 
-        if initRelais:
-            modifyRelaisData(self.relNetzAus, self.aus)
-            modifyRelaisData(self.relPvAus, self.aus)
-            modifyRelaisData(self.relWr1, self.aus)
-            modifyRelaisData(self.relWr2, self.aus, True)
-            # todo evtl überlegen ob es hier nicht sinnvoll ist, schalteRelaisAufNetz() aufzurufen. Dann schaltet die Anlage definiert um.
-            self.aktualMode = self.NetzMode
+        now = datetime.datetime.now()
+
+        tmpglobalEffektaData = self.getLinkedEffektaData()
+        if tmpglobalEffektaData["ErrorPresentOr"] == False:
+            # Timer und Variable zurück setzen
+            self.errorTimerfinished = False
+            if self.timerExists("ErrorTimer"):
+                self.timer(name = "ErrorTimer", remove = True)
+            if self.SkriptWerte["PowerSaveMode"] == True:
+                # Wir resetten die Variable einmal am Tag
+                # Nach der Winterzeit um 21 Uhr
+                if now.hour == 20 and now.minute == 1:
+                    self.aufNetzSchaltenErlaubt = True
+                    self.aufPvSchaltenErlaubt = True
+                    self.OutputVoltageError = False
+                switchToDeciredMode(self.SkriptWerte["WrMode"])
+            else: # Powersave off
+                # Wir resetten die Verriegelung hier auch, damit man durch aus und einchalten von PowerSaveMode das Umschalten auf Netz wieder frei gibt.
+                self.aufNetzSchaltenErlaubt = True
+                switchToDeciredMode(self.pvMode)
+                if self.aktualMode == self.OutputVoltageError:
+                    self.aufPvSchaltenErlaubt = False
+        else: # Fehler vom Inverter
+            # wir erlauben das umschalten auf netz damit die anlage auch ummschalten kann
+            self.aufNetzSchaltenErlaubt = True
+            # Wenn ein Fehler 80s ansteht, dann werden wir aktiv und schalten auf Netz um
+            if self.timer(name = "ErrorTimer", timeout = 80):
+                if not self.errorTimerfinished:
+                    self.myPrint(Logger.LOG_LEVEL.ERROR, "Fehler am Inverter erkannt. Wir schalten auf Netz.")
+                self.errorTimerfinished = True
+            if self.errorTimerfinished:
+                switchToDeciredMode(self.NetzMode)
+            # todo: wenn der fehler wieder weg ist nach dem umschalten auf Netz und abschlten der inverter, dann fallen wir in den if zweig und die Netzumschaltung schaltet wieder. Es könnte ein toggeln entstehen.
+
+
+        # Status des Netzrelais in Skriptwerte übertragen damit er auch gesendet wird
+        if self.SkriptWerte["NetzRelais"] != self.aktualMode:
             self.SkriptWerte["NetzRelais"] = self.aktualMode
             self.sendeMqtt = True
-        else:
-            now = datetime.datetime.now()
-
-            tmpglobalEffektaData = self.getLinkedEffektaData()
-            if tmpglobalEffektaData["ErrorPresentOr"] == False:
-                if self.SkriptWerte["PowerSaveMode"] == True:
-                    # Wir resetten die Variable einmal am Tag
-                    # Nach der Winterzeit um 21 Uhr
-                    if now.hour == 21 and now.minute == 1:
-                        self.aufNetzSchaltenErlaubt = True
-                        self.aufPvSchaltenErlaubt = True
-                        self.OutputVoltageError = False
-                    # VerbraucherAkku -> schalten auf PV, VerbraucherNetz -> schalten auf Netz, VerbraucherPVundNetz -> zwischen 6-22 Uhr auf PV sonst Netz 
-                    if self.SkriptWerte["WrMode"] == self.Akkumode and switchToInverterAllowed():
-                        self.aktualMode = schalteRelaisAufPv()
-                    elif self.SkriptWerte["WrMode"] == self.NetzMode and switchToUtiliyAllowed():
-                        self.aktualMode = schalteRelaisAufNetz()
-                else: # Powersave off
-                    # Wir resetten die Verriegelung hier auch, damit man durch aus und einchalten von PowerSaveMode das Umschalten auf Netz wieder frei gibt.
-                    self.aufNetzSchaltenErlaubt = True
-                    if self.SkriptWerte["WrMode"] == self.Akkumode and switchToInverterAllowed():
-                        self.aktualMode = schalteRelaisAufPv()
-                    if self.aktualMode == self.OutputVoltageError:
-                        self.aufPvSchaltenErlaubt = False
-            else:
-                # wir setzen das bit damit die anlage auch ummschalten kann
-                self.aufNetzSchaltenErlaubt = True
-                if switchToUtiliyAllowed():
-                    self.aktualMode = schalteRelaisAufNetz()
-
-            # Status des Netzrelais in Skriptwerte übertragen damit er auch gesendet wird
-            if self.SkriptWerte["NetzRelais"] != self.aktualMode:
-                self.SkriptWerte["NetzRelais"] = self.aktualMode
-                self.sendeMqtt = True
 
 
     def wetterPrognoseMorgenSchlecht(self):
@@ -549,7 +568,9 @@ class PowerPlant(Worker):
         # init some constants
         self.Akkumode = "Akku"
         self.NetzMode = "Netz"
+        # init TransferRelais to switch all Relais to initial position
         self.initTransferRelais()
+
 
         # subscribe global to own out topic to get old data and set timeout
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
@@ -608,6 +629,8 @@ class PowerPlant(Worker):
                 self.InitFirstLoop = False
                 self.addLinkedEffektaDataToHomeautomation()
                 self.initInverter()
+                # init TransferRelais a second Time to overwrite SkriptWerte{"NetzRelais"} with the initial value. The initial MQTT msg maybe wrote last state to this key! 
+                self.initTransferRelais()
 
 
             # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
@@ -695,7 +718,7 @@ class PowerPlant(Worker):
             self.passeSchaltschwellenAn()
 
             # Zum debuggen wollen wir das Relais nicht laufend ansteuern, darum warten wir
-            if self.timer(name = "timeoutTransferRelais", timeout = 10*60) or self.localDeviceData["initialRelaisTimeout"]:
+            if self.timer(name = "timeoutTransferRelais", timeout = 5*60) or self.localDeviceData["initialRelaisTimeout"]:
                 self.manageUtilityRelais()
                 self.localDeviceData["initialRelaisTimeout"] = True
 
