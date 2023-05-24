@@ -31,16 +31,16 @@ class GenericCharger(ThreadObject):
         if newValue == oldValue == 0:
             #myPrint("wert wird nicht uebernommen")
             return False
-            
+
         percent = percent * 0.01
         valuePercent = abs(oldValue) * percent
         
         if valuePercent < minAbs:
             valuePercent = minAbs
-            
+
         minPercent = oldValue - valuePercent
         maxPercent = oldValue + valuePercent
-        
+
         if minVal <= newValue <= maxVal and not (minPercent < newValue < maxPercent):
             #myPrint("wert wird uebernommen")
             return True
@@ -97,7 +97,7 @@ class GenericCharger(ThreadObject):
             else:
                 if "CompleteProduction" in newMqttMessageDict["content"]:
                     # if we get our own Data will overwrite internal data. For initial settings like ...Production
-                    self.CompleteProduction.update(newMqttMessageDict["content"])
+                    self.chargerValues["CompleteProduction"] = newMqttMessageDict["content"]["CompleteProduction"]
                     self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
 
 

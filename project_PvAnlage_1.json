@@ -46,7 +46,7 @@
         }
     },
 
-    "Epever":
+    "Balkon":
     {
         "class":        "Charger.GenericCharger.GenericCharger",
         "interfaces":
@@ -122,6 +122,7 @@
             "MqttBridge",
             "West",
             "Ost",
+            "Balkon",
             "BMS",
             "SocMonitor",
             "UsbRelais"
@@ -131,6 +132,7 @@
             "UartWrEffektaWest",
             "UartWrEffektaOst",
             "UartBMS",
+            "EpeverInterface",
             "UartSocMonitor",
             "UartUsbRelais",
             "Wetter"
