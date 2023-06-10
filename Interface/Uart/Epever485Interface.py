@@ -50,7 +50,7 @@ class Epever485Interface(InterfaceBase):
             set_battery_voltage_control_registers.update(actual_battery_voltage_control_registers)
             set_battery_voltage_control_registers.update(battery_voltage_control_registers)
             if actual_battery_voltage_control_registers == set_battery_voltage_control_registers:
-                self.logger.info(self, "Epever parameters already set")
+                self.logger.info(self, "Epever parameters are already set")
             else:
                 self.controller.set_battery_voltage_control_registers_dict(set_battery_voltage_control_registers)
 
@@ -68,21 +68,24 @@ class Epever485Interface(InterfaceBase):
         else:
             self.logger.info(self, "No Voltage Parameters given!")
 
-    def threadInitMethod(self):
-        self.tagsIncluded(["interface", "address"])
-        self.tagsIncluded(["boostVoltage"], optional = True, default = 0)
-        self.tagsIncluded(["floatVoltage"], optional = True, default = 0)
-        self.tries = 0
-        while self.tries <= self.maxInitTries:
-            self.tries += 1
+    def initEpeverWithRetry(self, retries = self.maxInitTries):
+        tries = 0
+        while tries <= retries:
+            tries += 1
             try:
                 self.controller = EpeverChargeController(self.configuration["interface"], self.configuration["address"])
                 break
             except:
                 time.sleep(10)
-                self.logger.info(self, f"Device --{self.name}-- {self.tries} from {self.maxInitTries} inits failed.")
+                self.logger.info(self, f"Device --{self.name}-- {tries} from {self.maxInitTries} inits failed.")
                 if self.tries >= self.maxInitTries:
                     raise Exception(f'{self.name} connection could not established! Check interface and address')
+
+    def threadInitMethod(self):
+        self.tagsIncluded(["interface", "address"])
+        self.tagsIncluded(["boostVoltage"], optional = True, default = 0)
+        self.tagsIncluded(["floatVoltage"], optional = True, default = 0)
+        self.initEpeverWithRetry()
         self.readAndSetParameters()
 
     def threadMethod(self):
@@ -97,14 +100,22 @@ class Epever485Interface(InterfaceBase):
 
             if "cmd" in newMqttMessageDict["content"]:
                 if "readState" == newMqttMessageDict["content"]["cmd"]:
-                    self.chargerValues["PvCurrent"] = self.controller.get_solar_current()
-                    self.chargerValues["PvVoltage"] = self.controller.get_solar_voltage()
-                    self.chargerValues["Power"] = self.controller.get_solar_power()
-                    self.chargerValues["BattVoltage"] = self.controller.get_battery_voltage()
-                    self.chargerValues["BattCurrent"] = self.controller.get_battery_current()
-                    self.chargerValues["Error"] = self.controller.is_device_over_temperature()
-
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = False, enableEcho = False)
+                    try:
+                        self.chargerValues["PvCurrent"] = self.controller.get_solar_current()
+                        self.chargerValues["PvVoltage"] = self.controller.get_solar_voltage()
+                        self.chargerValues["Power"] = self.controller.get_solar_power()
+                        self.chargerValues["BattVoltage"] = self.controller.get_battery_voltage()
+                        self.chargerValues["BattCurrent"] = self.controller.get_battery_current()
+                        self.chargerValues["Error"] = self.controller.is_device_over_temperature()
+    
+                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = False, enableEcho = False)
+                        if self.timerExists("ErrorTimer"):
+                            self.timer(name = "ErrorTimer", remove = True)
+                    except:
+                        self.logger.info(self, "Could not read Epever data, try to init again")
+                        self.initEpeverWithRetry(10)
+                        if self.timer(name = "ErrorTimer", timeout = 100):
+                            raise Exception(f'{self.name} Could not read Epever data for more than 100s')
 
     def threadBreak(self):
         time.sleep(0.5)
