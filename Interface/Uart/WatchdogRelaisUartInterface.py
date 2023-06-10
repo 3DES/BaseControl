@@ -115,6 +115,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         port        = 2
         errorType   = 2
         firmwareName= 2
+        testResult  = 2
         value       = 3
         newValue    = 4
         # now the ErrorCodings from Relais
@@ -133,10 +134,10 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         del msg[-1]                                         # delete crc
         crc = self.getCRC(";".join(msg)+self.separator)     # calculate crc
         if crc != msgCrc:
-            self.logger.error(self, f"Wrong CRC received")
+            self.logger.error(self, f"Wrong CRC received. Ours: {crc}, Wd: {msgCrc}")
             return {"Error":"crc"}
         if not int(msg[framenumber]) == self.frameCounter:
-            self.logger.error(self, f"Framenumber not same. {self.frameCounter} {msg[framenumber]}")
+            self.logger.error(self, f"Framenumber not same. Ours: {self.frameCounter} Wd: {msg[framenumber]}")
             return {"Error":"framenumber", "requiredFramenumber":int(msg[framenumber])}
         if msg[cmd] == "S":
             return {self.getKeyFromVal(self.relayMapping, msg[port]):msg[newValue]}
@@ -146,6 +147,10 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             return msg[firmwareName]
         elif msg[cmd] == "W":
             return msg[value]
+        elif msg[cmd] == "T":
+            return msg[testResult]
+        elif msg[cmd] == "D":
+            return ";".join(msg)
         elif msg[cmd] == "E":
             self.logger.error(self, f"Relay respondet an error: {msg}")
             if msg[errorType] == eERROR_INVALID_CRC:
@@ -159,7 +164,8 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     def processSerialCmd(self, cmd):
         for tries in range(5):
             self.serialReset_input_buffer()
-            self.serialWrite(self.getCommand(cmd))
+            wdCommand = self.getCommand(cmd)
+            self.serialWrite(wdCommand)
             response = self.serialReadLine()
             procMsg = self.processMsg(Supporter.decode(response))
             if not "Error" in procMsg:
@@ -171,9 +177,6 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 if procMsg["Error"] == "noMsg" and cmd == "V":
                     # If we got no msg on version request we suggess that there is a new Arduino plugged in.
                     return "newArduino"
-                if not self.getDiagnosis:
-                    # prevent recursion if we get an error while getAndLogDiagnosis()
-                    self.getAndLogDiagnosis()
                 if procMsg["Error"] == "framenumber":
                     self.logger.error(self, f"We try to set right framenumber, and resend msg. Tries: {tries}")
                     self.frameCounter = procMsg["requiredFramenumber"]
@@ -181,8 +184,12 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 elif procMsg["Error"] == "invalidStartup":
                     raise Exception("Got an invalid startup error from watchdog!")
                 elif procMsg["Error"] == "crc":
-                    self.logger.error(self, f"Crc Error! We try to resend msg. Tries: {tries}")
-        raise Exception("After few relais errors we stop Basecontrol")
+                    self.logger.error(self, f"Crc Error! We try to resend msg. Retries: {tries}")
+                if not self.getDiagnosis:
+                    # prevent recursion if we get an error while getAndLogDiagnosis()
+                    self.logger.error(self, f"We sended cmd: {wdCommand}")
+                    self.getAndLogDiagnosis()
+        raise Exception("After few communication errors we stop Basecontrol")
 
     def sendCommand(self, command):
         cmdstr = f"{command}"
@@ -255,24 +262,24 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
             hwFw = self.getHwVersion()
             if hwFw != ourFw:
-                raise Exception(f"Wrong firmware after update Ours: --{ourFw}-- Wd: --{hwFw}--. Required Bootloader: optiboot_atmega328.hex. Please check.")
+                raise Exception(f"Wrong firmware after update Ours: --{ourFw}-- Wd: --{hwFw}--. Required Bootloader: ../BaseControl/Firmware/optiboot_atmega328.hex. Please check.")
         else:
             self.logger.info(self, f"Watchdog firmware is up to date. Ours: --{ourFw}-- Wd: --{hwFw}--")
 
     def getAndLogDiagnosis(self):
-        #self.getDiagnosis = True        # To Prevent Recursion during handling error and get a error during getAndLogDiagnosis()
-        #self.logger.error(self,f'Watchdog Diagnosis: {self.sendCommand("D")}')  todo support in process msg
-        #self.getDiagnosis = False
-        self.logger.info(self, f"Watchdog diagnosis is not supportet in this firmware.")
-
-    def testWdRelay(self):
-        #return self.sendCommand("T") todo support in process msg
-        self.logger.info(self, f"Watchdog Test is not supportet in this firmware.")
-
+        self.getDiagnosis = True        # To Prevent Recursion during handling error and get a error during getAndLogDiagnosis()
+        self.logger.error(self,f'Watchdog Diagnosis: {self.sendCommand("D")}')
+        self.getDiagnosis = False
 
 
 
     # now the funktions to manage relay
+    def testWdRelay(self):
+        result = self.sendCommand("T")
+        if not result == "1":
+            self.logger.error(self,f'Test command rejected! Watchdog Diagnosis: {self.sendCommand("D")}')
+        return result
+
     def triggerWdRelay(self):
         retval = self.sendRequest("W", "1")
         if not retval == "1":
@@ -316,7 +323,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
             if "cmd" in newMqttMessageDict["content"]:
                 if "readInputState" == newMqttMessageDict["content"]["cmd"]:
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"Inputs":self.localInputState}, globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"inputs":self.localInputState}, globalPublish = False, enableEcho = False)
                 elif "triggerWd" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"triggerWd":self.triggerWdRelay()}, globalPublish = False, enableEcho = False)
                 elif "testWdRelay" == newMqttMessageDict["content"]["cmd"]:

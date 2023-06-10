@@ -39,7 +39,8 @@ class BasicUsbRelais(ThreadObject):
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
                 #todo evtl ausgelesenen wert mit localen vergleichen und nur dann weiterschicken
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
+                if not "triggerWd" in newMqttMessageDict["content"]:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
             else:
                 # We assume that cmd or self.name is a key in this dict. Other keys will raise a key error. 
                 if "cmd" in newMqttMessageDict["content"]:
@@ -59,6 +60,9 @@ class BasicUsbRelais(ThreadObject):
         if self.timer(name = "timerStateReq", timeout = 60):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readRelayState"}, globalPublish = False, enableEcho = False)
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readInputState"}, globalPublish = False, enableEcho = False)
+
+        if self.timer(name = "timerTestWd", timeout = 10):
+            self.mqttPublish(self.interfaceInTopics[0], {"cmd":"testWdRelay"}, globalPublish = False, enableEcho = False)
 
     def threadBreak(self):
         time.sleep(0.1)
