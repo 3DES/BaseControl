@@ -1,0 +1,5 @@
+StrEnum==0.4.10
+pyserial==3.5
+paho-mqtt==1.6.1
+pylontech==0.2.1
+epevermodbus==0.0.16

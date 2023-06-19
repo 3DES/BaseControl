@@ -1,13 +1,10 @@
 Software instllation:
 cd home/pi
-pip install StrEnum
-pip install pyserial
-pip install paho-mqtt
-pip install pylontech
-pip install epevermodbus
 sudo apt-get install avrdude
 
 git clone "https://github.com/3DES/BaseControl.git"
+
+sudo pip install -r BaseControl/reqirements.txt
 
 # create and/or copy your own ...project....json #
 cp BaseControl/project_xxx.json BaseControl/project.json
@@ -28,3 +25,10 @@ cd home/pi/BaseControl
 systemctl stop base_control
 git pull
 systemctl start base_control
+
+
+
+
+Start manually:
+cd BaseControl
+python3 __main__.py
