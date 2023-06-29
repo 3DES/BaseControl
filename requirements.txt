@@ -3,3 +3,4 @@ pyserial==3.*
 paho-mqtt==1.6.*
 pylontech==0.1.*
 epevermodbus==0.0.16
+requests==2.31.*
