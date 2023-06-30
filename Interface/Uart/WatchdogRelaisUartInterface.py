@@ -208,12 +208,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         return version
 
     def getFirmwarePath(self):
-        path1 = fr'\Firmware\{self.configuration["firmware"]}'
-        if os.path.exists(path1):
-            return path1
-        else:
-            # eclipse with windoof
-            return fr'{os.getcwd()}\Firmware\{self.configuration["firmware"]}'
+        return os.path.join(os.getcwd(), "Firmware", self.configuration["firmware"])
 
     def runAvrDude(self):
         return subprocess.run([self.configuration["avrdudePath"], '-c', 'arduino', '-p', 'm328p', '-P', self.configuration["interface"], '-b', '115200', '-U', fr'flash:w:{self.getFirmwarePath()}:a'], capture_output=True)
