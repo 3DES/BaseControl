@@ -158,7 +158,7 @@ class BasicUartInterface(InterfaceBase):
                 break
             except:
                 time.sleep(2)
-                self.logger.info(self, f'Serial connection --{self.configuration["interface"]}-- init. {self.tries} of {self.maxInitTries} failed.')
+                self.logger.error(self, f'Serial connection --{self.configuration["interface"]}-- init. {self.tries} of {self.maxInitTries} failed.')
                 if self.tries >= self.maxInitTries:
                     raise Exception(f'Serial connection --{self.configuration["interface"]}-- could not established')
         self.logger.info(self, f'Serial connection --{self.configuration["interface"]}-- initialised.')

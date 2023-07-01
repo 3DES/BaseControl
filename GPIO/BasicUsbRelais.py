@@ -61,7 +61,8 @@ class BasicUsbRelais(ThreadObject):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readRelayState"}, globalPublish = False, enableEcho = False)
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readInputState"}, globalPublish = False, enableEcho = False)
 
-        if self.timer(name = "timerTestWd", timeout = 10):
+        # Watchdog Test every max 100h, we do it all 4d
+        if self.timer(name = "timerTestWd", timeout = 4*24*60*60):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"testWdRelay"}, globalPublish = False, enableEcho = False)
 
     def threadBreak(self):

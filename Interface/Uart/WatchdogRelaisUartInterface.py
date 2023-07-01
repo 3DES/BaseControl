@@ -168,6 +168,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             self.serialWrite(wdCommand)
             response = self.serialReadLine()
             procMsg = self.processMsg(Supporter.decode(response))
+            self.logger.info(self, f"cmd: {cmd}, response: {response}, procMsg: {procMsg}")
             if not "Error" in procMsg:
                 self.frameCounter +=1
                 if self.frameCounter > 0xFFFF:

@@ -137,11 +137,12 @@
 #        }
 #    },
 
-#    "PowerPlant":
-#    {
+    "PowerPlant":
+    {
 #        "socMonitorName": "Pylontech",
 #        "bmsName": "Pylontech"
-#    },
+        "relaisNames": {"deviceName": "WdUsbRelais", "relWr1": "Relay1", "relWr2": "Relay5", "relPvAus": "Relay4", "relNetzAus": "Relay2"}
+    },
 
 #    "WatchDog":
 #    {
