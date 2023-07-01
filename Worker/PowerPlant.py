@@ -231,10 +231,11 @@ class PowerPlant(Worker):
         # Diese sollte aber bevor sie auf Netz schaltet in diesem Fall ca 1 min warten damit sich die Inverter synchronisieren können.
         def schalteRelaisAufNetz():
             # prüfen ob alle WR vom Netz versorgt werden
+            # todo was ist wenn das Netz ausfällt während des umschaltens (sichereung)
             tmpglobalEffektaData = self.getLinkedEffektaData()
             if not tmpglobalEffektaData["InputVoltageAnd"]:
                 if self.timer(name = "timerToNetz", timeout = 600, firstTimeTrue = True):
-                    self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden")
+                    self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden!")
             elif self.transferToNetzState == 0:
                 self.transferToNetzState+=1
                 self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Netz.")
@@ -275,8 +276,11 @@ class PowerPlant(Worker):
 
         def schalteRelaisAufPv():
             if self.TransferToPvState == 0:
+                if tmpglobalEffektaData["OutputVoltageHighOr"] == True:
+                    if self.timer(name = "timerToPv", timeout = 600, firstTimeTrue = True):
+                        self.myPrint(Logger.LOG_LEVEL.ERROR, "Output liefert bereits Spannung!")
                 # warten bis Parameter geschrieben sind
-                if self.timer(name = "timerToPv", timeout = 30):
+                elif self.timer(name = "timerToPv", timeout = 30):
                     self.timer(name = "timerToPv", remove = True)
                     self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf PV.")
                     self.modifyRelaisData(self.relNetzAus, self.aus)
