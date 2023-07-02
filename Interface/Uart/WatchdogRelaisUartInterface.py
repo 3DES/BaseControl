@@ -60,6 +60,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     '''
     magicWord = "4D4853574D485357"          # MHSWMHSW
     maxUpdateTries = 4
+    bootTime = 2.5
 
 
     def __init__(self, threadName : str, configuration : dict):
@@ -230,7 +231,6 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             return bytes.fromhex(ourFw).decode('utf-8')
 
     def updateArduio(self):
-        self.serialWrite(b"ReleaseReset\n") # support old USB Relais
         try:
             self.resetWdRelay()
         except:
@@ -246,10 +246,10 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 self.logger.error(self, f"Arduino update. Wait 35s and Retry.")
                 time.sleep(35)    # Wait because the reset of arduino migth be locked. It will be unlocked 30s after resetWdRelay.
             else:
-                self.logger.info(self, f"Arduino update Ok. RetVal: {avrDudeRet.stdout}, {avrDudeRet.stderr}")
+                self.logger.info(self, f"Arduino update Ok")
                 self.reInitSerial()
                 self.frameCounter = 0
-                time.sleep(2.5)   # Firmware and Bootloader needs 1.5s for startup. If wd is 0 (and therewith ResetLock) the watchdogrelais will restart with opening com port.
+                time.sleep(self.bootTime)
                 self.getAndLogDiagnosis()
                 break
 
@@ -302,7 +302,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
     def threadMethod(self):
         if self.firstLoop:
-            time.sleep(2.5)   # Firmware and Bootloader needs 1.5s for startup. If wd is 0 (and therewith ResetLock) the watchdogrelais will restart during opening com port.
+            time.sleep(self.bootTime)
             self.firstLoop = False
             self.getVersionAndUpdate()
             self.setRelayStates({"Relay0": "0", "Relay1": "0", "Relay2": "0", "Relay3": "0", "Relay4": "0", "Relay5": "0", "Relay6": "0"})

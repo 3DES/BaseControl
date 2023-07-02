@@ -4,6 +4,7 @@ from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
 from Worker.Worker import Worker
 from GridLoad.SocMeter import SocMeter
+from GPIO.BasicUsbRelais import BasicUsbRelais
 from Base.Supporter import Supporter
 from Inverter.EffektaController import EffektaController
 import Base
@@ -51,6 +52,8 @@ class PowerPlant(Worker):
                     Commands to each given inverter. (managedEffektas)
             SocMonitor:
                     sends "resetSoc" if floatMode from inverter is set (rising edge)
+            OutTopic:
+                    {"BasicUsbRelais.gpioCmd":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}}
 
 
     '''
@@ -189,9 +192,6 @@ class PowerPlant(Worker):
         else:
             self.ResetSocSended = False
 
-    def getGpioTopic(self):
-        return self.createInTopic(self.createProjectTopic(self.configuration["relaisNames"]["deviceName"]))
-
     def initTransferRelais(self):
         # subscribe global to in topic to get PowerSaveMode
         self.aufNetzSchaltenErlaubt = True
@@ -205,26 +205,24 @@ class PowerPlant(Worker):
         self.transferToInverter = "transferToInverter"
         self.transferToNetz = "transferToNetz"
         self.OutputVoltageError = "OutputVoltageError"
-        self.relWr1 = self.configuration["relaisNames"]["relWr1"]
-        self.relWr2 = self.configuration["relaisNames"]["relWr2"]
-        self.relPvAus = self.configuration["relaisNames"]["relPvAus"]
-        self.relNetzAus = self.configuration["relaisNames"]["relNetzAus"]
+        self.relWr1 = "relWr"
+        self.relPvAus = "relPvAus"
+        self.relNetzAus = "relNetzAus"
         self.ein = "1"
         self.aus = "0"
-        self.localRelaisData = {self.configuration["relaisNames"]["deviceName"]:{self.relNetzAus: "unknown", self.relPvAus: "unknown", self.relWr2: "unknown", self.relWr1: "unknown"}}
+        self.localRelaisData = {BasicUsbRelais.gpioCmd:{self.relNetzAus: "unknown", self.relPvAus: "unknown", self.relWr1: "unknown"}}
         self.modifyRelaisData(self.relNetzAus, self.aus)
         self.modifyRelaisData(self.relPvAus, self.aus)
-        self.modifyRelaisData(self.relWr1, self.aus)
-        self.modifyRelaisData(self.relWr2, self.aus, True)
+        self.modifyRelaisData(self.relWr1, self.aus, True)
         # todo evtl überlegen ob es hier nicht sinnvoll ist, schalteRelaisAufNetz() aufzurufen. Dann schaltet die Anlage definiert um.
         self.aktualMode = self.NetzMode
         self.SkriptWerte["NetzRelais"] = self.aktualMode
         self.sendeMqtt = True
 
     def modifyRelaisData(self, relais, value, sendValue = False):
-        self.localRelaisData[self.configuration["relaisNames"]["deviceName"]].update({relais:value})
+        self.localRelaisData[BasicUsbRelais.gpioCmd].update({relais:value})
         if sendValue:
-            self.mqttPublish(self.getGpioTopic(), self.localRelaisData, globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.localRelaisData, globalPublish = False, enableEcho = False)
 
     def manageUtilityRelais(self):
         # sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
@@ -246,8 +244,7 @@ class PowerPlant(Worker):
                 if self.timer(name = "timerToNetz", timeout = 30):
                     self.timer(name = "timerToNetz", remove = True)
                     self.transferToNetzState+=1
-                    self.modifyRelaisData(self.relWr1, self.aus)
-                    self.modifyRelaisData(self.relWr2, self.aus, True)
+                    self.modifyRelaisData(self.relWr1, self.aus, True)
             elif self.transferToNetzState == 2:
                 # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                 #if self.timer(name = "timerToNetz", timeout = 35):
@@ -285,8 +282,7 @@ class PowerPlant(Worker):
                     self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf PV.")
                     self.modifyRelaisData(self.relNetzAus, self.aus)
                     self.modifyRelaisData(self.relPvAus, self.ein)
-                    self.modifyRelaisData(self.relWr1, self.ein)
-                    self.modifyRelaisData(self.relWr2, self.ein, True)
+                    self.modifyRelaisData(self.relWr1, self.ein, True)
                     self.TransferToPvState+=1
             elif self.TransferToPvState == 1:
                 if self.timer(name = "timeoutAcOut", timeout = 100):
@@ -296,8 +292,7 @@ class PowerPlant(Worker):
                     self.SkriptWerte["PowerSaveMode"] = False
                     self.sendeMqtt = True
                     self.myPrint(Logger.LOG_LEVEL.ERROR, "Die Automatische Netzumschaltung wurde deaktiviert.")
-                    self.modifyRelaisData(self.relWr1, self.aus)
-                    self.modifyRelaisData(self.relWr2, self.aus, True)
+                    self.modifyRelaisData(self.relWr1, self.aus, True)
                     # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     self.sleeptime = 600
                     self.TransferToPvState+=1
@@ -535,7 +530,7 @@ class PowerPlant(Worker):
                     self.myPrint(Logger.LOG_LEVEL.INFO, "Starte PowerPlant!")
 
     def threadInitMethod(self):
-        self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName", "relaisNames"])
+        self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName"])
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
         # Threadnames we have to wait for a initial message. The worker need this data.
         self.expectedDevices = []

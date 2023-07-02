@@ -89,24 +89,25 @@
         }
     },
 
-#    "WdUsbRelais":
-#    {
-#        "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
-#        "triggerThread":   "BMS",
-#        "interfaces":
-#        {
-#            "WdUartUsbRelais":
-#            {
-#                #"connection":   "Interface.Uart.UsbRelaisUartInterface.UsbRelaisUartInterface",
-#                #"connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
-#                "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
-#                "firmware":     "firmware.hex",
-#                #"avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
-#                "interface":    "COM5",
-#                "baudrate":     9600
-#            }
-#        }
-#    },
+    "WdUsbRelais":
+    {
+        "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
+        "triggerThread":   "BMS",
+        "gpioHandler": ["PowerPlant"],
+        "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay5", "relPvAus": "Relay4", "relNetzAus": "Relay2"},
+        "interfaces":
+        {
+           "WdUartUsbRelais":
+           {
+                "connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
+                #"connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
+                "firmware":     "firmware.hex",
+                "avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
+                "interface":    "COM5",
+                "baudrate":     9600
+            }
+        }
+    },
 
 #    "Pylontech":
 #    {
@@ -131,7 +132,9 @@
 #            "EpeverInterface":
 #            {
 #                "connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
-#                "interface":    "COM9",
+#                "interface":    "COM12",
+#                "floatVoltage": 52.7,          # optional, if both voltages are given we configure epever
+#                "boostVoltage": 53.6,          # optional
 #                "address":     1
 #            }
 #        }
@@ -141,7 +144,6 @@
     {
 #        "socMonitorName": "Pylontech",
 #        "bmsName": "Pylontech"
-        "relaisNames": {"deviceName": "WdUsbRelais", "relWr1": "Relay1", "relWr2": "Relay5", "relPvAus": "Relay4", "relNetzAus": "Relay2"}
     },
 
 #    "WatchDog":
@@ -178,8 +180,7 @@
 
     "Wetter":
     {
-        "class": "Weather.Weather.WetterOnline",
-        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
+        "class": "Weather.Weather.WetterOnline"
     }
 
 }

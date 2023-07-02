@@ -1,8 +1,18 @@
 {
-    "Mosquitto":
+    "MqttBridge":
     {
-        "server":     "192.123.123.123",
-        "user":         "User",
-        "password":     "Pass"
+        "interfaces":
+        {
+            "Mosquitto":
+            {
+                "server":     "192.168.123.123",
+                "user":         "user",
+                "password":     "pass"
+            }
+        }
+    },
+    "Wetter":
+    {
+        "weatherUrl": "https://www.wetteronline.de/wetter/berlin?prefpar=sun"
     }
 }

@@ -93,6 +93,8 @@
     "UsbRelais":
     {
         "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
+        "gpioHandler": ["PowerPlant"],
+        "relMapping":{"relWr": ["Relay4", "Relay3"], "relPvAus": "Relay2", "relNetzAus": "Relay1"},
         "interfaces":
         {
             "UartUsbRelais":
@@ -147,14 +149,12 @@
         "socMonitorName": "SocMonitor",
         "bmsName": "BMS",
         "weatherName": "Wetter",                            # optional
-        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
         "initModeEffekta": "Auto"                           # Auto, Akku, Netz.  Fallback: Netz
     },
 
     "Wetter":
     {
         "class": "Weather.Weather.WetterOnline",
-        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
     }
 }
 

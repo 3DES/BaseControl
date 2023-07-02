@@ -6,7 +6,6 @@
         "socMonitorName": "SocMonitor",
         "bmsName": "BMS",
         "weatherName": "Wetter",                            # optional
-        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
         "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     },
 
@@ -14,11 +13,10 @@
 #    "PowerPlant":
 #    {
 #        "class": "Worker.PowerPlant.PowerPlant",
-#        "managedEffektas": ["WrEffektaWest"],
+#        "managedEffektas": ["WrEffektaWest", "WrEffektaOst"],
 #        "socMonitorName": "Pylontech",
 #        "bmsName": "Pylontech",
 #        "weatherName": "Wetter",                            # optional
-#        "relaisNames": {"deviceName": "UsbRelais", "relWr1": "Relay4", "relWr2": "Relay3", "relPvAus": "Relay2", "relNetzAus": "Relay1"},
 #        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
 #    },
 
@@ -44,8 +42,8 @@
 #                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
 #                "server":       "localhost",
 #                "port":         1883,
-#                "user":         "user",
-#                "password":     "password",
+#                "user":         "user",        # put this in your secure.json see secureExample.json
+#                "password":     "password",    # put this in your secure.json see secureExample.json
 #                "sendRetained": true                       # for tests you can send not retained
 #            }
         }
@@ -55,22 +53,6 @@
 #    "WatchDog":
 #    {
 #        "class":      "WatchDog.WatchDog.WatchDog",
-#        "interfaces":
-#        {
-#            "WatchDogUart":
-#            {
-#                "connection":  "Interface.Uart.UartInterface.UartInterface",
-#                #"interface":   "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A9HSILDS-if00-port0",
-#                "interface":   "COM6",
-#                "baudrate":    9600, 
-#                #"bytesize":    8,               # 5, 6, 7, 8
-#                #"parity":      "N",             # [N]one, [O]dd, [E]ven, [M]ark, [S]pace
-#                #"stopbits":    1.5              # 1, 1.5, 2
-#                #"xonxoff":    1,               # on = 1, off = 0
-#                #"rtscts":     1,               # on = 1, off = 0
-#                #"timeout":    1,               # read timeout in seconds
-#            }
-#        },
 #        "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
 #        "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
 #        "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
@@ -178,16 +160,35 @@
 #        }
 #    },
 
+#    "WdUsbRelais":
+#    {
+#        "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
+#        "triggerThread":   "BMS",
+#        "gpioHandler": ["PowerPlant"],
+#        "relMapping":{"relWr": ["Relay1", "Relay5"], "relPvAus": "Relay4", "relNetzAus": "Relay2"},
+#        "interfaces":
+#        {
+#            "WdUartUsbRelais":
+#           {
+#                "connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
+#                #"connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
+#                "firmware":     "firmware.hex",
+#                "avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
+#                "interface":    "COM5",
+#                "baudrate":     9600
+#            }
+#        }
+#    },
+
 #    "Wetter":
 #    {
 #        "class": "Weather.Weather.WetterOnline",
-#        "weatherUrl": "https://www.wetteronline.de/wetter/geratskirchen?prefpar=sun"
+#        "weatherUrl": "https://www.wetteronline.de/wetter/berlin?prefpar=sun"     # put this in your secure.json see secureExample.json
 #    }
 
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
     "@import": [
-#        "./project_DummyInterface.json",
         "./project.json",
         "./secure.json"
     ]
