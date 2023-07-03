@@ -1,7 +1,7 @@
 import time
-import datetime
 import json
 from Base.ThreadObject import ThreadObject
+from GPIO.BasicUsbRelais import BasicUsbRelais
 
 
 class BasicBms(ThreadObject):
@@ -17,12 +17,14 @@ class BasicBms(ThreadObject):
     All bms are merged together and were written to self.globalBmsWerte["merged"]["..."]
     If VoltageList is given it will be iterated and min and max value is written to self.globalBmsWerte["merged"]["Vm.."]
     If parameters are given form init.json the self.globalBmsWerte["merged"] will be checked on "vMin", vMinTimer", "vMax"
-    "vMax" rise an exc after 10s, "vMin" and vMinTimer" sets BmsEntladeFreigabe to False, "vBal" sets and resets relais given in relaisNames (init.json)
-    
+    "vMax" rise an exc after 10s, "vMin" and vMinTimer" sets BmsEntladeFreigabe to False, "vBal" sets and resets {"BasicUsbRelais.gpioCmd":{"relBalance": "0"}}
+
     Optional is Current and Prozent which will be also checked for sensible range/jump.
     Optional is any other Value.
     A global publish is also triggert every 120 seconds
     '''
+
+    allBmsDataTopicExtension = "/allData"
 
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -30,8 +32,6 @@ class BasicBms(ThreadObject):
         '''
         super().__init__(threadName, configuration)
         self.tagsIncluded(["parameters"], optional = True, default = {})
-        self.tagsIncluded(["relaisNames"], optional = True, default = {})
-        self.allBmsDataTopicExtension = "/allData"
 
 
     def checkWerteSprung(self, newValue, oldValue, percent, minVal, maxVal, minAbs = 0):
@@ -127,8 +127,7 @@ class BasicBms(ThreadObject):
         # this funktion remembers the old relay value and set a new one
         if value != self.globalBmsWerte["calc"]["Balancer"]:
             self.globalBmsWerte["calc"]["Balancer"] = value
-            if "balanceRelais" in self.configuration["relaisNames"]:
-                self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["relaisNames"]["deviceName"])), {self.configuration["relaisNames"]["deviceName"]:{self.configuration["relaisNames"]["balanceRelais"]:str(value)}}, globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance":str(value)}}, globalPublish = False, enableEcho = False) # todo testen siehe letzter commit in dieser Zeile
 
     def checkAllBmsData(self):
         # this funktion checks all merged data with given vmin, vmax and timerVmin and writes result to self.globalBmsWerte["calc"]

@@ -34,12 +34,11 @@
         }
     },
 
-    "BMS":
+    "Bms":
     {
         "class":         "BMS.BasicBms.BasicBms",
-        "relaisNames":   {"deviceName": "UsbRelais", "balanceRelais": "Relay6"},    # optional, but needs vbal in paramters
         #"parameters":    {"vBal": 3.5},                                             # optional
-        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional
+        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional, vbal will manage relBalance. you can map it to a gpio 
         "interfaces":
         {
             "BmsEins":
@@ -92,9 +91,9 @@
     "WdUsbRelais":
     {
         "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
-        "triggerThread":   "BMS",
-        "gpioHandler": ["PowerPlant"],
-        "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay5", "relPvAus": "Relay4", "relNetzAus": "Relay2"},
+        "triggerThread":   "Bms",
+        "gpioHandler": ["PowerPlant", "Bms"],
+        "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay5", "relBalance": "Relay3", "relPvAus": "Relay4", "relNetzAus": "Relay2"},
         "interfaces":
         {
            "WdUartUsbRelais":
@@ -163,14 +162,15 @@
 #            "Mosquitto",
 #            "MqttBridge",
 #            "WrEffektaWest",
-#            "BMS",
+#            "Bms",
 #            "SocMonitor",
 #            "UsbRelais"
 #        ],
 #        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
 #        [
 #            "UartWrEffektaWest",
-#            "UartBMS",
+#            "BmsEins",
+#            "BmsZwei",
 #            "UartSocMonitor",
 #            "UartUsbRelais",
 #            "Wetter"

@@ -4,7 +4,7 @@
         "class": "Worker.PowerPlant.PowerPlant",
         "managedEffektas": ["WrEffektaWest"],
         "socMonitorName": "SocMonitor",
-        "bmsName": "BMS",
+        "bmsName": "Bms",
         "weatherName": "Wetter",                            # optional
         "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     },
@@ -160,12 +160,36 @@
 #        }
 #    },
 
+#    "Bms":
+#    {
+#        "class":         "BMS.BasicBms.BasicBms",
+#        #"parameters":    {"vBal": 3.5},                                             # optional
+#        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional, vbal will manage relBalance. you can map it to a gpio 
+#        "interfaces":
+#        {
+#            "BmsEins":
+#            {
+#                #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
+#                "connection":   "Interface.Uart.DummyWBmsUartInterface.DummyWBmsUartInterface",
+#                "interface":    "COM4",
+#                "baudrate":     2400
+#            },
+#            "BmsZwei":
+#            {
+#                #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
+#                "connection":   "Interface.Uart.DummyWBmsUartInterface.DummyWBmsUartInterface",
+#                "interface":    "COM4",
+#                "baudrate":     2400
+#            }
+#        }
+#    },
+
 #    "WdUsbRelais":
 #    {
 #        "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
-#        "triggerThread":   "BMS",
+#        "triggerThread":   "Bms",
 #        "gpioHandler": ["PowerPlant"],
-#        "relMapping":{"relWr": ["Relay1", "Relay5"], "relPvAus": "Relay4", "relNetzAus": "Relay2"},
+#        "relMapping":{"relWr": ["Relay1", "Relay5"], "relPvAus": "Relay4", "relBalance": "Relay3", "relNetzAus": "Relay2"},
 #        "interfaces":
 #        {
 #            "WdUartUsbRelais":
