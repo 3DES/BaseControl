@@ -19,7 +19,8 @@ class Pylontech485Interface(InterfaceBase):
         self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":False}
 
     def threadInitMethod(self):
-        self.tagsIncluded(["interface", "baudrate", "battCount"])
+        self.tagsIncluded(["interface", "battCount"])
+        self.tagsIncluded(["baudrate"], optional = True, default = 115200)
         self.tries = 0
         while self.tries <= self.maxInitTries:
             self.tries += 1

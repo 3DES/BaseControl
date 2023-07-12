@@ -118,7 +118,7 @@
 #                "connection":   "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
 #                "interface":    "COM7",
 #                "battCount":    1,
-#                "baudrate":     115200
+#                "baudrate":     115200         # optional
 #            }
 #        }
 #    },
@@ -134,7 +134,7 @@
 #                "interface":    "COM12",
 #                "floatVoltage": 52.7,          # optional, if both voltages are given we configure epever
 #                "boostVoltage": 53.6,          # optional
-#                "address":     1
+#                "address":     1               # optional
 #            }
 #        }
 #    },
