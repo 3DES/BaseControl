@@ -114,7 +114,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
-        timeStamps = [[0, 0, 0, 0, 0], None]
+        #timeStamps = [[0, 0, 0, 0, 0], None]
 
         loopCount = 0
 
@@ -124,23 +124,24 @@ class ThreadBase(Base.MqttBase.MqttBase):
             while not self.killed:              # and not event.is_set():
                 loopCount += 1
 
-                timeStamps[1] = timeStamps[0]
-                timeStamps[0] = [0, 0, 0, 0, 0]
-                timeStamps[0][0] = Supporter.getTimeStamp()            # remember current start time
+                #timeStamps[1] = timeStamps[0]
+                #timeStamps[0] = [0, 0, 0, 0, 0]
+                #timeStamps[0][0] = Supporter.getTimeStamp()            # remember current start time
                 self.threadTraceMethod()        # print tracing info
-                timeStamps[0][1] = Supporter.getTimeStamp()            # time before thread main loop starts
+                #timeStamps[0][1] = Supporter.getTimeStamp()            # time before thread main loop starts
                 self.threadMethod()
-                timeStamps[0][2] = Supporter.getTimeStamp()            # time before thread main loop has been finished (delta is loop time)
+                #timeStamps[0][2] = Supporter.getTimeStamp()            # time before thread main loop has been finished (delta is loop time)
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)
 
                 self.threadWatchdogTrigger()
-                timeStamps[0][3] = Supporter.getTimeStamp()            # time after watchdog has been triggered
+                #timeStamps[0][3] = Supporter.getTimeStamp()            # time after watchdog has been triggered
 
+                time.sleep(0.05)
                 self.threadBreak()              # be nice!
-                timeStamps[0][4] = Supporter.getTimeStamp()
+                #timeStamps[0][4] = Supporter.getTimeStamp()
 
-                self.logger.trace(self, f"loop turn: {loopCount}, duration: {timeStamps[0][4] - timeStamps[0][0]}s, delta since last start: {timeStamps[0][0] - timeStamps[1][0]}, turns {loopCount}")
+                #self.logger.trace(self, f"loop turn: {loopCount}, duration: {timeStamps[0][4] - timeStamps[0][0]}s, delta since last start: {timeStamps[0][0] - timeStamps[1][0]}, turns {loopCount}")
 
         except Exception as exception:
             # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
@@ -149,7 +150,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         # final thread clean up
         try:
-            self.logger.info(self, f"timing of last turn: {'/'.join(str(timeStamp) for timeStamp in timeStamps[0])} :: {'/'.join(str(timeStamp) for timeStamp in timeStamps[1])}")
+            #self.logger.info(self, f"timing of last turn: {'/'.join(str(timeStamp) for timeStamp in timeStamps[0])} :: {'/'.join(str(timeStamp) for timeStamp in timeStamps[1])}")
             self.threadTearDownMethod()                             # call tear down method for the case the thread has sth. to clean up
 
             # stop interfaces after own tear down method since the tear down method could need the interface!

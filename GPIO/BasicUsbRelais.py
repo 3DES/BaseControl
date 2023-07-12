@@ -82,4 +82,4 @@ class BasicUsbRelais(ThreadObject):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"testWdRelay"}, globalPublish = False, enableEcho = False)
 
     def threadBreak(self):
-        time.sleep(0.1)
+        time.sleep(0.2)

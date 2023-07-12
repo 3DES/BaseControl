@@ -67,4 +67,4 @@ class UsbRelaisUartInterface(BasicUartInterface):
                 self.sendRelayState(newMqttMessageDict["content"]["setRelay"])
 
     def threadBreak(self):
-        time.sleep(0.1)
+        time.sleep(0.2)

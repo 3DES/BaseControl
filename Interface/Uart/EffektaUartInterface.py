@@ -1,3 +1,4 @@
+import time
 import json
 from Base.Supporter import Supporter
 from Interface.Uart.BasicUartInterface import BasicUartInterface
@@ -118,8 +119,8 @@ class EffektaUartInterface(BasicUartInterface):
                     cmd["success"] = self.setEffektaData(cmd["cmd"], cmd["value"])
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"setValue":cmd}, globalPublish = False, enableEcho = False)
 
-    #def threadBreak(self):
-    #    pass
+    def threadBreak(self):
+        time.sleep(0.4)
 
     #def threadTearDownMethod(self):
     #    pass

@@ -82,7 +82,8 @@ class Epever485Interface(InterfaceBase):
                     raise Exception(f'{self.name} connection could not established! Check interface and address')
 
     def threadInitMethod(self):
-        self.tagsIncluded(["interface", "address"])
+        self.tagsIncluded(["interface"])
+        self.tagsIncluded(["address"], optional = True, default = 1)
         self.tagsIncluded(["boostVoltage"], optional = True, default = 0)
         self.tagsIncluded(["floatVoltage"], optional = True, default = 0)
         self.initEpeverWithRetry()
@@ -118,4 +119,4 @@ class Epever485Interface(InterfaceBase):
                             raise Exception(f'{self.name} Could not read Epever data for more than 100s')
 
     def threadBreak(self):
-        time.sleep(0.5)
+        time.sleep(1)
