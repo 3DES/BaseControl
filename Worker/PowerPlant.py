@@ -464,9 +464,8 @@ class PowerPlant(Worker):
             # we use it and unsubscribe
             self.SkriptWerte.update(message["content"])
             self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
-            # We set the timer because it is possible that the timer is not set yet and the it raise an exc
-            self.timer(name = "timeoutMqtt", timeout = 30)
-            self.timer(name = "timeoutMqtt", remove = True)
+            if self.timerExists("timeoutMqtt"):
+                self.timer(name = "timeoutMqtt", remove = True)
             self.localDeviceData["initialMqttTimeout"] = True
             # we got our own Data so we dont need a auto init inverters
             self.localDeviceData["AutoInitRequired"] = False
@@ -511,8 +510,12 @@ class PowerPlant(Worker):
                         # check FullChargeRequired from BMS for rising edge
                         if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]], message["content"], "FullChargeRequired"):
                                 self.SkriptWerte["FullChargeRequired"] = True
-                    self.localDeviceData[key] = message["content"]
+                    # if a device sends partial data we have a problem if we copy the msg, so we update our dict
+                    if not key in self.localDeviceData:
+                        self.localDeviceData[key] = {}
+                    self.localDeviceData[key].update(message["content"])
 
+            # check if a optional device sended a msg and store it
             for key in self.optionalDevices:
                 if key in message["topic"]:
                     self.localDeviceData[key] = message["content"]
@@ -735,4 +738,4 @@ class PowerPlant(Worker):
 
 
     def threadBreak(self):
-        time.sleep(0.5)
+        time.sleep(0.1)

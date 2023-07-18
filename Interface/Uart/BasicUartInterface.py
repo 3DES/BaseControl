@@ -132,7 +132,7 @@ class BasicUartInterface(InterfaceBase):
 
 
     def serialReset_input_buffer(self):
-        self.serialConn.reset_input_buffer()
+        self.serialConn.reset_input_buffer() # todo if usb i momentary not available her is an except
 
 
     def serialReset_output_buffer(self):

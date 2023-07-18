@@ -34,6 +34,16 @@
         }
     },
 
+    "PowerPlant":
+    {
+        "class": "Worker.PowerPlant.PowerPlant",
+        "managedEffektas": ["WrEffektaWest"],
+        "socMonitorName": "SocMonitor",
+        "bmsName": "Bms",
+        "weatherName": "Wetter",                            # optional
+        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
+    },
+
     "Bms":
     {
         "class":         "BMS.BasicBms.BasicBms",
@@ -76,6 +86,8 @@
     "UsbRelais":
     {
         "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
+        "gpioHandler": ["PowerPlant", "Bms"],
+        "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay5", "relBalance": "Relay3", "relPvAus": "Relay4", "relNetzAus": "Relay2"},
         "interfaces":
         {
             "UartUsbRelais":
@@ -138,12 +150,6 @@
 #            }
 #        }
 #    },
-
-    "PowerPlant":
-    {
-#        "socMonitorName": "Pylontech",
-#        "bmsName": "Pylontech"
-    },
 
 #    "WatchDog":
 #    {

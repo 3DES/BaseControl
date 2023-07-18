@@ -155,13 +155,15 @@ class PowerPlantTester(ThreadObject):
         # check if a expected device sended a msg and store it
         for key in self.deviceList:
             if key in message["topic"]:
-                self.localDeviceData[key] = message["content"]
+                if not key in self.localDeviceData:
+                    self.localDeviceData[key] = {} 
+                self.localDeviceData[key].update(message["content"])
 
     def wartenUndMsgTest(self, waitTime = 6, minMsg = 1, maxMsg = 2):
         # We loop x seconds, take and count the msg, test the msg counter on min and max
         msgCounter = 0
         while not self.timer(name = "timeoutMsg", timeout = waitTime):
-            time.sleep(0) # be nice to other threads
+            time.sleep(0.1) # be nice to other threads
             while not self.mqttRxQueue.empty():
                 newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
                 self.logger.info(self, "received message :" + str(newMqttMessageDict["content"]))
@@ -248,7 +250,7 @@ class PowerPlantTester(ThreadObject):
 #        ThreadObject.PowerPlant.datetime.datetime.now = self.myDateTime
 
     def threadMethod(self):
-
+        time.sleep(1) # short delay because of subscribe of powerplant maybe is not finished
         self.initAkkumodeAndAssert()
 
         self.cycleAndCheckSwitchValue("teste auf Netz wenn MinSoc unterschritten wird",self.assertAkkuBerieb, self.assertNetzBerieb, "schaltschwelleAkku", "MinSoc")

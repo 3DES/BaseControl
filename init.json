@@ -1,13 +1,13 @@
 {
-    "PowerPlant":
-    {
-        "class": "Worker.PowerPlant.PowerPlant",
-        "managedEffektas": ["WrEffektaWest"],
-        "socMonitorName": "SocMonitor",
-        "bmsName": "Bms",
-        "weatherName": "Wetter",                            # optional
-        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
-    },
+#    "PowerPlant":
+#    {
+#        "class": "Worker.PowerPlant.PowerPlant",
+#        "managedEffektas": ["WrEffektaWest"],
+#        "socMonitorName": "SocMonitor",
+#        "bmsName": "Bms",
+#        "weatherName": "Wetter",                            # optional
+#        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
+#    },
 
 # another example
 #    "PowerPlant":
@@ -16,6 +16,7 @@
 #        "managedEffektas": ["WrEffektaWest", "WrEffektaOst"],
 #        "socMonitorName": "Pylontech",
 #        "bmsName": "Pylontech",
+#        "HeaterWeatherControlledTime": 19,                  # optional bevore this time the dontHeat output is weather controlled, after this time it is off
 #        "weatherName": "Wetter",                            # optional
 #        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
 #    },
