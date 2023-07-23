@@ -188,8 +188,8 @@
 #    "WdUsbRelais":
 #    {
 #        "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
-#        "triggerThread":   "Bms",
-#        "gpioHandler": ["PowerPlant"],
+#        "triggerThread":   "Bms",                                                                                              # this is the triggerThread which triggers the wd Relais
+#        "gpioHandler": ["PowerPlant"],                                                                                         # this threads are controlling the given gpios in relMapping
 #        "relMapping":{"relWr": ["Relay1", "Relay5"], "relPvAus": "Relay4", "relBalance": "Relay3", "relNetzAus": "Relay2"},
 #        "interfaces":
 #        {

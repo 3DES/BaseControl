@@ -47,31 +47,30 @@ class BasicUsbRelais(ThreadObject):
                 if not "triggerWd" in newMqttMessageDict["content"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
             else:
-                # We assume that cmd or self.name is a key in this dict. Other keys will raise a key error. 
                 if "cmd" in newMqttMessageDict["content"]:
-                    if newMqttMessageDict["content"]["cmd"] == "triggerWdRelay":
-                        if self.configuration["triggerThread"] in newMqttMessageDict["topic"]:
-                            # This is a special msg. Watchdog will be only triggered if the sender thread is accepted. We convert the Msg to prevent that a thread can trigger interface directly.
-                            self.mqttPublish(self.interfaceInTopics[0], {"cmd":"triggerWd"}, globalPublish = False, enableEcho = False)
-                        else:
-                            # We got a watchdog trigger msg from a not authorised thread
-                            raise Exception(f'Not authourised thread wants to trigger watchdog! Check usbRelais parameter -triggerThread- and watchdogName from topic {newMqttMessageDict["topic"]}. Current accepted thread is {self.configuration["triggerThread"]}')
+                    # We only send triggerWd if the triggerThread triggers the wd
+                    if newMqttMessageDict["content"]["cmd"] == "triggerWdRelay" and self.configuration["triggerThread"] in newMqttMessageDict["topic"]:
+                        # This is a special msg. Watchdog will be only triggered if the sender thread is accepted. We convert the Msg to prevent that a thread can trigger interface directly.
+                        self.mqttPublish(self.interfaceInTopics[0], {"cmd":"triggerWd"}, globalPublish = False, enableEcho = False)
                     else:
                         self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
                 else:
-                    if self.gpioCmd in newMqttMessageDict["content"]:
-                        found = False
-                        tempRelais = {}
-                        for key in list(self.configuration["relMapping"].keys()):
-                            if key in newMqttMessageDict["content"][self.gpioCmd]:
-                                found = True
-                                if type(self.configuration["relMapping"][key]) == list:
-                                    for relais in self.configuration["relMapping"][key]:
-                                        tempRelais.update({relais:newMqttMessageDict["content"][self.gpioCmd][key]})
-                                else:
-                                    tempRelais.update({self.configuration["relMapping"][key]:newMqttMessageDict["content"][self.gpioCmd][key]})
-                        if found:
-                            self.mqttPublish(self.interfaceInTopics[0], {"setRelay":tempRelais}, globalPublish = False, enableEcho = False)
+                    # We only accept gpio commands from gpioHandlers
+                    for threadnames in self.configuration["gpioHandler"]:
+                        if f"/{threadnames}/" in newMqttMessageDict["topic"] and self.gpioCmd in newMqttMessageDict["content"]:
+                            found = False
+                            tempRelais = {}
+                            for key in list(self.configuration["relMapping"].keys()):
+                                if key in newMqttMessageDict["content"][self.gpioCmd]:
+                                    found = True
+                                    if type(self.configuration["relMapping"][key]) == list:
+                                        for relais in self.configuration["relMapping"][key]:
+                                            tempRelais.update({relais:newMqttMessageDict["content"][self.gpioCmd][key]})
+                                    else:
+                                        tempRelais.update({self.configuration["relMapping"][key]:newMqttMessageDict["content"][self.gpioCmd][key]})
+                            if found:
+                                self.mqttPublish(self.interfaceInTopics[0], {"setRelay":tempRelais}, globalPublish = False, enableEcho = False)
+                                break
 
         if self.timer(name = "timerStateReq", timeout = 60):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readRelayState"}, globalPublish = False, enableEcho = False)

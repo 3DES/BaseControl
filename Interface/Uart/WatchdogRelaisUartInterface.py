@@ -79,6 +79,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         self.tagsIncluded(["avrdudePath"], optional = True, default = "avrdude")
         self.firstLoop = True
         self.getDiagnosis = False
+        self.wdEverTriggered = False
 
 
     # some helper funktions
@@ -163,7 +164,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 return {"Error":"E"}
 
     def processSerialCmd(self, cmd):
-        for tries in range(5):
+        for tries in range(10):
             self.serialReset_input_buffer()
             wdCommand = self.getCommand(cmd)
             self.serialWrite(wdCommand)
@@ -175,21 +176,26 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.frameCounter = 0
                 return procMsg
             else:
+                delayNextRead = True
                 if procMsg["Error"] == "noMsg" and cmd == "V":
                     # If we got no msg on version request we suggess that there is a new Arduino plugged in.
                     return "newArduino"
                 if procMsg["Error"] == "framenumber":
                     self.logger.error(self, f"We try to set right framenumber, and resend msg. Tries: {tries}")
                     self.frameCounter = procMsg["requiredFramenumber"]
+                    delayNextRead = False
                     # todo wenn framenumber 0 dann sollten wir evtl einen eventuellen Reset des wdRel behandeln
                 elif procMsg["Error"] == "invalidStartup":
                     raise Exception("Got an invalid startup error from watchdog!")
                 elif procMsg["Error"] == "crc":
                     self.logger.error(self, f"Crc Error! We try to resend msg. Retries: {tries}")
+                    delayNextRead = False
                 if not self.getDiagnosis:
                     # prevent recursion if we get an error while getAndLogDiagnosis()
                     self.logger.error(self, f"We sended cmd: {wdCommand}")
                     self.getAndLogDiagnosis()
+                if delayNextRead:
+                    time.sleep(1)
         raise Exception("After few communication errors we stop Basecontrol")
 
     def sendCommand(self, command):
@@ -281,6 +287,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         return result
 
     def triggerWdRelay(self):
+        self.wdEverTriggered = True
         retval = self.sendRequest("W", "1")
         if not retval == "1":
             self.getAndLogDiagnosis()
@@ -299,6 +306,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     def setRelayStates(self, RelayState):
         for relay in list(RelayState):
             self.sendValue("S", self.relayMapping[relay], RelayState[relay])
+            if not self.wdEverTriggered and RelayState[relay] == "1":
+                # If the watchdog is 0 we cannot set any relais. A clean timing is: trigger wd first and then set relais. This is not easy if this is done by different threads.
+                self.logger.error(self,f'Setting of relais -{relay}- maybe has no effect, wd was never triggered. Please see -triggerThread- in project.json. Or check timing!')
 
     def threadMethod(self):
         if self.firstLoop:

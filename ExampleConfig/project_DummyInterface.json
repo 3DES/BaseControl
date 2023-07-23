@@ -104,7 +104,7 @@
     {
         "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
         "triggerThread":   "Bms",
-        "gpioHandler": ["PowerPlant", "Bms"],
+        "gpioHandler": ["PowerPlant"],
         "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay6", "relBalance": "Relay3", "relPvAus": "Relay4", "relNetzAus": "Relay2"},
         "interfaces":
         {
