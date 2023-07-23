@@ -4,7 +4,7 @@ sudo apt-get install avrdude
 
 git clone "https://github.com/3DES/BaseControl.git"
 
-sudo pip install -r BaseControl/reqirements.txt
+sudo pip install -r BaseControl/requirements.txt
 
 # create and/or copy your own ...project....json #
 cp BaseControl/project_xxx.json BaseControl/project.json

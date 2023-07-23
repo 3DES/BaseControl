@@ -219,10 +219,13 @@ class PowerPlant(Worker):
         self.SkriptWerte["NetzRelais"] = self.aktualMode
         self.sendeMqtt = True
 
+    def sendRelaisData(self, relaisData):
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), relaisData, globalPublish = False, enableEcho = False)
+
     def modifyRelaisData(self, relais, value, sendValue = False):
         self.localRelaisData[BasicUsbRelais.gpioCmd].update({relais:value})
         if sendValue:
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.localRelaisData, globalPublish = False, enableEcho = False)
+            self.sendRelaisData(self.localRelaisData)
 
     def manageUtilityRelais(self):
         # sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.

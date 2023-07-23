@@ -68,7 +68,7 @@ class Epever485Interface(InterfaceBase):
         else:
             self.logger.info(self, "No Voltage Parameters given!")
 
-    def initEpeverWithRetry(self, retries = self.maxInitTries):
+    def initEpeverWithRetry(self, retries = maxInitTries):
         tries = 0
         while tries <= retries:
             tries += 1

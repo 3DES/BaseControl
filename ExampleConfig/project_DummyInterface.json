@@ -105,7 +105,7 @@
         "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
         "triggerThread":   "Bms",
         "gpioHandler": ["PowerPlant", "Bms"],
-        "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay5", "relBalance": "Relay3", "relPvAus": "Relay4", "relNetzAus": "Relay2"},
+        "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay6", "relBalance": "Relay3", "relPvAus": "Relay4", "relNetzAus": "Relay2"},
         "interfaces":
         {
            "WdUartUsbRelais":
@@ -113,7 +113,7 @@
                 "connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
                 #"connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
                 "firmware":     "firmware.hex",
-                "avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
+                #"avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
                 "interface":    "COM5",
                 "baudrate":     9600
             }

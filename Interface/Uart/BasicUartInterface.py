@@ -132,11 +132,17 @@ class BasicUartInterface(InterfaceBase):
 
 
     def serialReset_input_buffer(self):
-        self.serialConn.reset_input_buffer() # todo if usb i momentary not available her is an except
+        try: 
+            self.serialConn.reset_input_buffer()
+        except:
+            self.logger.error(self, f"Could not reset_input_buffer from serial {self.name}")
 
 
     def serialReset_output_buffer(self):
-        self.serialConn.reset_output_buffer()
+        try:
+            self.serialConn.reset_output_buffer()
+        except:
+            self.logger.error(self, f"Could not reset_output_buffer from serial {self.name}")
 
 
     def threadInitMethod(self):
@@ -171,5 +177,5 @@ class BasicUartInterface(InterfaceBase):
 
 
     def threadTearDownMethod(self):
-        self.serialConn.close()
+        self.serialClose()
 
