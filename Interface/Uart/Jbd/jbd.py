@@ -43,6 +43,8 @@ class JBD:
     READ                = 0xA5
     WRITE               = 0x5A
 
+    HEADER_LENGHT       = 4
+
     CELL_CAL_REG_START  = 0xB0
     CELL_CAL_REG_END    = 0xCF
 
@@ -60,6 +62,7 @@ class JBD:
     BAL_CTRL_REG        = 0xE2
 
     CAP_REM_REG         = 0xE0
+
 
     def __init__(self, s, timeout = 1, debug = False):
         self.s = s
@@ -209,26 +212,26 @@ class JBD:
         return 0xFF5B - sum(payload)
 
     def extractPayload(self, data):
-        payloadStart = 5
+        payloadStart = self.HEADER_LENGHT + 1
         assert len(data) >= 7
-        datalen = data[payloadStart-1]
+        datalen = data[self.HEADER_LENGHT]
         data = data[payloadStart:payloadStart+datalen]
         self.dbgPrint('extractPayload returning', self.toHex(data))
         return data
 
-    def cmd(self, op, reg, data):
+    def cmd(self, op, reg, data, address):
         payload = [reg, len(data)] + list(data)
         chksum = self.chksum(payload)
         #data = [self.START, op] + payload + [chksum, self.END]
-        data = [self.START, 0, op] + payload + [chksum, self.END]
+        data = [self.START, address, op] + payload + [chksum, self.END]
         format = f'>BBB{len(payload)}BHB'
         return struct.pack(format, *data) 
 
-    def readCmd(self, reg, data  = []):
-        return self.cmd(self.READ, reg, data)
+    def readCmd(self, reg, data  = [], address = 0):
+        return self.cmd(self.READ, reg, data, address)
 
-    def writeCmd(self, reg, data = []):
-        return self.cmd(self.WRITE, reg, data)
+    def writeCmd(self, reg, data = [], address = 0):
+        return self.cmd(self.WRITE, reg, data, address)
 
     def bkgReadWorker(self):
         self.dbgPrint('bkgReadWorker started')
@@ -288,7 +291,7 @@ class JBD:
             if not d and byte != self.START: continue
             then = time.time() + t
             d.append(byte)
-            if len(d) == 4:
+            if len(d) == self.HEADER_LENGHT + 1:
                 msgLen = d[-1]
             if byte == self.END and len(d) >= 7 + msgLen: 
                 complete = True

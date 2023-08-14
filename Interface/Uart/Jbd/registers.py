@@ -475,9 +475,13 @@ class CxvpHighDelayScRelReg(BaseReg):
         return struct.pack('>BB', b1, self._sc_rel)
 
 class BasicInfoReg(BaseReg):
+    numberOfNct = 8
     _balBits = [f'bal{i}' for i in range(32)]
-    _faultBits = [f'{i}_err' for i in 'covp cuvp povp puvp chgot chgut dsgot dsgut chgoc dsgoc sc afe software'.split() ]
-    _ntcFields = [f'ntc{i}' for i in range(8)]
+    _faultBits = [f'{i}_err' for i in 'covp cuvp povp puvp chgot chgut dsgot dsgut chgoc dsgoc sc afe software airot airut pcbot'.split() ]
+    #                                   ok        ok                                                            ok    ok    ok
+    _alarmBits = [f'{i}_alm' for i in 'cuv cov puv pov chgoc dsgoc chgot chgut dsgot dsgut airot airut pcbot cdiff socl na'.split() ]
+    #                                  ok  ok  ok  ok   ok    ok    ok     ok   ok     ok    ok    ok   ok     ok   ok
+    _ntcFields = [f'ntc{i}' for i in range(numberOfNct)]
     _fetBits = 'chg_fet_en', 'dsg_fet_en'
     _valueNames = [
         'pack_mv', 'pack_ma', 'cur_cap', 
@@ -485,12 +489,16 @@ class BasicInfoReg(BaseReg):
         'year', 'month', 'day',
         *_balBits,
         *_faultBits,
+        *_alarmBits,
         'version',
         'cap_pct',
         *_fetBits,
         'ntc_cnt',
         'cell_cnt',
+        'ntc_board',
+        'ntc_air',
         *_ntcFields,
+        'alarm_raw',
         'fault_raw',
         'bal_raw'
     ]
@@ -523,19 +531,23 @@ class BasicInfoReg(BaseReg):
         self._year, self._month, self._day = DateParser.decode(date_raw)
         offset += struct.calcsize(fmt)
 
-        fmt = '>HHHBBBBB'
+        fmt = '>HHHBBBBHHHB'
         values = struct.unpack_from(fmt, payload, offset)
-        bal_raw0, bal_raw1, self._fault_raw, self._version, self._cap_pct, fet_raw, self._cell_cnt, self._ntc_cnt = values
+        bal_raw0, bal_raw1, self._fault_raw, self._version, self._cap_pct, fet_raw, self._cell_cnt, self._alarm_raw, airTemp, pcbtemp, self._ntc_cnt = values
         self._bal_raw = bal_raw0 | (bal_raw1 << 16)
+        setattr(self, "_ntc_air", TempParser.decode(airTemp)[0])
+        setattr(self, "_ntc_board", TempParser.decode(pcbtemp)[0])
         for fn, value in self._unpackBits(self._balBits, self._bal_raw):
             setattr(self, fn, value)
         for fn, value in self._unpackBits(self._faultBits, self._fault_raw):
+            setattr(self, fn, value)
+        for fn, value in self._unpackBits(self._alarmBits, self._alarm_raw):
             setattr(self, fn, value)
         for fn, value in self._unpackBits(self._fetBits, fet_raw):
             setattr(self, fn, value)
         offset += struct.calcsize(fmt)
 
-        for i in range(8):
+        for i in range(self.numberOfNct):
             fn = f'_ntc{i}'
             if i < self._ntc_cnt:
                 o = offset + i *2
