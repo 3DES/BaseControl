@@ -43,7 +43,7 @@ class JBD:
     READ                = 0xA5
     WRITE               = 0x5A
 
-    HEADER_LENGHT       = 4
+    HEADER_LENGTH       = 4
 
     CELL_CAL_REG_START  = 0xB0
     CELL_CAL_REG_END    = 0xCF
@@ -209,19 +209,20 @@ class JBD:
     @staticmethod
     def chksum(payload):
         #return 0x10000 - sum(payload)
-        return 0xFF5B - sum(payload)
+        return 0xFFFF - sum(payload) + 1
+        #return 0xFF5B - sum(payload)
 
     def extractPayload(self, data):
-        payloadStart = self.HEADER_LENGHT + 1
+        payloadStart = self.HEADER_LENGTH + 1
         assert len(data) >= 7
-        datalen = data[self.HEADER_LENGHT]
+        datalen = data[self.HEADER_LENGTH]
         data = data[payloadStart:payloadStart+datalen]
         self.dbgPrint('extractPayload returning', self.toHex(data))
         return data
 
     def cmd(self, op, reg, data, address):
         payload = [reg, len(data)] + list(data)
-        chksum = self.chksum(payload)
+        chksum = self.chksum([address, op] + payload)
         #data = [self.START, op] + payload + [chksum, self.END]
         data = [self.START, address, op] + payload + [chksum, self.END]
         format = f'>BBB{len(payload)}BHB'
@@ -291,7 +292,7 @@ class JBD:
             if not d and byte != self.START: continue
             then = time.time() + t
             d.append(byte)
-            if len(d) == self.HEADER_LENGHT + 1:
+            if len(d) == self.HEADER_LENGTH + 1:
                 msgLen = d[-1]
             if byte == self.END and len(d) >= 7 + msgLen: 
                 complete = True
@@ -365,18 +366,18 @@ class JBD:
     def enterFactory(self):
         try:
             self.open()
-            if 1:
-                cnt = 5
-                while cnt:
-                    try:
-                        self._sendPassword()
-                        break
-                    except Exception as e:
-                        self.dbgPrint(f'password exception {repr(e)}')
-                    cnt -= 1
-                    time.sleep(.3)
-                else:
-                    raise BMSPasswordError('bad password')
+        #    if 1:
+        #        cnt = 5
+        #        while cnt:
+        #            try:
+        #                self._sendPassword()
+        #                break
+        #            except Exception as e:
+        #                self.dbgPrint(f'password exception {repr(e)}')
+        #            cnt -= 1
+        #            time.sleep(.3)
+        #        else:
+        #            raise BMSPasswordError('bad password')
 
             cnt = 5
             while cnt:
