@@ -30,6 +30,7 @@ from .registers import (BaseReg, Unit, DateReg, IntReg,
                         TempReg, TempRegRO, DelayReg, UsePasswordReg,
                         SetPasswordReg, ScDsgoc2Reg, CxvpHighDelayScRelReg,
                         BitfieldReg, StringReg, ErrorCountReg, BasicInfoReg, 
+                        BasicInfoRegUpSeries,
                         CellInfoReg, DeviceInfoReg, ReadOnlyException)
 
 __all__ = 'JBD'
@@ -43,7 +44,10 @@ class JBD:
     READ                = 0xA5
     WRITE               = 0x5A
 
-    HEADER_LENGTH       = 4
+    REG_BYTE            = 1
+    OK_BYTE             = 2
+    HEADER_LENGTH       = 3
+    FACTORY_MOD_CMD     = [0x56, 0x78]
 
     CELL_CAL_REG_START  = 0xB0
     CELL_CAL_REG_END    = 0xCF
@@ -55,6 +59,7 @@ class JBD:
     I_CAL_CHG_REG       = 0xAE
     I_CAL_DSG_REG       = 0xAF
 
+    FACTORY_MOD_REG     = 0x00
     RESET_PASSWORD_REG  = 0x09
     USE_PASSWORD_REG    = 0X06
     SET_PASSWORD_REG    = 0X07
@@ -208,9 +213,7 @@ class JBD:
 
     @staticmethod
     def chksum(payload):
-        #return 0x10000 - sum(payload)
-        return 0xFFFF - sum(payload) + 1
-        #return 0xFF5B - sum(payload)
+        return 0x10000 - sum(payload)
 
     def extractPayload(self, data):
         payloadStart = self.HEADER_LENGTH + 1
@@ -220,19 +223,18 @@ class JBD:
         self.dbgPrint('extractPayload returning', self.toHex(data))
         return data
 
-    def cmd(self, op, reg, data, address):
+    def cmd(self, op, reg, data):
         payload = [reg, len(data)] + list(data)
-        chksum = self.chksum([address, op] + payload)
-        #data = [self.START, op] + payload + [chksum, self.END]
-        data = [self.START, address, op] + payload + [chksum, self.END]
-        format = f'>BBB{len(payload)}BHB'
+        chksum = self.chksum(payload)
+        data = [self.START, op] + payload + [chksum, self.END]
+        format = f'>BB{len(payload)}BHB'
         return struct.pack(format, *data) 
 
-    def readCmd(self, reg, data  = [], address = 0):
-        return self.cmd(self.READ, reg, data, address)
+    def readCmd(self, reg, data  = []):
+        return self.cmd(self.READ, reg, data)
 
-    def writeCmd(self, reg, data = [], address = 0):
-        return self.cmd(self.WRITE, reg, data, address)
+    def writeCmd(self, reg, data = []):
+        return self.cmd(self.WRITE, reg, data)
 
     def bkgReadWorker(self):
         self.dbgPrint('bkgReadWorker started')
@@ -299,8 +301,8 @@ class JBD:
                 break
         if d and complete:
             self.dbgPrint('readPacket:', self.toHex(d))
-            reg = d[2]
-            ok = not d[3]
+            reg = d[self.REG_BYTE]
+            ok = not d[self.OK_BYTE]
             return ok, reg, self.extractPayload(bytes(d))
         self.dbgPrint(f'readPacket failed with {len(d)} bytes')
         return False, None, None
@@ -366,22 +368,22 @@ class JBD:
     def enterFactory(self):
         try:
             self.open()
-        #    if 1:
-        #        cnt = 5
-        #        while cnt:
-        #            try:
-        #                self._sendPassword()
-        #                break
-        #            except Exception as e:
-        #                self.dbgPrint(f'password exception {repr(e)}')
-        #            cnt -= 1
-        #            time.sleep(.3)
-        #        else:
-        #            raise BMSPasswordError('bad password')
+            if 1:
+                cnt = 5
+                while cnt:
+                    try:
+                        self._sendPassword()
+                        break
+                    except Exception as e:
+                        self.dbgPrint(f'password exception {repr(e)}')
+                    cnt -= 1
+                    time.sleep(.3)
+                else:
+                    raise BMSPasswordError('bad password')
 
             cnt = 5
             while cnt:
-                cmd = self.writeCmd(0, [0x56, 0x78])
+                cmd = self.writeCmd(self.FACTORY_MOD_REG, self.FACTORY_MOD_CMD)
                 self.s.write(cmd)
                 ok, x = self.readPacket()
                 if ok and x is not None: # empty payload is valid
@@ -779,3 +781,52 @@ if errors:
         print(error)
     raise RuntimeError('register errors')
 del errors
+
+
+class JBDUP(JBD):
+    
+    ADDRESS_BYTE        = 1
+    REG_BYTE            = 2
+    OK_BYTE             = 3
+    HEADER_LENGTH       = 4
+
+
+    def __init__(self, s, timeout = 1, debug = False):
+        super().__init__(s,timeout, debug)
+
+        self.basicInfoReg = BasicInfoRegUpSeries('basic_info', 0x03)
+
+    @staticmethod
+    def chksum(payload):
+        return 0xFFFF - sum(payload) + 1
+
+    def enterFactory(self):
+        try:
+            self.open()
+            cnt = 5
+            while cnt:
+                cmd = self.writeCmd(self.FACTORY_MOD_REG, self.FACTORY_MOD_CMD)
+                self.s.write(cmd)
+                ok, x = self.readPacket()
+                if ok and x is not None: # empty payload is valid
+                    self.dbgPrint('enter factory: success')
+                    return x
+                self.dbgPrint('enter factory: no response')
+                cnt -= 1
+                time.sleep(.3)
+            return False
+        finally:
+            self.close()
+            
+    def cmd(self, op, reg, data, address):
+        payload = [reg, len(data)] + list(data)
+        chksum = self.chksum([address, op] + payload)
+        data = [self.START, address, op] + payload + [chksum, self.END]
+        format = f'>BBB{len(payload)}BHB'
+        return struct.pack(format, *data) 
+
+    def readCmd(self, reg, data  = [], address = 0):
+        return self.cmd(self.READ, reg, data, address)
+
+    def writeCmd(self, reg, data = [], address = 0):
+        return self.cmd(self.WRITE, reg, data, address)

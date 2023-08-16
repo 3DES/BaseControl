@@ -109,7 +109,7 @@ class IntReg(BaseReg):
     @property
     def unit(self, valueName):
         if not valueName == self._regName:
-            raise KeyError(f'unknown value name {valuename}')
+            raise KeyError(f'unknown value name {valueName}')
         return self._unit
 
     def get(self, valueName): 
@@ -119,7 +119,7 @@ class IntReg(BaseReg):
     
     def set(self, valueName, value):
         if not valueName == self._regName:
-            raise KeyError(f'unknown value name {valuename}')
+            raise KeyError(f'unknown value name {valueName}')
         value = value or 0
         try:
             value = float(value)
@@ -145,7 +145,7 @@ class TempReg(IntReg):
 
     def set(self, valueName, value):
         if not valueName == self._regName:
-            raise KeyError(f'unknown value name {valuename}')
+            raise KeyError(f'unknown value name {valueName}')
         try:
             value = float(value)
             if not -273.15 <= value <= 6136.4: # maps to 0 --> 65535
@@ -322,12 +322,12 @@ class StringReg(BaseReg):
 
     def get(self, valueName):
         if not valueName == self._regName:
-            raise KeyError(f'unknown value name {valuename}')
+            raise KeyError(f'unknown value name {valueName}')
         return self._value
 
     def set(self, valueName, value):
         if not valueName == self._regName:
-            raise KeyError(f'unknown value name {valuename}')
+            raise KeyError(f'unknown value name {valueName}')
 
         if type(value) not in (str, bytes, bytearray):
             raise ValueError(f'value should be str, byte, or bytearray')
@@ -474,7 +474,80 @@ class CxvpHighDelayScRelReg(BaseReg):
         b1 = CxvpDelayParser.encode((self._cuvp_high_delay, self._covp_high_delay))
         return struct.pack('>BB', b1, self._sc_rel)
 
+
 class BasicInfoReg(BaseReg):
+    numberOfNct = 8
+    _balBits = [f'bal{i}' for i in range(32)]
+    _faultBits = [f'{i}_err' for i in 'covp cuvp povp puvp chgot chgut dsgot dsgut chgoc dsgoc sc afe software'.split() ]
+    _ntcFields = [f'ntc{i}' for i in range(numberOfNct)]
+    _fetBits = 'chg_fet_en', 'dsg_fet_en'
+    _valueNames = [
+        'pack_mv', 'pack_ma', 'cur_cap', 
+        'full_cap', 'cycle_cnt', 
+        'year', 'month', 'day',
+        *_balBits,
+        *_faultBits,
+        'version',
+        'cap_pct',
+        *_fetBits,
+        'ntc_cnt',
+        'cell_cnt',
+        *_ntcFields,
+        'fault_raw',
+        'bal_raw'
+    ]
+
+    def __init__(self, regName, adx):
+        self._regName = regName
+        self._adx = adx
+    
+    def get(self, valueName):
+        if valueName not in self._valueNames:
+            raise KeyError(valueName)
+        return getattr(self, '_'+valueName)
+
+    @staticmethod
+    def _unpackBits(fields, value):
+        ret = []
+        for bit, field in enumerate(fields):
+            ret.append(('_'+field,  bool(value & (1 << bit))))
+        return ret
+
+    def unpack(self, payload):
+        offset = 0
+        fmt = '>HhHHHH'
+        values = struct.unpack_from(fmt, payload, offset)
+        self._pack_mv, self._pack_ma, self._cur_cap, self._full_cap, self._cycle_cnt, date_raw = values
+        self._pack_mv *= 10
+        self._pack_ma *= 10
+        self._cur_cap *= 10
+        self._full_cap *= 10
+        self._year, self._month, self._day = DateParser.decode(date_raw)
+        offset += struct.calcsize(fmt)
+
+        fmt = '>HHHBBBBB'
+        values = struct.unpack_from(fmt, payload, offset)
+        bal_raw0, bal_raw1, self._fault_raw, self._version, self._cap_pct, fet_raw, self._cell_cnt, self._ntc_cnt = values
+        self._bal_raw = bal_raw0 | (bal_raw1 << 16)
+        for fn, value in self._unpackBits(self._balBits, self._bal_raw):
+            setattr(self, fn, value)
+        for fn, value in self._unpackBits(self._faultBits, self._fault_raw):
+            setattr(self, fn, value)
+        for fn, value in self._unpackBits(self._fetBits, fet_raw):
+            setattr(self, fn, value)
+        offset += struct.calcsize(fmt)
+
+        for i in range(self.numberOfNct):
+            fn = f'_ntc{i}'
+            if i < self._ntc_cnt:
+                o = offset + i *2
+                date_raw = struct.unpack_from('>H', payload,o)[0]
+                setattr(self, fn, TempParser.decode(date_raw)[0])
+            else:
+                setattr(self, fn, None)
+
+
+class BasicInfoRegUpSeries(BaseReg):
     numberOfNct = 8
     _balBits = [f'bal{i}' for i in range(32)]
     _faultBits = [f'{i}_err' for i in 'covp cuvp povp puvp chgot chgut dsgot dsgut chgoc dsgoc sc afe software airot airut pcbot'.split() ]

@@ -111,7 +111,7 @@ class JBDPersist:
             valueNameSet = set(valueNames)
             foundValueNames = valueNameSet & allPassedValueNames
             if foundValueNames != valueNameSet:
-                raise ValueError(f'savefile field "{field}"" requires values {tuple(valueNames)}')
+                raise ValueError(f'savefile field "{fieldName}"" requires values {tuple(valueNames)}')
             values = [data[i] for i in valueNames]
             print(fieldName, valueNames, 'values:', ' '.join(repr(i) for i in values))
             if parser == StrParser:
