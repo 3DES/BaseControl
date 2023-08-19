@@ -36,7 +36,13 @@ class SocMeterUartInterface(BasicUartInterface):
                 self.cmdList.append(str(newMqttMessageDict["content"]["Prozent"]))
                 self.SocMonitorWerte["Prozent"] = newMqttMessageDict["content"]["Prozent"]
             elif "cmd" in newMqttMessageDict["content"]:
-                self.cmdList.append(newMqttMessageDict["content"]["cmd"])
+                # If cmd is resetSoc we add a special cmd socResetMaxAndHold, else we add all cmd to cmdList {"cmd":["",""]} and {"cmd":""} is accepted
+                if newMqttMessageDict["content"]["cmd"] == "resetSoc":
+                    self.cmdList.append("socResetMaxAndHold")
+                elif newMqttMessageDict["content"]["cmd"] == list:
+                    self.cmdList += newMqttMessageDict["content"]["cmd"]
+                else:
+                    self.cmdList.append(newMqttMessageDict["content"])
 
         """
         Message we get from Monitor

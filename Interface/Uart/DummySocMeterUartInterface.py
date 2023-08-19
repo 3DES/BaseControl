@@ -17,6 +17,7 @@ class DummySocMeterUartInterface(InterfaceBase):
 
     def threadInitMethod(self):
         self.SocMonitorWerte = {"Ah":-1, "Current":0, "Prozent":50}
+        self.cmdList = []
 
 
     def threadMethod(self):
@@ -28,7 +29,19 @@ class DummySocMeterUartInterface(InterfaceBase):
             except:
                 self.logger.error(self, f'Cannot convert {newMqttMessageDict["content"]} to dict')
 
-            self.logger.info(self, " received queue message :" + str(newMqttMessageDict))
+
+            if "Prozent" in newMqttMessageDict["content"]:
+                self.cmdList.append("setSocToValue")
+                self.cmdList.append(str(newMqttMessageDict["content"]["Prozent"]))
+                self.SocMonitorWerte["Prozent"] = newMqttMessageDict["content"]["Prozent"]
+            elif "cmd" in newMqttMessageDict["content"]:
+                # If cmd is resetSoc we add a special cmd socResetMaxAndHold, else we add all cmd to cmdList {"cmd":["",""]} and {"cmd":""} is accepted
+                if newMqttMessageDict["content"]["cmd"] == "resetSoc":
+                    self.cmdList.append("socResetMaxAndHold")
+                elif newMqttMessageDict["content"]["cmd"] == list:
+                    self.cmdList += newMqttMessageDict["content"]["cmd"]
+                else:
+                    self.cmdList.append(newMqttMessageDict["content"])
 
         if self.timer(name = "timerSoc", timeout = 10):
             self.timer(name = "timerSoc", remove = True)

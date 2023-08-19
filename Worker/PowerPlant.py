@@ -16,8 +16,8 @@ class PowerPlant(Worker):
     '''
 
     Used values, devices and classmethods:
-    All required devices are blocking a startup until data arrives!
-    required:
+    All required devices are blocking a startup until data received!
+    required functions and constants:
             Inverter:
                     EffektaController.getCmdSwitchToBattery()                    returns cmd which is required to set inverter mode
                     EffektaController.getCmdSwitchToUtility()                    returns cmd which is required to set inverter mode
@@ -31,27 +31,32 @@ class PowerPlant(Worker):
                             OutputVoltageHighAnd                                 bool, key in returnValue from getLinkedEffektaData()
                             ErrorPresentOr                                       bool, key in returnValue from getLinkedEffektaData()
                             InputVoltageAnd                                      bool, key in returnValue from getLinkedEffektaData()
-            
-            BMS:
-                    BmsEntladeFreigabe                                          bool, key in BMS data dict
-                    BmsMsgCounter                                               todo, implement! int, counter for required BMS msg to provide stuckAt errors. A new number triggers watchdog
             SocMonitor:
-                    Prozent                                                     float, key in Soc data dict
-                    SocMeter.InitAkkuProz                                       int, classVariable from SocMonitor normally -1    @todo evtl über ein bool nachdenken.
+                    SocMeter.InitAkkuProz                                        int, classVariable from SocMonitor normally -1    @todo evtl über ein bool nachdenken.
+
+
+    required mqtt data:
+            Inverter:
+                    AcOutPower                                                   float, key in inverter data dict 
+            BMS:
+                    BmsEntladeFreigabe                                           bool, key in BMS data dict
+                    BmsMsgCounter                                                todo, implement! int, counter for required BMS msg to provide stuckAt errors. A new number triggers watchdog
+            SocMonitor:
+                    Prozent                                                      float, key in Soc data dict
     optional:
             BMS:
-                    FullChargeRequired                                          bool, optional key in BMS data dict. On rising edge it will set switch FullChargeRequired to on and force SchaltschwelleAkkuXXX to 100%. No transfer to utility is triggerd,switch FullChargeRequired will be reseted if soc is 100%. 
+                    FullChargeRequired                                           bool, optional key in BMS data dict. On rising edge it will set switch FullChargeRequired to on and force SchaltschwelleAkkuXXX to 100%. No transfer to utility is triggerd,switch FullChargeRequired will be reseted if soc is 100%. 
             Wetter:
-                    Tag_0                                                       dict, key in wetter data dict
-                        Sonnenstunden                                           int, key in Tag_0 dict
-                    Tag_1                                                       dict, key in wetter data dict
-                        Sonnenstunden                                           int, key in Tag_1 dict
+                    Tag_0                                                        dict, key in wetter data dict
+                        Sonnenstunden                                            int, key in Tag_0 dict
+                    Tag_1                                                        dict, key in wetter data dict
+                        Sonnenstunden                                            int, key in Tag_1 dict
 
     Data output from powerPlant:
             Inverter:
                     Commands to each given inverter. (managedEffektas)
             SocMonitor:
-                    sends "resetSoc" if floatMode from inverter is set (rising edge)
+                    sends {"cmd":"resetSoc"} to SocMonitor if floatMode from inverter is set (rising edge)
             OutTopic:
                     {"BasicUsbRelais.gpioCmd":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}}
 
@@ -150,7 +155,7 @@ class PowerPlant(Worker):
         self.sendeMqtt = True
 
     def resetSocMonitor(self):
-        self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["socMonitorName"])), "resetSoc", globalPublish = False, enableEcho = False)
+        self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["socMonitorName"])), {"cmd":"resetSoc"}, globalPublish = False, enableEcho = False)
 
     def addLinkedEffektaDataToHomeautomation(self):
         # send Values to a homeAutomation to get there sensors
