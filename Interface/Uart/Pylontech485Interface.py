@@ -39,40 +39,48 @@ class Pylontech485Interface(InterfaceBase):
 
 
     def threadMethod(self):
-        data = self.p.update()
-
-        valueList = []
-        for module in data["AnaloglList"]:
-            valueList += module["CellVoltages"]
-        self.BmsWerte["Vmin"] = min(valueList)
-        self.BmsWerte["Vmax"] = max(valueList)
-        valueList = []
-        for module in data["AnaloglList"]:
-            valueList += module["Temperatures"]
-        self.BmsWerte["Tmin"] = min(valueList)
-        self.BmsWerte["Tmax"] = max(valueList)
-
-        self.BmsWerte["Current"] = 0.0
-        for module in data["AnaloglList"]:
-            self.BmsWerte["Current"] += module["Current"]
-
-        self.BmsWerte["BmsEntladeFreigabe"] = True
-        for module in data["AlarmInfoList"]:
-            #if not data["ChargeDischargeManagementList"]["StatusDischargeEnable"]:
-            if module["ModuleVoltageAlarm"] != "Ok":
-                self.BmsWerte["BmsEntladeFreigabe"] = False
-
-        for module in data["ChargeDischargeManagementList"]:
-            if module["StatusFullChargeRequired"]:
-                self.BmsWerte["FullChargeRequired"] = True
-
-        self.BmsWerte["Prozent"] = data["Calculated"]["Remain_Percent"]
-        self.BmsWerte["Ah"] = data["Calculated"]["RemainCapacity_Ah"]
-        self.BmsWerte["Power"] = data["Calculated"]["Power_W"]
-
-        self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
-
-        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
+        try:
+            data = self.p.update()
+            #  todo remove end update:  7.755686521530151
+            # start update
+            if self.timerExists("timeoutPylontechRead"):
+                self.timer(name = "timeoutPylontechRead",remove = True)
+            valueList = []
+            for module in data["AnaloglList"]:
+                valueList += module["CellVoltages"]
+            self.BmsWerte["Vmin"] = min(valueList)
+            self.BmsWerte["Vmax"] = max(valueList)
+            valueList = []
+            for module in data["AnaloglList"]:
+                valueList += module["Temperatures"]
+            self.BmsWerte["Tmin"] = min(valueList)
+            self.BmsWerte["Tmax"] = max(valueList)
+    
+            self.BmsWerte["Current"] = 0.0
+            for module in data["AnaloglList"]:
+                self.BmsWerte["Current"] += module["Current"]
+    
+            self.BmsWerte["BmsEntladeFreigabe"] = True
+            for module in data["AlarmInfoList"]:
+                #if not data["ChargeDischargeManagementList"]["StatusDischargeEnable"]:
+                if module["ModuleVoltageAlarm"] != "Ok":
+                    self.BmsWerte["BmsEntladeFreigabe"] = False
+    
+            for module in data["ChargeDischargeManagementList"]:
+                if module["StatusFullChargeRequired"]:
+                    self.BmsWerte["FullChargeRequired"] = True
+    
+            self.BmsWerte["Prozent"] = data["Calculated"]["Remain_Percent"]
+            self.BmsWerte["Ah"] = data["Calculated"]["RemainCapacity_Ah"]
+            self.BmsWerte["Power"] = data["Calculated"]["Power_W"]
+    
+            self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
+    
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
+        except:
+            self.logger.error(self, f"Error reading {self.name} inteface.")
+            if self.timer(name = "timeoutPylontechRead", timeout = 60):
+                raise Exception(f'{self.name} connection is broken since 60s!')
 
     def threadBreak(self):
         time.sleep(1.5)

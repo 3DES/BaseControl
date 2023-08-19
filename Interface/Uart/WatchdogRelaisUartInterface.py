@@ -164,7 +164,11 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 return {"Error":"E"}
 
     def processSerialCmd(self, cmd):
-        for tries in range(10):
+        maxTries = 10
+        for tries in range(maxTries):
+            if tries > 3:
+                self.logger.error(self, f"We try to reinit serial because there are many errors.")
+                self.reInitSerial()
             self.serialReset_input_buffer()
             wdCommand = self.getCommand(cmd)
             self.serialWrite(wdCommand)
@@ -195,7 +199,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.logger.error(self, f"We sended cmd: {wdCommand}")
                     self.getAndLogDiagnosis()
                 if delayNextRead:
-                    time.sleep(1)
+                    time.sleep(2)
         raise Exception("After few communication errors we stop Basecontrol")
 
     def sendCommand(self, command):

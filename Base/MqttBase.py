@@ -435,11 +435,14 @@ class MqttBase(Base):
         return topic
         
     
-    def getObjectTopic(self):
+    def getObjectTopic(self, objectName = None):
         '''
-        Create object topic for current object
+        Create object topic for current object or give object
         '''
-        return self.createProjectTopic(self.name)
+        if objectName is None:
+            return self.createProjectTopic(self.name)
+        else:
+            return self.createProjectTopic(objectName)
 
 
     def getClassTopic(self):

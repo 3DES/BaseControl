@@ -38,7 +38,7 @@ class BasicUartInterface(InterfaceBase):
         success = True
         try:
             self.logger.debug(self, f"Serial Port {self.name} reInit!")
-            self.serialConn.close()
+            self.serialClose()
             self.serialConn.open()
         except Exception as exception:
             self.logger.error(self, f"Serial Port {self.name} reInit failed: {exception}")
@@ -48,6 +48,19 @@ class BasicUartInterface(InterfaceBase):
         if success and self.timerExists("timeoutReinit"):
             self.timer(name = "timeoutReinit", remove = True)
         return success
+
+    def serialInit(self):
+        self.serialConn = serial.Serial(
+            port         = self.configuration["interface"],
+            baudrate     = self.configuration["baudrate"],
+            bytesize     = self.configuration["bytesize"],
+            parity       = self.configuration["parity"],
+            stopbits     = self.configuration["stopbits"],
+            timeout      = self.configuration["timeout"],
+            xonxoff      = self.configuration["xonxoff"],
+            writeTimeout = self.configuration["writeTimeout"],
+            rtscts       = self.configuration["rtscts"]
+        )
 
     def serialClose(self):
         self.serialConn.close()
@@ -150,17 +163,7 @@ class BasicUartInterface(InterfaceBase):
         while self.tries <= self.maxInitTries:
             self.tries += 1
             try:
-                self.serialConn = serial.Serial(
-                    port         = self.configuration["interface"],
-                    baudrate     = self.configuration["baudrate"],
-                    bytesize     = self.configuration["bytesize"],
-                    parity       = self.configuration["parity"],
-                    stopbits     = self.configuration["stopbits"],
-                    timeout      = self.configuration["timeout"],
-                    xonxoff      = self.configuration["xonxoff"],
-                    writeTimeout = self.configuration["writeTimeout"],
-                    rtscts       = self.configuration["rtscts"]
-                )
+                self.serialInit()
                 break
             except:
                 time.sleep(2)
