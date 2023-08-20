@@ -104,6 +104,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         self.address = self.ADDRESS[self.configuration["interfaceType"]]
 
         self.status = None
+        self.toggle = False
 
 
     @classmethod
@@ -529,7 +530,22 @@ class DalyBmsUartInterface(BasicUartInterface):
         #self.logger.debug(self.name, f"balancing:    " + str(values["balancing_status"]))
         #self.logger.debug(self.name, f"errors:       " + str(values["errors"]))
 
-        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), values, globalPublish = False)
+        vMin = values["cell_voltage_range"]["lowest_voltage"]
+        vMax = values["cell_voltage_range"]["highest_voltage"]
+        voltageList = []
+        for cellNumber, cellVoltage in values["cell_voltages"].items():
+            if cellVoltage < vMin:
+                self.logger.warning(self.name, f"cell {cellNumber} has lower voltage {cellVoltage} as vMin mentioned by daly bms {vMin}")
+                vMin = cellVoltage
+            elif cellVoltage > vMax:
+                self.logger.warning(self.name, f"cell {cellNumber} has higher voltage {cellVoltage} as vMax mentioned by daly bms {vMax}")
+                vMax = cellVoltage
+            voltageList.append(cellVoltage)
+
+        message = {"toggleIfMsgSeen" : self.toggle, "vMin" : vMin, "vMax" : vMax, "VoltageList" : voltageList}
+        self.toggle = not self.toggle       # toggle our toggle bit
+
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False)
 
 
     def threadBreak(self):

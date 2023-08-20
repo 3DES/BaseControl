@@ -88,8 +88,11 @@ if __name__ == '__main__':
     arguments = argumentParser.parse_args()
 
     if arguments.remoteDebugging:
+        from pydevd_file_utils import setup_client_server_paths
+        MY_PATHS_FROM_ECLIPSE_TO_PYTHON = [('//HOMEASSISTANT/share/PowerPlant', '/share/PowerPlant'),]
+        setup_client_server_paths(MY_PATHS_FROM_ECLIPSE_TO_PYTHON)
         import pydevd
-        pydevd.settrace("debugserver", port=5678)   # additional parameters: stdoutToServer=True, stderrToServer=True / debugserver should be set in /etc/hosts file, e.g. "192.168.168.9   debugserver"
+        pydevd.settrace("debugserver", port = 5678, suspend = False)   # additional parameters: stdoutToServer=True, stderrToServer=True / debugserver should be set in /etc/hosts file, e.g. "192.168.168.9   debugserver"
 
     stopReason = ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.logFilter, arguments.stopAfterSeconds, arguments.printAlways, arguments.writeLogToDiskWhenEnds, arguments.missingImportMeansError)
 
