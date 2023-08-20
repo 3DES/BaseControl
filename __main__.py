@@ -84,7 +84,12 @@ if __name__ == '__main__':
     argumentParser.add_argument("-p", "--print-always",         default = printAlways,             dest = "printAlways",                        action='store_true', help = "for development only, log messages will always be printed to screen, usually this will be done only in debug case")
     argumentParser.add_argument("-w", "--write-when-ends",      default = writeLogToDiskWhenEnds,  dest = "writeLogToDiskWhenEnds",             action='store_true', help = "always write log buffer to disk when program comes to an end not only in error case")
     argumentParser.add_argument("-e", "--missing-import-error", default = missingImportMeansError, dest = "missingImportMeansError",            action='store_true', help = "an exception will be thrown if an @import file in init file doesn't exist, otherwise it's only printed to stdout")
+    argumentParser.add_argument("-d", "--remote-debug",                                            dest = "remoteDebugging",                    action='store_true', help = "remote debugging is enabled and it's expected that the debug server is up and running")
     arguments = argumentParser.parse_args()
+
+    if arguments.remoteDebugging:
+        import pydevd
+        pydevd.settrace("debugserver", port=5678)   # additional parameters: stdoutToServer=True, stderrToServer=True / debugserver should be set in /etc/hosts file, e.g. "192.168.168.9   debugserver"
 
     stopReason = ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.logFilter, arguments.stopAfterSeconds, arguments.printAlways, arguments.writeLogToDiskWhenEnds, arguments.missingImportMeansError)
 

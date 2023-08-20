@@ -185,8 +185,8 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     # If we got no msg on version request we suggess that there is a new Arduino plugged in.
                     return "newArduino"
                 if procMsg["Error"] == "framenumber":
-                    self.logger.error(self, f"We try to set right framenumber, and resend msg. Tries: {tries}")
                     self.frameCounter = procMsg["requiredFramenumber"]
+                    self.logger.error(self, f"We try to set right framenumber {self.frameCounter}, and resend msg. Tries: {tries}")
                     delayNextRead = False
                     # todo wenn framenumber 0 dann sollten wir evtl einen eventuellen Reset des wdRel behandeln
                 elif procMsg["Error"] == "invalidStartup":
@@ -196,7 +196,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     delayNextRead = False
                 if not self.getDiagnosis:
                     # prevent recursion if we get an error while getAndLogDiagnosis()
-                    self.logger.error(self, f"We sended cmd: {wdCommand}")
+                    self.logger.error(self, f"We sended cmd: {wdCommand}, real framenumber would have been {self.frameCounter}")
                     self.getAndLogDiagnosis()
                 if delayNextRead:
                     time.sleep(2)
@@ -295,7 +295,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         retval = self.sendRequest("W", "1")
         if not retval == "1":
             self.getAndLogDiagnosis()
-            raise Exception("Watchdog was not 1 after trigger. We StopPowerplant.")
+            raise Exception("Watchdog was not 1 after trigger, PowerPlant will be stopped! Watchdog must have been in any error state and blocks reset pin for 1 minute, e.g. because PowerPlant has been stopped and Watchdog hasn't been retriggered, or self test failed.")
         return retval
 
     def clearWdRelay(self):

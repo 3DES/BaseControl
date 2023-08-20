@@ -190,6 +190,7 @@ class EffektaController(ThreadObject):
         if self.timeStamp + effekta_Query_Cycle < time.time():
             self.timeStamp = time.time()
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QPIGS"), globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QID"), globalPublish = False, enableEcho = False)
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMOD"), globalPublish = False, enableEcho = False)
             if not self.valideChargeValues:
                 # If valideChargeValues is emty we send a query and fill it if effekta answers
