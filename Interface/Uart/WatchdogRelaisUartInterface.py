@@ -23,7 +23,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     Messages:
     {"cmd":"readInputState"} publishes the localInputState
     {"cmd":"triggerWdRelay"} trigger the external wd relay
-    {"cmd":"resetWdRelay"} resets the external wd relay
+    {"cmd":"clearWdRelay"} resets the external wd relay
     {"cmd":"testWdRelay"} send the Test Command to the wd relay
     {"setRelay":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} set the Relay state
 
@@ -242,9 +242,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
     def updateArduio(self):
         try:
-            self.resetWdRelay()
+            self.clearWdRelay()
         except:
-            self.logger.error(self, f"Arduino update. resetWdRelay() not possible! Try to update now.")
+            self.logger.error(self, f"Arduino update. clearWdRelay() not possible! Try to update now.")
 
         self.serialClose()
         tries = 0
@@ -254,7 +254,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             if avrDudeRet.returncode:
                 self.logger.error(self, f"Arduino update Error! RetVal: {avrDudeRet.stdout}, {avrDudeRet.stderr}")
                 self.logger.error(self, f"Arduino update. Wait 35s and Retry.")
-                time.sleep(35)    # Wait because the reset of arduino migth be locked. It will be unlocked 30s after resetWdRelay.
+                time.sleep(35)    # Wait because the reset of arduino migth be locked. It will be unlocked 30s after clearWdRelay.
             else:
                 self.logger.info(self, f"Arduino update Ok")
                 self.reInitSerial()
@@ -298,7 +298,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             raise Exception("Watchdog was not 1 after trigger. We StopPowerplant.")
         return retval
 
-    def resetWdRelay(self):
+    def clearWdRelay(self):
         self.sendRequest("W", "0")
 
     def readInputState(self):
@@ -307,12 +307,12 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             inputs.update(self.sendRequest("R", self.inputMapping[pin]))
         return inputs
 
-    def setRelayStates(self, RelayState):
-        for relay in list(RelayState):
-            self.sendValue("S", self.relayMapping[relay], RelayState[relay])
-            if not self.wdEverTriggered and RelayState[relay] == "1":
+    def setRelayStates(self, relayState):
+        for relay in list(relayState):
+            self.sendValue("S", self.relayMapping[relay], relayState[relay])
+            if not self.wdEverTriggered and relayState[relay] == "1":
                 # If the watchdog is 0 we cannot set any relais. A clean timing is: trigger wd first and then set relais. This is not easy if this is done by different threads.
-                self.logger.error(self,f'Setting of relais -{relay}- maybe has no effect, wd was never triggered. Please see -triggerThread- in project.json. Or check timing!')
+                self.logger.error(self,f'Setting of relay -{relay}- to 1 maybe has no effect, wd was never triggered. Please see -triggerThread- in project.json. Or check timing!')
 
     def threadMethod(self):
         if self.firstLoop:
@@ -342,8 +342,8 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"triggerWd":self.triggerWdRelay()}, globalPublish = False, enableEcho = False)
                 elif "testWdRelay" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"testWdRelay":self.testWdRelay()}, globalPublish = False, enableEcho = False)
-                elif "resetWdRelay" == newMqttMessageDict["content"]["cmd"]:
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"resetWdRelay":self.resetWdRelay()}, globalPublish = False, enableEcho = False)
+                elif "clearWdRelay" == newMqttMessageDict["content"]["cmd"]:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"clearWdRelay":self.clearWdRelay()}, globalPublish = False, enableEcho = False)
             elif "setRelay" in newMqttMessageDict["content"]:
                 self.setRelayStates(newMqttMessageDict["content"]["setRelay"])
 
