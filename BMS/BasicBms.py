@@ -2,6 +2,7 @@ import time
 import json
 from Base.ThreadObject import ThreadObject
 from GPIO.BasicUsbRelais import BasicUsbRelais
+from Base.Supporter import Supporter
 
 
 class BasicBms(ThreadObject):
@@ -50,32 +51,6 @@ class BasicBms(ThreadObject):
         super().__init__(threadName, configuration)
         self.tagsIncluded(["parameters"], optional = True, default = {})
 
-
-    def checkWerteSprung(self, newValue, oldValue, percent, minVal, maxVal, minAbs = 0):
-        
-        # Diese Funktion prüft, dass der neue Wert innerhalb der angegebenen maxVal maxVal Grenzen und ausserhalb der angegebenen Prozent Grenze
-        # Diese Funktion wird verwendet um kleine Wertsprünge rauszu Filtern und Werte Grenzen einzuhalten
-
-        if newValue == oldValue == 0:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-            
-        percent = percent * 0.01
-        valuePercent = abs(oldValue) * percent
-        
-        if valuePercent < minAbs:
-            valuePercent = minAbs
-            
-        minPercent = oldValue - valuePercent
-        maxPercent = oldValue + valuePercent
-        
-        if minVal <= newValue <= maxVal and not (minPercent < newValue < maxPercent):
-            #myPrint("wert wird uebernommen")
-            return True
-        else:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-
     def getSocMonitorTopic(self):
         return self.createOutTopic(self.getObjectTopic(self.configuration["socMonitor"]))
 
@@ -110,6 +85,9 @@ class BasicBms(ThreadObject):
             if "BmsEntladeFreigabe" in self.bmsWerte[interfaceName]:
                 entladeFreigabeList.append(self.bmsWerte[interfaceName]["BmsEntladeFreigabe"])
                 entladefreigabeSeen = True
+            if "BmsLadeFreigabe" in self.bmsWerte[interfaceName]:
+                ladeFreigabeList.append(self.bmsWerte[interfaceName]["BmsLadeFreigabe"])
+                ladefreigabeSeen = True
             if "Current" in self.bmsWerte[interfaceName]:
                 self.globalBmsWerte["merged"]["Current"] += self.bmsWerte[interfaceName]["Current"]
             if "Prozent" in self.bmsWerte[interfaceName]:
@@ -120,9 +98,6 @@ class BasicBms(ThreadObject):
                 vMaxList.append(max(self.bmsWerte[interfaceName]["VoltageList"]))
                 vMinSeen = True
                 vMaxSeen = True
-            if "BmsLadeFreigabe" in self.bmsWerte[interfaceName]:
-                ladeFreigabeList.append(self.bmsWerte[interfaceName]["BmsLadeFreigabe"])
-                ladefreigabeSeen = True
             if "FullChargeRequired" in self.bmsWerte[interfaceName]:
                 fullChargeReqList.append(self.bmsWerte[interfaceName]["FullChargeRequired"])
 
@@ -286,10 +261,10 @@ class BasicBms(ThreadObject):
     
                     # Check optional data, sanity check is done in mergeBmsData()
                     if "Vmin" in newMqttMessageDict["content"]:
-                        if self.checkWerteSprung(newMqttMessageDict["content"]["Vmin"], self.bmsWerte[interfaceName]["Vmin"], 1, -1, 10):
+                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Vmin"], self.bmsWerte[interfaceName]["Vmin"], -1, 10):
                             takeDataAndSendGlobal(interfaceName)
                     if "Vmax" in newMqttMessageDict["content"]:
-                        if self.checkWerteSprung(newMqttMessageDict["content"]["Vmax"], self.bmsWerte[interfaceName]["Vmax"], 1, -1, 10):
+                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Vmax"], self.bmsWerte[interfaceName]["Vmax"], -1, 10):
                             takeDataAndSendGlobal(interfaceName)
                     if "BmsEntladeFreigabe" in newMqttMessageDict["content"]:
                         if newMqttMessageDict["content"]["BmsEntladeFreigabe"] != self.bmsWerte[interfaceName]["BmsEntladeFreigabe"]:
@@ -297,10 +272,10 @@ class BasicBms(ThreadObject):
     
                 # Now we check the optional values on its range and hysteresis and publish global
                 if "Current" in newMqttMessageDict["content"]:
-                    if self.checkWerteSprung(newMqttMessageDict["content"]["Current"], self.bmsWerte[interfaceName]["Current"], 20, -200, 200, 5):
+                    if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Current"], self.bmsWerte[interfaceName]["Current"], -200, 200):
                         takeDataAndSendGlobal(interfaceName)
                 if "Prozent" in newMqttMessageDict["content"]:
-                    if self.checkWerteSprung(newMqttMessageDict["content"]["Prozent"], self.bmsWerte[interfaceName]["Prozent"], 1, -1, 101):
+                    if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Prozent"], self.bmsWerte[interfaceName]["Prozent"], -1, 101):
                         takeDataAndSendGlobal(interfaceName)
 
                 # if a toggle of toggleIfMsgSeen was seen we remember new value

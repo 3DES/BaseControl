@@ -269,3 +269,11 @@ class Supporter(object):
             difference = -difference
         return difference
 
+
+    @classmethod
+    def deltaOutsideRange(self, newValue, oldValue, minVal, maxVal, percent = 1):
+        valueRange = abs(maxVal - minVal) + 1
+        ignoreRange = valueRange * percent / 100
+        delta = abs(oldValue - newValue)
+        return (minVal <= newValue <= maxVal) and (delta >= ignoreRange)
+

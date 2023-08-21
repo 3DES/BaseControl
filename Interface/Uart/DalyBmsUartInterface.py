@@ -417,13 +417,13 @@ class DalyBmsUartInterface(BasicUartInterface):
             response_data = self._read_request("97")
         if not response_data:
             return False
-        self.logger.info(self.name, response_data.hex())
+        self.logger.debug(self.name, response_data.hex())
         bits = bin(int(response_data.hex(), base=16))[2:].zfill(48)
-        self.logger.info(self.name, bits)
+        self.logger.debug(self.name, bits)
         cells = {}
         for cell in range(1, self.status["cells"] + 1):
             cells[cell] = bool(int(bits[cell * -1]))
-        self.logger.info(self.name, str(cells))
+        self.logger.debug(self.name, str(cells))
         # todo: get sample data and verify result
         return {"error": "not implemented"}
 
@@ -463,7 +463,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             response_data = self._read_request("d9", extra = extra)
         if not response_data:
             return False
-        self.logger.info(self.name, response_data.hex())
+        self.logger.debug(self.name, response_data.hex())
         # on response
         # 0101000002006cbe
         # off response
@@ -542,10 +542,15 @@ class DalyBmsUartInterface(BasicUartInterface):
                 vMax = cellVoltage
             voltageList.append(cellVoltage)
 
-        message = {"toggleIfMsgSeen" : self.toggle, "vMin" : vMin, "vMax" : vMax, "VoltageList" : voltageList}
+        chargingOk = values["mosfet_status"]["charging_mosfet"]
+        dischargingOk = values["mosfet_status"]["discharging_mosfet"]
+
+        message = {"toggleIfMsgSeen" : self.toggle, "vMin" : vMin, "vMax" : vMax, "VoltageList" : voltageList, "BmsEntladeFreigabe" : dischargingOk, "BmsLadeFreigabe" : chargingOk}
         self.toggle = not self.toggle       # toggle our toggle bit
 
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False)
+
+        self.logger.debug(self.name, str(message))
 
 
     def threadBreak(self):
