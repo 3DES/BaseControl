@@ -95,45 +95,46 @@ class BasicBms(ThreadObject):
         self.globalBmsWerte["merged"]["Current"] = 0
         self.globalBmsWerte["merged"]["Prozent"] = 0
         divideProzent = 0
-        for interface in list(self.bmsWerte):
+        for interfaceName in list(self.bmsWerte):
             entladefreigabeSeen = False
             ladefreigabeSeen = False
             vMinSeen = False
             vMaxSeen = False
 
-            if "Vmin" in self.bmsWerte[interface]:
-                vMinList.append(self.bmsWerte[interface]["Vmin"])
+            if "Vmin" in self.bmsWerte[interfaceName]:
+                vMinList.append(self.bmsWerte[interfaceName]["Vmin"])
                 vMinSeen = True
-            if "Vmax" in self.bmsWerte[interface]:
-                vMaxList.append(self.bmsWerte[interface]["Vmax"])
+            if "Vmax" in self.bmsWerte[interfaceName]:
+                vMaxList.append(self.bmsWerte[interfaceName]["Vmax"])
                 vMaxSeen = True
-            if "BmsEntladeFreigabe" in self.bmsWerte[interface]:
-                entladeFreigabeList.append(self.bmsWerte[interface]["BmsEntladeFreigabe"])
+            if "BmsEntladeFreigabe" in self.bmsWerte[interfaceName]:
+                entladeFreigabeList.append(self.bmsWerte[interfaceName]["BmsEntladeFreigabe"])
                 entladefreigabeSeen = True
-            if "Current" in self.bmsWerte[interface]:
-                self.globalBmsWerte["merged"]["Current"] += self.bmsWerte[interface]["Current"]
-            if "Prozent" in self.bmsWerte[interface]:
-                self.globalBmsWerte["merged"]["Prozent"] += self.bmsWerte[interface]["Prozent"]
+            if "Current" in self.bmsWerte[interfaceName]:
+                self.globalBmsWerte["merged"]["Current"] += self.bmsWerte[interfaceName]["Current"]
+            if "Prozent" in self.bmsWerte[interfaceName]:
+                self.globalBmsWerte["merged"]["Prozent"] += self.bmsWerte[interfaceName]["Prozent"]
                 divideProzent += 1
-            if "VoltageList" in self.bmsWerte[interface]:
-                vMinList.append(min(self.bmsWerte[interface]["VoltageList"]))
-                vMaxList.append(max(self.bmsWerte[interface]["VoltageList"]))
+            if "VoltageList" in self.bmsWerte[interfaceName]:
+                vMinList.append(min(self.bmsWerte[interfaceName]["VoltageList"]))
+                vMaxList.append(max(self.bmsWerte[interfaceName]["VoltageList"]))
                 vMinSeen = True
                 vMaxSeen = True
-            if "BmsLadeFreigabe" in self.bmsWerte[interface]:
-                ladeFreigabeList.append(self.bmsWerte[interface]["BmsLadeFreigabe"])
+            if "BmsLadeFreigabe" in self.bmsWerte[interfaceName]:
+                ladeFreigabeList.append(self.bmsWerte[interfaceName]["BmsLadeFreigabe"])
                 ladefreigabeSeen = True
-            if "FullChargeRequired" in self.bmsWerte[interface]:
-                fullChargeReqList.append(self.bmsWerte[interface]["FullChargeRequired"])
+            if "FullChargeRequired" in self.bmsWerte[interfaceName]:
+                fullChargeReqList.append(self.bmsWerte[interfaceName]["FullChargeRequired"])
 
-            # if interface is a BMS, then we expect that the BMS either sends a value "BmsEntladeFreigabe", Vmin and Vmax or a VoltageList; in the last two cases vMin, vMax and vMinTimer values must have been configured
-            if interface not in self.configuration["interfaces"].keys(): 
+            # if interfaceName is a BMS, then we expect that the BMS either sends a value "BmsEntladeFreigabe", Vmin and Vmax or a VoltageList; in the last two cases vMin, vMax and vMinTimer values must have been configured
+            if interfaceName in self.configuration["interfaces"].keys():
                 if not entladefreigabeSeen or not ladefreigabeSeen:
                     if ("parameters" not in self.configuration) or ("vMinTimer" not in self.configuration["parameters"]) or ("vMin" not in self.configuration["parameters"]) or ("vMax" not in self.configuration["parameters"]):
-                        raise Exception(f"Neither BmsEntladeFreigabe/BmsLadeFreigabe received from interface {interface} nor configured vMin, vMax and vMinTimer values found.")
+                        raise Exception(f"Neither BmsEntladeFreigabe/BmsLadeFreigabe received from interface {interfaceName} nor configured vMin, vMax and vMinTimer values found.")
                     elif not vMinSeen or not vMaxSeen:
-                        raise Exception(f"Neither BmsEntladeFreigabe/BmsLadeFreigabe nor vMin/vMax nor voltageList received from interface {interface}.")
+                        raise Exception(f"Neither BmsEntladeFreigabe/BmsLadeFreigabe nor vMin/vMax nor voltageList received from interface {interfaceName}.")
 
+        # calculate average percent value if necessary
         if divideProzent:
             self.globalBmsWerte["merged"]["Prozent"] = round(self.globalBmsWerte["merged"]["Prozent"] / divideProzent, 2)
 
@@ -149,29 +150,29 @@ class BasicBms(ThreadObject):
         self.globalBmsWerte["merged"]["BmsLadeFreigabe"] = all(ladeFreigabeList)
         if len(fullChargeReqList):
             self.globalBmsWerte["merged"]["FullChargeRequired"] = any(fullChargeReqList)
-        if not len(entladeFreigabeList):
-            raise Exception("entladeFreigabeList empty")
 
 
     def triggerWatchdog(self):
-        # this funktion checks all bms toggleSeen bits, this bit was set from threadMethod if interface toggled the bit toggleIfMsgSeen.
+        # this function checks all bms toggleSeen bits, this bit was set from threadMethod if interface toggled the bit toggleIfMsgSeen.
         # if toggleSeen bits from all interfaces are set,  we send a trigger msg to given watchdog usb relay and we toggle the output bit toggleIfMsgSeen in self.globalBmsWerte["merged"]
 
         toggleList = []
-        for interface in list(self.bmsWerte):
-            if "toggleSeen" in self.bmsWerte[interface]:
-                toggleList.append(self.bmsWerte[interface]["toggleSeen"])
+        for interfaceName in list(self.bmsWerte):
+            if "toggleSeen" in self.bmsWerte[interfaceName]:
+                toggleList.append(self.bmsWerte[interfaceName]["toggleSeen"])
             else:
                 # add a false to the list if there is no alive info from bms (used for initial state)
                 toggleList.append(False)
+        
+        # if all toggle bits have been seen toggling publish 
         if all(toggleList):
             if self.allDevicesPresent():
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), {"cmd":"triggerWdRelay"}, globalPublish = False, enableEcho = False)
-                # If all neccessary interfaces interfaces toggled their bits we will toggle our own bit too. So following threads can check for a new valid msg.
+                # If all necessary interfaces toggled their bits toggle our own bit, too. So threads listening to BMS can check if BMS is toggling its bit and, therefore, has seen new messages from all its interfaces
                 self.globalBmsWerte["merged"]["toggleIfMsgSeen"] = not self.globalBmsWerte["merged"]["toggleIfMsgSeen"] 
-            # finally we reset all toggleSeen bits for a new cycle
-            for interface in list(self.bmsWerte):
-                self.bmsWerte[interface]["toggleSeen"] = False
+            # finally reset all toggleSeen bits as preparation for the next cycle
+            for interfaceName in list(self.bmsWerte):
+                self.bmsWerte[interfaceName]["toggleSeen"] = False
 
     def updateBalancerRelais(self, value):
         # this function remembers the old relay value and set a new one
