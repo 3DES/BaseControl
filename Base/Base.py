@@ -119,10 +119,10 @@ class Base(object):
                 return (nameSpace[counterName][0] == value) or (nameSpace[counterName][0] > value and not singularTrue) 
 
 
-    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False):
+    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False, noReset : bool = False):
         '''
         Simple timer returns True if given timeout has been reached or exceeded
-        
+
         A timeout value of 0 will not setup a not existing timer but can be used to check a running timer and reset it if it exceeded, the original period will not be changed
         A timeout different from 0 will setup a new timer if it doesn't exist or set a new time period if timeout is different but the current set time will not be changed
 
@@ -139,9 +139,11 @@ class Base(object):
         If remainingTime is True timer handling is as usual but the remaining time will be given back instead of True or False, check can be done by comparing the returned value with 0, a positive value (= False) means there is still some time left, a negative value (= True) means time is already over 
 
         During setup call the timer usually returns with False but if firstTimeTrue is set to True it will return with True for the first time, so it's not necessary to handle it manually to get informed at setup call, too and not only for all following periods
-        
+
         In case of oneShot is set to True the timer will only return True once when the time is over, it returns True independent from how long the time is already over but only for the first check after the timeout has been reached
         oneShot has no effect if given when the timer is set up but it has to be given when the timer is checked
+
+        noReset prevents timer from being reset when it has timed out, so a once timed out timer will stay timed out
         '''
         def updateTime(startTime : int, period : int):
             '''
@@ -196,7 +198,9 @@ class Base(object):
             if currentTime >= nameSpace[existingTimerName][0]:                          # timeout happened?
                 if existingTimerName == timerName:                                      # common timer or one-shot-timer that is still active
                     originalTimeout = nameSpace[existingTimerName][0]
-                    nameSpace[existingTimerName][0] = updateTime(nameSpace[existingTimerName][0], nameSpace[existingTimerName][1])
+                    
+                    if not noReset:
+                        nameSpace[existingTimerName][0] = updateTime(nameSpace[existingTimerName][0], nameSpace[existingTimerName][1])
     
                     if strict:
                         deltaTime = nameSpace[existingTimerName][0] - originalTimeout

@@ -271,9 +271,17 @@ class Supporter(object):
 
 
     @classmethod
-    def deltaOutsideRange(self, newValue, oldValue, minVal, maxVal, percent = 1):
-        valueRange = abs(maxVal - minVal) + 1
-        ignoreRange = valueRange * percent / 100
-        delta = abs(oldValue - newValue)
-        return (minVal <= newValue <= maxVal) and (delta >= ignoreRange)
+    def deltaOutsideRange(self, newValue : float, oldValue : float, minVal : float, maxVal : int, percent : int = 1, dynamic : bool = False, minIgnoreDelta : float = 0.0):
+        if not dynamic:
+            valueRange = abs(maxVal - minVal)    # ignore delta only depends on valid value range but not on current value
+        else:
+            valueRange = oldValue                # ignore delta will be smaller if current value is smaller
+
+        ignoreDelta = valueRange * (percent / 100)
+        ignoreDelta = max(ignoreDelta, minIgnoreDelta)      # ensure a minimum ignore delta size if one has been given
+
+        delta = abs(oldValue - newValue)                    # calculate difference between old an new value to decide if change is inside or outside of the ignore window
+
+        # if given value is valid check if its difference to the old value is greater or equal to +/- ignore delta
+        return (minVal <= newValue <= maxVal) and (delta >= ignoreDelta)
 

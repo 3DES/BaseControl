@@ -104,7 +104,7 @@ class BasicBms(ThreadObject):
             # if interfaceName is a BMS, then we expect that the BMS either sends a value "BmsEntladeFreigabe", Vmin and Vmax or a VoltageList; in the last two cases vMin, vMax and vMinTimer values must have been configured
             if interfaceName in self.configuration["interfaces"].keys():
                 if not entladefreigabeSeen or not ladefreigabeSeen:
-                    if ("parameters" not in self.configuration) or ("vMinTimer" not in self.configuration["parameters"]) or ("vMin" not in self.configuration["parameters"]) or ("vMax" not in self.configuration["parameters"]):
+                    if ("parameters" not in self.configuration) or not all(element in self.configuration["parameters"] for element in ["vMinTimer", "vMin", "vMax"]):
                         raise Exception(f"Neither BmsEntladeFreigabe/BmsLadeFreigabe received from interface {interfaceName} nor configured vMin, vMax and vMinTimer values found.")
                     elif not vMinSeen or not vMaxSeen:
                         raise Exception(f"Neither BmsEntladeFreigabe/BmsLadeFreigabe nor vMin/vMax nor voltageList received from interface {interfaceName}.")

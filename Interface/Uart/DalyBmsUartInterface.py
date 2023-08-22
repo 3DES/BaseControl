@@ -545,7 +545,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         chargingOk = values["mosfet_status"]["charging_mosfet"]
         dischargingOk = values["mosfet_status"]["discharging_mosfet"]
 
-        message = {"toggleIfMsgSeen" : self.toggle, "vMin" : vMin, "vMax" : vMax, "VoltageList" : voltageList, "BmsEntladeFreigabe" : dischargingOk, "BmsLadeFreigabe" : chargingOk}
+        message = {"toggleIfMsgSeen" : self.toggle, "Vmin" : vMin, "Vmax" : vMax, "VoltageList" : voltageList, "BmsEntladeFreigabe" : dischargingOk, "BmsLadeFreigabe" : chargingOk}
         self.toggle = not self.toggle       # toggle our toggle bit
 
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False)
