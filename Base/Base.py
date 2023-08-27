@@ -119,7 +119,7 @@ class Base(object):
                 return (nameSpace[counterName][0] == value) or (nameSpace[counterName][0] > value and not singularTrue) 
 
 
-    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False, noReset : bool = False):
+    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False, autoReset : bool = True):
         '''
         Simple timer returns True if given timeout has been reached or exceeded
 
@@ -143,7 +143,7 @@ class Base(object):
         In case of oneShot is set to True the timer will only return True once when the time is over, it returns True independent from how long the time is already over but only for the first check after the timeout has been reached
         oneShot has no effect if given when the timer is set up but it has to be given when the timer is checked
 
-        noReset prevents timer from being reset when it has timed out, so a once timed out timer will stay timed out
+        autoReset == False prevents timer from being reset when it has timed out, so a once timed out timer will stay timed out; therefore, it's similar to oneShot but if it becomes True it stays True whereas oneShot is True exactly once
         '''
         def updateTime(startTime : int, period : int):
             '''
@@ -161,6 +161,10 @@ class Base(object):
                 deltaTime = currentTime - startTime
                 return startTime + period * ((deltaTime // period) + 1)
 
+        NEXT_TIMEOUT_TIME = 0
+        PERIOD_DURATION = 1
+        ONE_SHOT_DONE = -1
+
         setupTurn = False
         timerName        = self._getTimerName(name)
         oneShotTimerName = self._getOneShotTimer(timerName)
@@ -177,7 +181,7 @@ class Base(object):
         if remove:
             if not timerAlreadySetUp:
                 raise Exception("timer " + timerName + " cannot be deleted since it doesn't exist")
-            del(nameSpace[existingTimerName])
+            del(globals()[existingTimerName])
             return True
         else:
             # setup timer in global namespace if necessary
@@ -190,27 +194,32 @@ class Base(object):
                     setupTurn = True                                                    # timer has been setup in this call
                     existingTimerName = timerName
                 else:
-                    nameSpace[existingTimerName][1] = timeout                           # update timer period for following interval but not for the currently running one
+                    nameSpace[existingTimerName][PERIOD_DURATION] = timeout             # update timer period for following interval but not for the currently running one
             elif not timerAlreadySetUp:            # timeout is 0 otherwise we wouldn't be here!
                 raise Exception("a timer cannot be set up with a timeout of 0")
 
             currentTime = Supporter.getTimeStamp()
-            if currentTime >= nameSpace[existingTimerName][0]:                          # timeout happened?
+            if currentTime >= nameSpace[existingTimerName][NEXT_TIMEOUT_TIME]:          # timeout happened?
                 if existingTimerName == timerName:                                      # common timer or one-shot-timer that is still active
-                    originalTimeout = nameSpace[existingTimerName][0]
+                    originalTimeout = nameSpace[existingTimerName][NEXT_TIMEOUT_TIME]
                     
-                    if not noReset:
-                        nameSpace[existingTimerName][0] = updateTime(nameSpace[existingTimerName][0], nameSpace[existingTimerName][1])
-    
                     if strict:
-                        deltaTime = nameSpace[existingTimerName][0] - originalTimeout
-                        if deltaTime != nameSpace[existingTimerName][1]:    # delta must be 1 period otherwise throw exception
+                        deltaTime = currentTime - originalTimeout 
+                        fullPeriodes = int(deltaTime / nameSpace[existingTimerName][PERIOD_DURATION]) 
+                        if fullPeriodes > 1:    # delta must be less than 2 periods otherwise throw exception
                             raise Exception("Timer has been polled too slowly so more than one timeout period passed over and some events have been missed, event happened occurred " + str(deltaTime) + " seconds ago")
 
-                    # one-shot-timer will only shoot once!
                     if oneShot:
-                        nameSpace[oneShotTimerName] = nameSpace[timerName]
-                        del(nameSpace[timerName])
+                        if nameSpace[existingTimerName][NEXT_TIMEOUT_TIME] != ONE_SHOT_DONE:
+                            # oneShot timer shoot only once so remember that is has shot already!
+                            nameSpace[existingTimerName][NEXT_TIMEOUT_TIME] = ONE_SHOT_DONE
+                            return True
+                        else:
+                            # shot already, will not shoot again
+                            return False
+                    elif autoReset:
+                        # the "if/elif" ensures that oneShot implicitly means autoReset=False, but on the other hand independently from oneShot autoReset can be set to False if needed
+                        nameSpace[existingTimerName][NEXT_TIMEOUT_TIME] = updateTime(nameSpace[existingTimerName][NEXT_TIMEOUT_TIME], nameSpace[existingTimerName][PERIOD_DURATION])
 
                     if remainingTime:
                         return originalTimeout - currentTime
@@ -223,7 +232,7 @@ class Base(object):
                         return False            # one-shot-timer shot already so don't shoot again
             else:
                 if remainingTime:
-                    return nameSpace[existingTimerName][0] - currentTime
+                    return nameSpace[existingTimerName][NEXT_TIMEOUT_TIME] - currentTime
                 else: 
                     return False or (setupTurn and firstTimeTrue)
 

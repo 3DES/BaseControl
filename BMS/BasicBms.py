@@ -114,8 +114,10 @@ class BasicBms(ThreadObject):
             self.globalBmsWerte["merged"]["Prozent"] = round(self.globalBmsWerte["merged"]["Prozent"] / divideProzent, 2)
 
         self.globalBmsWerte["merged"]["Current"] = round(self.globalBmsWerte["merged"]["Current"], 1)
-        self.globalBmsWerte["merged"]["Vmin"] = round(min(vMinList), 2)
-        self.globalBmsWerte["merged"]["Vmax"] = round(max(vMaxList), 2)
+        if len(vMinList):
+            self.globalBmsWerte["merged"]["Vmin"] = round(min(vMinList), 2)
+        if len(vMaxList):
+            self.globalBmsWerte["merged"]["Vmax"] = round(max(vMaxList), 2)
 
         self.checkAllBmsData()      # to get BmsEntladeFreigabe and BmsLadeFreigabe
         entladeFreigabeList.append(self.globalBmsWerte["calc"]["BmsEntladeFreigabe"])

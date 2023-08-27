@@ -247,7 +247,15 @@ class Logger(ThreadBase):
         '''
         senderName = ""
         if hasattr(sender, "name"):
-            senderName = "THREAD " + sender.name
+            senderName = f"THREAD {sender.name}"
+            className = ""
+            if hasattr(sender, "__class__"):
+                senderType = "CLASS  "
+                if (sender.__module__ == 'builtins'):
+                    className = sender.__qualname__
+                else:
+                    className = sender.__module__
+                senderName += f" [{className}]"
         elif isinstance(sender, str):
             senderName = "STRING " + sender
         elif hasattr(sender, "__class__"):

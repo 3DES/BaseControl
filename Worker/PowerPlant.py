@@ -434,10 +434,11 @@ class PowerPlant(Worker):
         msgTypeSegment = msgTypeSegment.split(".")[1]
         return msgTypeSegment.lower()
 
-    def myPrint(self, msgType, msg):
+    def myPrint(self, msgType, msg, logMessage : bool = True):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/" + self.strFromLoggerLevel(msgType), {self.strFromLoggerLevel(msgType):msg}, globalPublish = True, enableEcho = False)
         # @todo sende an Messenger
-        self.logger.message(msgType, self, msg)
+        if logMessage:
+            self.logger.message(msgType, self, msg)
 
     def autoInitInverter(self):
         if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == SocMeter.InitAkkuProz:
@@ -541,6 +542,9 @@ class PowerPlant(Worker):
                     self.myPrint(Logger.LOG_LEVEL.INFO, "Starte PowerPlant!")
 
     def threadInitMethod(self):
+        self.myPrint(Logger.LOG_LEVEL.INFO, "---", logMessage = False)      # set initial value, don't log it!
+        self.myPrint(Logger.LOG_LEVEL.ERROR, "---", logMessage = False)     # set initial value, don't log it!
+        
         self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName"])
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
         # Threadnames we have to wait for a initial message. The worker need this data.
@@ -739,6 +743,7 @@ class PowerPlant(Worker):
         else:
             if self.timer(name = "timeoutExpectedDevices", timeout = 10*60):
                 self.myPrint(Logger.LOG_LEVEL.ERROR, "Es haben sich nicht alle erwarteten Devices gemeldet!")
+
                 for device in self.expectedDevices:
                     if not device in self.localDeviceData:
                         self.myPrint(Logger.LOG_LEVEL.ERROR, f"Device: {device} fehlt!")
