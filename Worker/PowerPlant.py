@@ -69,7 +69,6 @@ class PowerPlant(Worker):
         self.SkriptWerte["schaltschwelleNetzLadenaus"] = 12.0
         self.SkriptWerte["schaltschwelleNetzLadenein"] = 6.0
         self.SkriptWerte["MinSoc"] = 10.0
-        self.SkriptWerte["SchaltschwelleAkkuTollesWetter"] = 20.0
         # todo Automatisch ermitteln
         self.SkriptWerte["verbrauchNachtAkku"] = 25.0
         self.SkriptWerte["verbrauchNachtNetz"] = 3.0
@@ -732,7 +731,7 @@ class PowerPlant(Worker):
             self.passeSchaltschwellenAn()
 
             # Zum debuggen wollen wir das Relais nicht laufend ansteuern, darum warten wir
-            if self.timer(name = "timeoutTransferRelais", timeout = 5*60) or self.localDeviceData["initialRelaisTimeout"]:
+            if self.timer(name = "timeoutTransferRelais", timeout = 30) or self.localDeviceData["initialRelaisTimeout"]:
                 self.manageUtilityRelais()
                 self.localDeviceData["initialRelaisTimeout"] = True
 

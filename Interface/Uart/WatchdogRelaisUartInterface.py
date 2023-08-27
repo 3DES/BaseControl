@@ -214,6 +214,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         cmdstr = f"{command}{self.separator}{port}{self.separator}{value}"
         return self.processSerialCmd(cmdstr)
 
+    def publishInputState(self):
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"inputs":self.localInputState}, globalPublish = False, enableEcho = False)
+
     def getHwVersion(self):
         version = self.sendCommand("V")
         return version
@@ -321,11 +324,11 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             self.getVersionAndUpdate()
             self.setRelayStates({"Relay0": "0", "Relay1": "0", "Relay2": "0", "Relay3": "0", "Relay4": "0", "Relay5": "0", "Relay6": "0"})
 
-        # Polling inputs in each loop an publish if there is a new value
+        # Polling inputs in each loop and publish if there is a new value
         tempInputState = self.readInputState()
         if self.localInputState != tempInputState:
             self.localInputState = tempInputState
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"Inputs":tempInputState}, globalPublish = False, enableEcho = False)
+            self.publishInputState()
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
@@ -337,7 +340,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
             if "cmd" in newMqttMessageDict["content"]:
                 if "readInputState" == newMqttMessageDict["content"]["cmd"]:
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"inputs":self.localInputState}, globalPublish = False, enableEcho = False)
+                    self.publishInputState()
                 elif "triggerWd" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"triggerWd":self.triggerWdRelay()}, globalPublish = False, enableEcho = False)
                 elif "testWdRelay" == newMqttMessageDict["content"]["cmd"]:

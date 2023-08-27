@@ -830,3 +830,7 @@ class JBDUP(JBD):
 
     def writeCmd(self, reg, data = [], address = 0):
         return self.cmd(self.WRITE, reg, data, address)
+
+    # zum disablen von charge Fet muss man mit FactoryMode im Register 0xE1 einen uint16 bit 0 setzen 
+    # zum disablen von discharge Fet muss man mit FactoryMode im Register 0xE1 einen uint16 bit 1 setzen
+ 
