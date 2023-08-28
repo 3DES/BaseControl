@@ -2,7 +2,7 @@
 
     "PowerPlantTester":
     {
-        "class": "UnitTests.PowerPlantTester.PowerPlantTester",
+        "class": "_UnitTests.PowerPlantTester.PowerPlantTester",
         "inverterName":   "WrEffektaWest",
         "socMonitorName": "SocMonitor",
         "bmsName": "BMS",
@@ -16,6 +16,6 @@
         "socMonitorName": "SocMonitor",
         "bmsName": "Bms",
         "weatherName": "Wetter",                            # optional
-        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
+        "initModeEffekta": "Auto"                           # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     }
 }
