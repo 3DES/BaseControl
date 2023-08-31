@@ -161,7 +161,7 @@ class PowerPlant(Worker):
         unitDict = {}
         for key in self.localDeviceData["linkedEffektaData"]:
             unitDict[key] = "none"
-        self.homeAutomation.mqttDiscoverySensor(self, self.localDeviceData["linkedEffektaData"], unitDict = unitDict, topicAd = "/linkedEffektaData")
+        self.homeAutomation.mqttDiscoverySensor(self, self.localDeviceData["linkedEffektaData"], unitDict = unitDict, subTopic = "/linkedEffektaData")
         self.sendLinkedEffektaData()
 
     def sendLinkedEffektaData(self):
@@ -607,8 +607,8 @@ class PowerPlant(Worker):
         self.homeAutomation.mqttDiscoveryInputNumberSlider(self, self.setableSlider, nameDict = self.niceNameSlider)
         self.homeAutomation.mqttDiscoverySwitch(self, self.setableSwitch)
 
-        self.homeAutomation.mqttDiscoverySensor(self, sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO)], topicAd = "/" + self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO))
-        self.homeAutomation.mqttDiscoverySensor(self, sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR)], topicAd = "/" + self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR))
+        self.homeAutomation.mqttDiscoverySensor(self, sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO)], subTopic = "/" + self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO))
+        self.homeAutomation.mqttDiscoverySensor(self, sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR)], subTopic = "/" + self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR))
 
 
     def threadMethod(self):

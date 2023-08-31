@@ -584,7 +584,7 @@ class MqttBase(Base):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
-    def mqttDiscoverySensor(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, unitDict = {}, topicAd = ""):
+    def mqttDiscoverySensor(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, unitDict = {}, subTopic = ""):
         """
         sensorList: dict, nestedDict oder List der Sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
@@ -614,7 +614,7 @@ class MqttBase(Base):
                     niceName = nameDict[key]
                 if key in unitDict:
                     unit = unitDict[key]
-                preparedMsg = self.homeAutomation.getDiscoverySensorCmd(senderObj.name, key, niceName, unit, topicAd)
+                preparedMsg = self.homeAutomation.getDiscoverySensorCmd(senderObj.name, key, niceName, unit, subTopic)
                 sensorTopic = self.homeAutomation.getDiscoverySensorTopic(senderObj.name, key)
                 if sensorTopic:
                     senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)

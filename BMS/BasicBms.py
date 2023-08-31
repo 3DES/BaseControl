@@ -255,7 +255,7 @@ class BasicBms(ThreadObject):
                         # delete soc monitor to prevent double discovery in homeassistant, the soc monitor discovers it self at homeassistant. We mustn't do it.
                         if self.configuration["socMonitor"] in self.bmsWerte:
                             del self.bmsWerte[self.configuration["socMonitor"]]
-                        self.homeAutomation.mqttDiscoverySensor(self, self.bmsWerte, topicAd = self.allBmsDataTopicExtension)
+                        self.homeAutomation.mqttDiscoverySensor(self, self.bmsWerte, subTopic = self.allBmsDataTopicExtension)
                         self.homeAutomation.mqttDiscoverySensor(self, self.globalBmsWerte)
     
                     # At first we check required bit toggleIfMsgSeen. We remember it and add this info at least to bms data of this topic 

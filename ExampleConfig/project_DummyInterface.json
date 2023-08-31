@@ -138,6 +138,20 @@
 #        }
 #    },
 
+#    "Jbd":
+#    {
+#        "class":        "BMS.BasicBms.BasicBms",
+#        "interfaces":
+#        {
+#            "JbdInterface":
+#            {
+#                "connection":   "Interface.Uart.Jbd485Interface.Jbd485Interface",
+#                "interface":    "COM7",
+#                "battCount":    1
+#            }
+#        }
+#    },
+
 #    "Epever":
 #    {
 #        "class":        "Charger.GenericCharger.GenericCharger",

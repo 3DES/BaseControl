@@ -63,7 +63,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         return f'homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config'
 
     @classmethod
-    def getDiscoverySensorCmd(cls, deviceName, sensorName, niceName, unit, topicAd):
+    def getDiscoverySensorCmd(cls, deviceName, sensorName, niceName, unit, subTopic):
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/sensor/garden/config"
@@ -81,7 +81,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         """
         templateMsg = {"state_topic":"", "name": "", "value_template":"", "unit_of_measurement":""}
 
-        templateMsg["state_topic"] = ThreadObject.createOutTopic(ThreadObject.createProjectTopic(deviceName)) + topicAd
+        templateMsg["state_topic"] = ThreadObject.createOutTopic(ThreadObject.createProjectTopic(deviceName)) + subTopic
         if len(niceName):
             templateMsg["name"] = niceName
         else:
