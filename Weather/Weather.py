@@ -212,20 +212,21 @@ class WetterOnline(ThreadObject):
 
         # Wenn der Tag_1 dem aktuellen Tag entspricht dann müssen wir die Tage um eins verrutschen
         # wir fragen zurest ab ob der key vorhanden ist denn es kann sein dass das Dict leer ist.
-        if "Tag_1" in self.wetterdaten: 
-            tempDate = self.wetterdaten["Tag_1"]["Datum"].split(".")
-            if now.day == int(tempDate[0]):
-                publishWeather = True
-                if "Tag_1" in self.wetterdaten:
-                    self.wetterdaten["Tag_0"] = self.wetterdaten["Tag_1"]
-                if "Tag_2" in self.wetterdaten:
-                    self.wetterdaten["Tag_1"] = self.wetterdaten["Tag_2"]
-                if "Tag_3" in self.wetterdaten:
-                    self.wetterdaten["Tag_2"] = self.wetterdaten["Tag_3"]
-                if "Tag_4" in self.wetterdaten:
-                    self.wetterdaten["Tag_3"] = self.wetterdaten["Tag_4"]
-                # Wir füllen von hinten mit None auf
-                self.wetterdaten["Tag_4"] = None
+        if "Tag_1" in self.wetterdaten:
+            if "Datum" in self.wetterdaten["Tag_1"]:
+                tempDate = self.wetterdaten["Tag_1"]["Datum"].split(".")
+                if now.day == int(tempDate[0]):
+                    publishWeather = True
+                    if "Tag_1" in self.wetterdaten:
+                        self.wetterdaten["Tag_0"] = self.wetterdaten["Tag_1"]
+                    if "Tag_2" in self.wetterdaten:
+                        self.wetterdaten["Tag_1"] = self.wetterdaten["Tag_2"]
+                    if "Tag_3" in self.wetterdaten:
+                        self.wetterdaten["Tag_2"] = self.wetterdaten["Tag_3"]
+                    if "Tag_4" in self.wetterdaten:
+                        self.wetterdaten["Tag_3"] = self.wetterdaten["Tag_4"]
+                    # Wir füllen von hinten mit None auf
+                    self.wetterdaten["Tag_4"] = None
 
         if publishWeather:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.wetterdaten, globalPublish = True, enableEcho = False)
