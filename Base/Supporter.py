@@ -54,6 +54,12 @@ class Supporter(object):
                 for fileName in fileNameList:
                     if not exists(fileName):
                         message = "cannot import [" + fileName + "] since it doesn't exist"
+                        files = os.listdir()
+                        for file in files:
+                            print(file)
+                        files = os.listdir("json")
+                        for file in files:
+                            print(file)
                         if missingImportMeansError:
                             raise Exception(message)
                         else:
