@@ -5,7 +5,7 @@ from datetime import datetime
 import pydoc
 import json
 import re
-from os.path import exists
+import os.path
 import Logger
 import sys
 import Base
@@ -52,7 +52,8 @@ class Supporter(object):
                 del(jsonDictionary["@import"])
 
                 for fileName in fileNameList:
-                    if not exists(fileName):
+                    fileName = os.path.realpath(fileName)
+                    if not os.path.exists(fileName):
                         message = "cannot import [" + fileName + "] since it doesn't exist"
                         files = os.listdir()
                         for file in files:
