@@ -13,7 +13,7 @@ class WBmsUartInterface(BasicUartInterface):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe":False}
 
 
     def threadMethod(self):
@@ -38,6 +38,10 @@ class WBmsUartInterface(BasicUartInterface):
                 elif line == b'Rel fahren 0\r\n':
                     self.BmsWerte["BmsEntladeFreigabe"] = False
                     self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
+                elif line == b'Rel laden 1\r\n':
+                    self.BmsWerte["BmsLadeFreigabe"] = True
+                elif line == b'Rel laden 0\r\n':
+                    self.BmsWerte["BmsLadeFreigabe"] = False
             except:
                 self.logger.warning(self, f"Convert error!")
 

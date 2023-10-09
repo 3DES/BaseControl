@@ -234,7 +234,7 @@ class EffektaController(ThreadObject):
                 elif "query" in newMqttMessageDict["content"]:
                     if newMqttMessageDict["content"]["query"]["extern"]:
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
-                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"]["response"], globalPublish = True, enableEcho = False)
+                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"], globalPublish = True, enableEcho = False)
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         # get setable charge values
                         self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].split()

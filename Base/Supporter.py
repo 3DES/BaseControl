@@ -52,7 +52,6 @@ class Supporter(object):
                 del(jsonDictionary["@import"])
 
                 for fileName in fileNameList:
-                    fileName = os.path.realpath(fileName)
                     if not os.path.exists(fileName):
                         message = "cannot import [" + fileName + "] since it doesn't exist"
                         files = os.listdir()

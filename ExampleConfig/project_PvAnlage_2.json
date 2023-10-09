@@ -1,0 +1,150 @@
+{
+    "MqttBridge":
+    {
+        "class":      "MqttBridge.MqttBridge.MqttBridge",
+        "interfaces":
+        {
+            "Mosquitto":
+            {
+            "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+            "port":         1883,
+            "sendRetained": true                       # for tests you can send not retained
+            }
+         }
+    },
+
+    "Logger":
+    {
+     "projectName":   "HomeAccu"
+     },
+
+    "West":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrEffektaWest":
+            {
+                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.2:1.0-port0",
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "Ost":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrEffektaOst":
+            {
+                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.1:1.0-port0",
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "UsbRelaisRot":
+    {
+        "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
+        "gpioHandler": ["PowerPlant"],
+        "triggerThread":   "Pylontech",
+        "relMapping":{"RelNichtHeizen": "Relay3", "RelStufe1": "Relay4", "RelStufe2": "Relay5"},
+        # In2:Netzheizen In3:PVHeizen
+        "interfaces":
+        {
+            "WdUsbRelaisRot":
+            {
+                "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
+                "firmware":     "firmware.hex",
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.3:1.0-port0",
+                "baudrate":     9600
+            }
+        }
+    },
+
+    "UsbRelaisBlau":
+    {
+        "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
+        "gpioHandler": ["PowerPlant"],
+        "triggerThread":   "Pylontech",
+        "relMapping":{"relWr": ["Relay0", "Relay1"], "relPvAus": "Relay4", "relNetzAus": "Relay3"},
+        # In2:NetzSchütz In3:InverterSchütz
+        "interfaces":
+        {
+            "WdUsbRelaisBlau":
+            {
+                "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
+                "firmware":     "firmware.hex",
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.1:1.0-port0",
+                "baudrate":     9600
+            }
+        }
+    },
+
+    "WatchDog":
+    {
+        "class":      "WatchDog.WatchDog.WatchDog",
+        "interfaces":
+        {
+        },
+        "setupTime":       20,              # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
+        "triggerTime":     10,              # after that time threads should start sending alive message to watch dog
+        "timeout":         10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
+        "warningTime":     3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
+        "expectThreads":                    # expected threads
+        [
+            "Logger",
+            "PowerPlant",
+            "Mosquitto",
+            "MqttBridge",
+            "West",
+            "Ost",
+            "Pylontech",
+            "UsbRelaisRot",
+            "UsbRelaisBlau"
+        ],
+        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads
+        [
+            "UartWrEffektaWest",
+            "UartWrEffektaOst",
+            "WdUsbRelaisRot",
+            "WdUsbRelaisBlau",
+            "PylontechInterface",
+            "Wetter"
+        ],
+        "logUpTime":          60            # every 60 seconds create up time message
+    },
+
+    "Pylontech":
+    {
+        "class":        "BMS.BasicBms.BasicBms",
+        "interfaces":
+        {
+            "PylontechInterface":
+            {
+                "connection":   "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.3:1.0-port0",
+                "battCount":    5
+            }
+        }
+    },
+
+    "PowerPlant":
+    {
+        "class": "Worker.PowerPlant.PowerPlant",
+        "managedEffektas": ["West", "Ost"],
+        "socMonitorName": "Pylontech",
+        "bmsName": "Pylontech",
+        "weatherName": "Wetter",                            # optional
+        "initModeEffekta": "Auto"                           # Auto, Akku, Netz.  Fallback: Netz
+    },
+
+    "Wetter":
+    {
+        "class": "Weather.Weather.WetterOnline"
+    }
+
+}

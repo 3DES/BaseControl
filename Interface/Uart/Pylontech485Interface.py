@@ -1,7 +1,8 @@
 from Base.InterfaceBase import InterfaceBase
 import time
 import pylontech       # pip install pylontech
-from pylontech import PylontechStack
+#from pylontech import PylontechStack
+from Interface.Uart.Pylontech.pylontech_stack import PylontechStack
 from GridLoad.SocMeter import SocMeter
 
 class Pylontech485Interface(InterfaceBase):
@@ -16,7 +17,7 @@ class Pylontech485Interface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":False}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount"])
@@ -41,8 +42,6 @@ class Pylontech485Interface(InterfaceBase):
     def threadMethod(self):
         try:
             data = self.p.update()
-            #  todo remove end update:  7.755686521530151
-            # start update
             if self.timerExists("timeoutPylontechRead"):
                 self.timer(name = "timeoutPylontechRead",remove = True)
             valueList = []
@@ -61,10 +60,20 @@ class Pylontech485Interface(InterfaceBase):
                 self.BmsWerte["Current"] += module["Current"]
     
             self.BmsWerte["BmsEntladeFreigabe"] = True
+            self.BmsWerte["BmsLadeFreigabe"] = True
             for module in data["AlarmInfoList"]:
                 #if not data["ChargeDischargeManagementList"]["StatusDischargeEnable"]:
                 if module["ModuleVoltageAlarm"] != "Ok":
-                    self.BmsWerte["BmsEntladeFreigabe"] = False
+                    if self.BmsWerte["Vmin"] < 3.0:
+                        self.BmsWerte["BmsEntladeFreigabe"] = False
+                    if self.BmsWerte["Vmax"] > 3.5:
+                        self.BmsWerte["BmsLadeFreigabe"] = False
+                for cellAlarm in module["CellAlarm"]:
+                    if cellAlarm != "Ok":
+                        if self.BmsWerte["Vmin"] < 3.0:
+                            self.BmsWerte["BmsEntladeFreigabe"] = False
+                        if self.BmsWerte["Vmax"] > 3.5:
+                            self.BmsWerte["BmsLadeFreigabe"] = False
     
             for module in data["ChargeDischargeManagementList"]:
                 if module["StatusFullChargeRequired"]:
