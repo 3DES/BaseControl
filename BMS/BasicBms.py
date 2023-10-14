@@ -187,6 +187,10 @@ class BasicBms(ThreadObject):
                 self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
                 if self.timerExists("timerVmax"):
                     self.timer(name = "timerVmax",remove = True)
+        else:
+            # if there are no parameters given we set BasicBms BmsLadeFreigabe and BmsEntladeFreigabe to True because we cannot calculate it.
+            self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
+            self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
 
         # now calculate Balancer Relais
         if "vBal" in self.configuration["parameters"]:

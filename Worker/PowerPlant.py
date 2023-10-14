@@ -723,7 +723,7 @@ class PowerPlant(Worker):
                     self.SkriptWerte["Error"] = True
                     # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
                     if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
-                        raise Exception("SOC Wert unplaulibel und FloatMode Inverter aktiv!") 
+                        raise Exception(f'SOC Wert {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]} unplaulibel und FloatMode Inverter aktiv!') 
                     self.myPrint(Logger.LOG_LEVEL.ERROR, 'Error wurde gesetzt, reset bei vollem Akku. FloatMode.')
                 self.myPrint(Logger.LOG_LEVEL.ERROR, f'Unterspannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
                 self.sendeMqtt = True
