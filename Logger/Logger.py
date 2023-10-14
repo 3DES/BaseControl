@@ -216,12 +216,15 @@ class Logger(ThreadBase):
         message = newLogEntry["message"]
         level = newLogEntry["level"]
 
+        # add message number to new message
+        message = "#" + str(self.logCounter) + " " + message
+
         # store message in log buffer
         self.add_logMessage(message)
 
         if (Logger.get_printLogLevel() >= level):
             if (not "messageFilter" in self.configuration) or re.search(self.configuration["messageFilter"], message):
-                print("#" + str(self.logCounter) + " " + message)   # print is OK here!
+                print(message)   # print is OK here!
                 return True
 
         return False

@@ -1,6 +1,7 @@
 import time
 import json
 import re
+from Base.Supporter import Supporter
 
 from GridLoad.SocMeter import SocMeter
 from Interface.Uart.BasicUartInterface import BasicUartInterface
@@ -51,14 +52,29 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
 
         self.serialReset_input_buffer()
 
-        while sorted(list(self.matchedValues.keys())) != self.MATCHED_KEYS:
-            self.data += self.serialRead(length = DEFAULT_READ_LENGTH, timeout = timeout)
-            self.matchBuffer()
-
-            if self.timer(name = "readValues", timeout = 20):
-                raise Exception("Reading Victron values timed out after 20 seconds")
-
-        self.timer(name = "readValues", remove = True)
+        if not self.toSimulate():
+            # get real values from victron shunt
+            while sorted(list(self.matchedValues.keys())) != self.MATCHED_KEYS:
+                self.data += self.serialRead(length = DEFAULT_READ_LENGTH, timeout = timeout)
+                self.matchBuffer()
+    
+                if self.timer(name = "readValues", timeout = 20):
+                    raise Exception("Reading Victron values timed out after 20 seconds")
+            self.timer(name = "readValues", remove = True)
+        else:
+            # simulation mode, so simulate some values
+            self.matchedValues = {
+                "I":     2000,              # 2000 mA
+                "SOC":   650,               # state of charge at 650 per mille
+                "V":     52000,             # 52000 mV
+                "Alarm": "",                # no alarm
+                "AR":    0,                 # no alarm reason
+                "H4":    217,               # charge cyclces
+                "H5":    5,                 # full discharges
+                "H6":    37000,             # 37 Ah
+                "H7":    51000,             # Vmin
+                "H8":    53000              # Vmax
+            }
 
         self.SocMonitorWerte["Current"]        = round(int(self.matchedValues["I"]) / 1000, 2)
         self.SocMonitorWerte["Prozent"]        = int(self.matchedValues["SOC"]) / 10

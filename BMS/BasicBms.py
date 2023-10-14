@@ -164,36 +164,41 @@ class BasicBms(ThreadObject):
         # self.globalBmsWerte["merged"]["BmsEntladeFreigabe"] is overwritten if upper check result is false
         # Balancer Relais is also managed here
         if "vMin" in self.configuration["parameters"]:
-            if self.globalBmsWerte["merged"]["Vmin"] < self.configuration["parameters"]["vMin"]:
-                self.globalBmsWerte["calc"]["VminOk"] = False
-                if self.timer(name = "timerVmin", timeout = self.configuration["parameters"]["vMinTimer"]):
-                    self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = False
-                    self.clearWatchdog()
-                    raise Exception(f"CellVoltage fall below given voltage: {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
-            else:
-                self.globalBmsWerte["calc"]["VminOk"] = True
-                self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
-                if self.timerExists("timerVmin"):
-                    self.timer(name = "timerVmin",remove = True)
-
-            if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vMax"]:
-                self.globalBmsWerte["calc"]["VmaxOk"] = False 
-                if self.timer(name = "timerVmax", timeout = 10):
-                    self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = False
-                    self.clearWatchdog()
-                    raise Exception(f"CellVoltage exceeds given voltage: {self.configuration['parameters']['vMax']}V for 10s.")
-            else:
-                self.globalBmsWerte["calc"]["VmaxOk"] = True
-                self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
-                if self.timerExists("timerVmax"):
-                    self.timer(name = "timerVmax",remove = True)
+            if "Vmin" in self.globalBmsWerte["merged"]:
+                if self.globalBmsWerte["merged"]["Vmin"] < self.configuration["parameters"]["vMin"]:
+                    self.globalBmsWerte["calc"]["VminOk"] = False
+                    if self.timer(name = "timerVmin", timeout = self.configuration["parameters"]["vMinTimer"]):
+                        self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = False
+                        self.clearWatchdog()
+                        raise Exception(f"CellVoltage fall below given voltage: {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
+                else:
+                    self.globalBmsWerte["calc"]["VminOk"] = True
+                    self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
+                    if self.timerExists("timerVmin"):
+                        self.timer(name = "timerVmin",remove = True)
         else:
-            # if there are no parameters given we set BasicBms BmsLadeFreigabe and BmsEntladeFreigabe to True because we cannot calculate it.
-            self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
+            # without a vMin parameter it's not possible to decide if BmsEntladeFreigabe is False so set it to True
             self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
 
+        if "vMax" in self.configuration["parameters"]:
+            if "Vmax" in self.globalBmsWerte["merged"]:
+                if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vMax"]:
+                    self.globalBmsWerte["calc"]["VmaxOk"] = False 
+                    if self.timer(name = "timerVmax", timeout = 10):
+                        self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = False
+                        self.clearWatchdog()
+                        raise Exception(f"CellVoltage exceeds given voltage: {self.configuration['parameters']['vMax']}V for 10s.")
+                else:
+                    self.globalBmsWerte["calc"]["VmaxOk"] = True
+                    self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
+                    if self.timerExists("timerVmax"):
+                        self.timer(name = "timerVmax",remove = True)
+        else:
+            # without a vMax parameter it's not possible to decide if BmsLadeFreigabe is False so set it to True
+            self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
+
         # now calculate Balancer Relais
-        if "vBal" in self.configuration["parameters"]:
+        if "vBal" in self.configuration["parameters"] and "Vmax" in self.globalBmsWerte["merged"]:
             if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vBal"]:
                 self.updateBalancerRelais("1")
             else:

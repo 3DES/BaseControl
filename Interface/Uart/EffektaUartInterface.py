@@ -50,26 +50,29 @@ class EffektaUartInterface(BasicUartInterface):
 
         serialInput = self.serialReadLine()
 
-        serialInputByte = bytearray(serialInput)
-        lenght = len(serialInputByte)
-        receivedCrc = bytearray(b'')
-        receivedCrc = serialInputByte[lenght - 3 : lenght - 1]
-        del serialInputByte[lenght - 3 : lenght - 0]
-
-        if bytes(receivedCrc) == self.getEffektaCRC(Supporter.decode(serialInputByte)):
-            del serialInputByte[0]
-            data = Supporter.decode(serialInputByte)
-            self.logger.debug(self, f"CRC ok. Data: {data}")
-            if data == "NAK":
-                return ""
+        if len(serialInput):
+            serialInputByte = bytearray(serialInput)
+            lenght = len(serialInputByte)
+            receivedCrc = bytearray(b'')
+            receivedCrc = serialInputByte[lenght - 3 : lenght - 1]
+            del serialInputByte[lenght - 3 : lenght - 0]
+    
+            if bytes(receivedCrc) == self.getEffektaCRC(Supporter.decode(serialInputByte)):
+                del serialInputByte[0]
+                data = Supporter.decode(serialInputByte)
+                self.logger.debug(self, f"CRC ok. Data: {data}")
+                if data == "NAK":
+                    return ""
+                else:
+                    return data
             else:
-                return data
+                self.logger.error(self, f"CRC Error: received: {serialInput} command: {cmd}")
+                return ""
         else:
-            self.logger.error(self, f"CRC Error: received: {serialInput} command: {cmd}")
-            # Es gab den Fall, dass die Serial so kaputt war dass sie keine Daten mehr lieferte -> crc error. Es half ein close open
-            if len(serialInput) == 0:
-                self.reInitSerial()
+            self.logger.error(self, f"length error, 0 bytes received, command: {cmd}")
+            self.reInitSerial()     # Es gab den Fall, dass die Serial so kaputt war dass sie keine Daten mehr lieferte -> crc error. Es half ein close open
             return ""
+            
 
     def setEffektaData(self, cmd, value = ""):
         

@@ -13,6 +13,29 @@ class Base(object):
     JOIN_TIME  = 5
 
 
+    # @todo ggf. _SIMULATE umbenennen zu __SIMULATE!
+    # @todo externen WD nicht triggern, wenn ein Objekt im Simulations-Moduls läuft!
+    _SIMULATE = False            # to be set to True as soon as at least one of the objects are simulating values, this will prevent the external watchdog relay from being triggered
+
+
+    @classmethod
+    def setSimulate(cls):
+        Base._SIMULATE = True
+
+
+    @classmethod
+    def getSimulate(cls):
+        return Base._SIMULATE
+
+
+    def toSimulate(self):
+        '''
+        Should current object run in simulation mode?
+        '''
+        if self.tagsIncluded(["SIMULATE"], optional = True, default = False):
+            return self.configuration["SIMULATE"]
+
+
     def __init__(self, baseName : str, configuration : dict):
         '''
         Constructor
@@ -20,6 +43,11 @@ class Base(object):
         self.name = baseName                                                # set name for this thread
         self.configuration = configuration                                  # remember given configuration
         #super().__init__()        # NO!!!  -->  https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
+
+        # check if current object has parameter "SIMULATE" set to True
+        if self.toSimulate():
+            self.setSimulate()
+            Supporter.debugPrint(f"{self.name}: SIMULATE set")
 
 
     def _getCounterName(self, name : str):

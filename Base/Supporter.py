@@ -310,16 +310,15 @@ class Supporter(object):
         
         if color is None:
             color = f"{colorama.Fore.YELLOW}"
-        
-        print(color, end = "")
+
+        printText = color 
         for _ in range(frameSize):
-            print(f"    {marker * printLength}")
-        print(f"    {message}")
+            printText += f"    {marker * printLength}\n"
+        printText += f"    {message}\n"
         for _ in range(frameSize):
-            print(f"    {marker * printLength}")
-        print(f"{colorama.Style.RESET_ALL}", end = "")
-        print("")
-        sys.stdout.flush()
+            printText += f"    {marker * printLength}"
+        printText += f"{colorama.Style.RESET_ALL}"
+        print(printText, flush=True)
 
 
     @classmethod
