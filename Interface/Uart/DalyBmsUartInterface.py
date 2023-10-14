@@ -426,23 +426,23 @@ class DalyBmsUartInterface(BasicUartInterface):
         return cells
 
 
-    def _disableCharging(self, values : dict, error : str):
-        self.logger.error(self.name, f"disable charging because of '{error}'")
+    def _disableCharging(self, values : dict, error : str, errorByte : int, errorBit : int, additionalMessage : str):
+        self.logger.error(self.name, f"disable charging because of '{error}', (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
         values["mosfet_status"]["charging_mosfet"] = False
 
 
-    def _disableDisCharging(self, values : dict, error : str):
-        self.logger.error(self.name, f"disable dis-charging because of '{error}'")
+    def _disableDisCharging(self, values : dict, error : str, errorByte : int, errorBit : int, additionalMessage : str):
+        self.logger.error(self.name, f"disable dis-charging because of '{error}', (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
         values["mosfet_status"]["discharging_mosfet"] = False
 
 
-    def _disableChargingAndDisCharging(self, values : dict, error : str):
-        self._disableCharging(values)
-        self._disableDisCharging(values)
+    def _disableChargingAndDisCharging(self, values : dict, error : str, errorByte : int, errorBit : int, additionalMessage : str):
+        self._disableCharging(values, errorByte, errorBit, additionalMessage)
+        self._disableDisCharging(values, errorByte, errorBit, additionalMessage)
 
 
-    def _notHandledError(self, values : dict, error : str):
-        self.logger.error(self.name, f"Not supported error '{error}' found, deactivate it or add error handler for it")
+    def _notHandledError(self, values : dict, error : str, errorByte : int, errorBit : int, additionalMessage : str):
+        self.logger.error(self.name, f"Not supported error '{error}' found, deactivate it or add error handler for it, (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
         raise Exception(f"Not supported error '{error}' found, deactivate it or add error handler for it")
 
 
@@ -455,13 +455,14 @@ class DalyBmsUartInterface(BasicUartInterface):
 
         byte_index = 0
         errors = []
+        filterMask = self.configuration["errorFilter"]
         for byteContent in response_data:
             if "errorFilter" in self.configuration:
-                if len(self.configuration["errorFilter"]) > byte_index:
-                    filter = int(self.configuration["errorFilter"][byte_index], 16)
+                if len(filterMask) > (byte_index * 2):
+                    filter = int(filterMask[byte_index * 2:(byte_index * 2 + 1) + 1], 16)       # additional +1 since the sub string contains all characters EXCLUSIVE the one at the second index!
                     if (byteContent & filter) != byteContent:
                         ignoredErrors = byteContent & ~filter
-                        self.logger.debug(self.name, f"error byte {byte_index} ignored some errors: 0x{byteContent:02x} & ~{self.configuration['errorFilter'][byte_index]} = 0x{ignoredErrors:02x}")
+                        self.logger.debug(self.name, f"error byte {byte_index} ignored some errors: 0x{byteContent:02X} & ~{filterMask[byte_index]} = 0x{ignoredErrors:02X}")
                         byteContent &= filter
 
             if byteContent == 0:
@@ -666,12 +667,13 @@ class DalyBmsUartInterface(BasicUartInterface):
                         voltageList[-1] = 4.3
 
                     Supporter.debugPrint(f"{self.name} ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds", color = f"{colorama.Fore.RED}")
-                
+
+        # @TODO temperaturen auswerten!!!
 
         if ("errors" in values) and values["errors"]:
             for errorByte, errorBit in values["errors"]:
                 if errorHandlers[errorByte][errorBit] is not None:
-                    errorHandlers[errorByte][errorBit](values, self.ERROR_CODES[errorByte][errorBit])
+                    errorHandlers[errorByte][errorBit](values, self.ERROR_CODES[errorByte][errorBit], errorByte, errorBit, f"voltages: {voltageList}")
 
         chargingOk = values["mosfet_status"]["charging_mosfet"]
         dischargingOk = values["mosfet_status"]["discharging_mosfet"]
