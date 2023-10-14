@@ -16,6 +16,8 @@ import WatchDog.WatchDog
 import Base.ThreadBase
 from Base.Supporter import Supporter
 import Logger
+import os
+import colorama
 
 
 # install signal handler
@@ -171,7 +173,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, logFilter : str, stopAfterSeconds : int, printAlways : bool, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool):
+    def executeProject(cls, initFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -185,10 +187,12 @@ class ProjectRunner(object):
         else:
             cls.executed = True
 
+        startTime = Supporter.getTimeStamp()
+
         # set some command line parameters to the referring threads
         Logger.Logger.Logger.set_logLevel(logLevel)
+        Logger.Logger.Logger.set_printLogLevel(printLogLevel)
         Logger.Logger.Logger.set_logFilter(logFilter)
-        Logger.Logger.Logger.set_printAlways(printAlways)
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
 
@@ -214,8 +218,14 @@ class ProjectRunner(object):
             #logging.exception("SETUP EXCEPTION " + traceback.format_exc())
 
 
+        endTime = Supporter.getTimeStamp()
+
         # in error case try to write the log buffer content out to disk
         if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds or signalReceived:
+            deltaTime = endTime - startTime
+            uptimeMessage = f"{os.path.basename(__file__)}: overall uptime ... {Supporter.formatedTime(deltaTime, addCurrentTime = True)}"
+            Supporter.debugPrint(uptimeMessage, color = f"{colorama.Fore.RED}")
+            Logger.Logger.Logger.error(cls, uptimeMessage)
             Logger.Logger.Logger.error(cls, "write last log messages to disc before exit")
             cls.projectLogger.writeLogBufferToDisk()
 

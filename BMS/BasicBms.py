@@ -169,7 +169,7 @@ class BasicBms(ThreadObject):
                 if self.timer(name = "timerVmin", timeout = self.configuration["parameters"]["vMinTimer"]):
                     self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = False
                     self.clearWatchdog()
-                    raise Exception(f"CellVoltage fall below given voltage: {self.configuration['parameters']['vMin']} for {self.configuration['parameters']['vMinTimer']}s.")
+                    raise Exception(f"CellVoltage fall below given voltage: {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
             else:
                 self.globalBmsWerte["calc"]["VminOk"] = True
                 self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
@@ -181,7 +181,7 @@ class BasicBms(ThreadObject):
                 if self.timer(name = "timerVmax", timeout = 10):
                     self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = False
                     self.clearWatchdog()
-                    raise Exception(f"CellVoltage exceeds given voltage: {self.configuration['parameters']['vMax']} for 10s.")
+                    raise Exception(f"CellVoltage exceeds given voltage: {self.configuration['parameters']['vMax']}V for 10s.")
             else:
                 self.globalBmsWerte["calc"]["VmaxOk"] = True
                 self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True

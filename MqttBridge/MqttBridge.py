@@ -185,12 +185,12 @@ class MqttBridge(ThreadObject):
         # validate and split topic filter        
         if not self.validateTopic(topic):
             raise Exception("invalid topic given: " + Supporter.encloseString(topic, "\"", "\""))
-    
+
         handledRecipients = set()         # never send a message twice to one and the same recipient
-    
+
         if not enableEcho:
             handledRecipients.add(sender)
-    
+
         subscriberDictList = []
         if globalPublishing:
             # global subscribers receive global messages
@@ -198,7 +198,7 @@ class MqttBridge(ThreadObject):
         else:
             # local subscribers receive local messages
             subscriberDictList.append(self.get_localSubscribers())
-    
+
         # handle lists now        
         for subscriberDict in subscriberDictList:
             # handle all subscribers
@@ -213,7 +213,7 @@ class MqttBridge(ThreadObject):
                             try:
                                 if topicAndQueue["queue"] is not None:
                                     # subscriber subscribed with special queue so send it to this one instead of using the default one
-                                    self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
+                                    topicAndQueue["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
                                 else:
                                     # no special queue for this subscription so send it to the default one
                                     self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
@@ -251,7 +251,7 @@ class MqttBridge(ThreadObject):
         threadLoopStartTime = Supporter.getTimeStamp()      # meassure time inside loop
         messageCounter = 0                                  # count messages handled in current loop run
         # first of all handle the system wide TX Queue where MqttBridge is the only reader
-        
+
         try:
             self.mqttLock()
             self.logger.debug(self, f"lock queue")
@@ -260,16 +260,16 @@ class MqttBridge(ThreadObject):
                 self.turn += 1
                 # self.logger.info(self, f"{messageCounter} {self.turn} {self.get_mqttTxQueue().qsize()}")
                 newMqttMessageDict = self.get_mqttTxQueue().get(block = False)      # read a message
-    
+
                 # log received message in a more readable form
                 newMqttMessage = "message received: sender=" + newMqttMessageDict["sender"] + " type=" + str(newMqttMessageDict["command"])
                 if newMqttMessageDict["topic"] is not None:
                     newMqttMessage += " topic=" + newMqttMessageDict["topic"] 
                 if newMqttMessageDict["content"] is not None:
                     newMqttMessage += " content=" + Supporter.encloseString(newMqttMessageDict["content"], "\"", "\"")
-    
+
                 self.logger.debug(self, newMqttMessage)
-    
+
                 # handle type of received message
                 if newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.CONNECT.value:
                     # "sender" is the sender's name
@@ -304,20 +304,20 @@ class MqttBridge(ThreadObject):
                     self.publish_message(newMqttMessageDict["sender"], newMqttMessageDict["topic"], newMqttMessageDict["content"], globalPublishing = False)
                 elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE.value:
                     # "sender" is the sender's name
-                    # "topic"  is a string containing the topic filter 
+                    # "topic"  is a string containing the topic filter
                     self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])
                 elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.UNSUBSCRIBE.value:
                     # "sender" is the sender's name
-                    # "topic"  is a string containing the topic filter 
+                    # "topic"  is a string containing the topic filter
                     self.remove_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"])
                 elif newMqttMessageDict["command"].value == MqttBase.MQTT_TYPE.SUBSCRIBE_GLOBAL.value:
                     # "sender" is the sender's name
-                    # "topic"  is a string containing the topic filter 
+                    # "topic"  is a string containing the topic filter
                     self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"], globalSubscription = True)
                     self.add_subscriber(newMqttMessageDict["sender"], newMqttMessageDict["topic"], queue = newMqttMessageDict["content"])                                  # global subscribers subscribe for local and global list
                 else:
                     raise Exception("unknown type found in message " + str(newMqttMessageDict))
-    
+
                 if Supporter.getSecondsSince(threadLoopStartTime) > 20:
                     self.logger.info(self, f"Thread loop took more than 20 seconds, last command was: {newMqttMessageDict['command'].value}, messages handled: {messageCounter}")
                     break

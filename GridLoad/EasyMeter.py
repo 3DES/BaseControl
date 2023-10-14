@@ -227,10 +227,10 @@ class EasyMeter(ThreadObject):
             # tag this message as message with new power level
             self.energyData["updatePowerValue"] = True
 
-        # set last message time
+        # remember time last message has been created
         self.energyProcessData["currentEnergyTimestamp"] = messageTime    
 
-        # reset some values for next turn
+        # reset some values for the next turn
         self.energyProcessData["gridLossDetected"] = False                               # reset grid loss detection for next cycle
 
 

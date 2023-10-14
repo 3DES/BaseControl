@@ -7,6 +7,7 @@ import Base.Crc
 import os
 import subprocess
 import re
+import colorama
 
 class WatchdogRelaisUartInterface(BasicUartInterface):
     '''
@@ -162,7 +163,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 return {"Error":"invalidStartup"}
             else:
                 return {"Error":"E"}
-
+#Docker container für Powerplant erzeugen und automatisiert starten!!!
     def processSerialCmd(self, cmd):
         maxTries = 10
         for tries in range(maxTries):
@@ -173,6 +174,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             wdCommand = self.getCommand(cmd)
             self.serialWrite(wdCommand)
             response = self.serialReadLine()
+            #Supporter.debugPrintself.name}:\n        write {wdCommand}\n        read  {response}", color = f"{colorama.Fore.GREEN}")
             procMsg = self.processMsg(Supporter.decode(response))
             if not "Error" in procMsg:
                 self.frameCounter +=1

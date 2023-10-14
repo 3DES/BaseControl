@@ -232,7 +232,7 @@ class PowerPlant(Worker):
             self.sendRelaisData(self.localRelaisData)
 
     def manageUtilityRelais(self):
-        # sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
+        # @TODO sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
         # Diese sollte aber bevor sie auf Netz schaltet in diesem Fall ca 1 min warten damit sich die Inverter synchronisieren können.
         def schalteRelaisAufNetz():
             # prüfen ob alle WR vom Netz versorgt werden
@@ -279,6 +279,7 @@ class PowerPlant(Worker):
             return self.transferToNetz
 
         def schalteRelaisAufPv():
+            # @TODO magic numbers durch ENUMs ersetzen
             if self.TransferToPvState == 0:
                 if tmpglobalEffektaData["OutputVoltageHighOr"] == True:
                     if self.timer(name = "timerToPv", timeout = 600, firstTimeTrue = True):
@@ -286,11 +287,11 @@ class PowerPlant(Worker):
                 # warten bis Parameter geschrieben sind
                 elif self.timer(name = "timerToPv", timeout = 30):
                     self.timer(name = "timerToPv", remove = True)
-                    self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf PV.")
+                    self.myPrint(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Inverter.")
                     self.modifyRelaisData(self.relNetzAus, self.aus)
                     self.modifyRelaisData(self.relPvAus, self.ein)
                     self.modifyRelaisData(self.relWr1, self.ein, True)
-                    self.TransferToPvState+=1
+                    self.TransferToPvState = 1
             elif self.TransferToPvState == 1:
                 if self.timer(name = "timeoutAcOut", timeout = 100):
                     self.timer(name = "timeoutAcOut", remove = True)
@@ -302,11 +303,11 @@ class PowerPlant(Worker):
                     self.modifyRelaisData(self.relWr1, self.aus, True)
                     # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     self.sleeptime = 600
-                    self.TransferToPvState+=1
+                    self.TransferToPvState = 2
                     return self.OutputVoltageError
                 elif self.getLinkedEffektaData()["OutputVoltageHighAnd"] == True:
                     self.timer(name = "timeoutAcOut", remove = True)
-                    self.TransferToPvState+=1
+                    self.TransferToPvState = 2
                     self.sleeptime = 10
             elif self.TransferToPvState == 2:
                 if self.timer(name = "waitForOut", timeout = self.sleeptime):
@@ -723,7 +724,7 @@ class PowerPlant(Worker):
                     self.SkriptWerte["Error"] = True
                     # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
                     if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
-                        raise Exception(f'SOC Wert {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]} unplaulibel und FloatMode Inverter aktiv!') 
+                        raise Exception("SOC Wert unplaulibel und FloatMode Inverter aktiv!") 
                     self.myPrint(Logger.LOG_LEVEL.ERROR, 'Error wurde gesetzt, reset bei vollem Akku. FloatMode.')
                 self.myPrint(Logger.LOG_LEVEL.ERROR, f'Unterspannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
                 self.sendeMqtt = True

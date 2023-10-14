@@ -3,6 +3,7 @@ import struct
 import math
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 from Base.Supporter import Supporter
+import colorama
 
 
 class DalyBmsUartInterface(BasicUartInterface):
@@ -96,6 +97,10 @@ class DalyBmsUartInterface(BasicUartInterface):
         "Bluetooth" : 8,
     }
 
+    
+    WARNING_THRESHOLD = 3
+    readRequestFailed = {}
+
 
     def __init__(self, threadName : str, configuration : dict):
         super().__init__(threadName, configuration)
@@ -149,8 +154,24 @@ class DalyBmsUartInterface(BasicUartInterface):
         )
 
         if not response_data:
-            self.logger.warning(self.name, f'command [{command}] failed')
+            if command not in self.readRequestFailed:
+                self.readRequestFailed[command] = 0
+            self.readRequestFailed[command] += 1
+            
+            # there are a lot of failed communications so only show a warning if three or more in a row failed, otherwise show an info message
+            if self.readRequestFailed[command] >= self.WARNING_THRESHOLD:
+                self.logger.warning(self.name, f'command [{command}] failed {self.readRequestFailed[command]} times')
+            else:
+                self.logger.debug(self.name, f'command [{command}] failed {self.readRequestFailed[command]} time(s)')
+
             return False
+        else:
+            if command in self.readRequestFailed and self.readRequestFailed[command]:
+                if self.readRequestFailed[command] >= self.WARNING_THRESHOLD:
+                    self.logger.warning(self.name, f'command [{command}] passed again after {self.readRequestFailed[command]} fails')
+                else:
+                    self.logger.debug(self.name, f'command [{command}] passed again after {self.readRequestFailed[command]} fail(s)')
+            self.readRequestFailed[command] = 0
 
         self.logger.debug(self.name, f'command [{command}], request [{response_data}]')
         return response_data
@@ -602,17 +623,50 @@ class DalyBmsUartInterface(BasicUartInterface):
         #self.logger.debug(self.name, f"balancing:    " + str(values["balancing_status"]))
         #self.logger.debug(self.name, f"errors:       " + str(values["errors"]))
 
+        # take min and max values from BMS
         vMin = values["cell_voltage_range"]["lowest_voltage"]
         vMax = values["cell_voltage_range"]["highest_voltage"]
+
+        # now check if voltage list has a value less or larger than min/max value
         voltageList = []
         for cellNumber, cellVoltage in values["cell_voltages"].items():
+            # that a single cell voltage is lower/higher than the overall min/max voltage value is common and happens because of different voltage read times!
             if cellVoltage < vMin:
-                self.logger.warning(self.name, f"cell {cellNumber} has lower voltage {cellVoltage} as vMin mentioned by daly bms {vMin}")
+                #self.logger.info(self.name, f"cell {cellNumber} has lower voltage {cellVoltage} as vMin mentioned by daly bms {vMin}")
                 vMin = cellVoltage
             elif cellVoltage > vMax:
-                self.logger.warning(self.name, f"cell {cellNumber} has higher voltage {cellVoltage} as vMax mentioned by daly bms {vMax}")
+                #self.logger.info(self.name, f"cell {cellNumber} has higher voltage {cellVoltage} as vMax mentioned by daly bms {vMax}")
                 vMax = cellVoltage
             voltageList.append(cellVoltage)
+
+
+        errorInjectionTest = 0 # 2, 3, ..., 8
+        #errorInjectionInterface = "BmsInterfaceAccu1"
+        errorInjectionInterface = "BmsInterfaceAccu2"
+        if errorInjectionTest:
+            if self.name == errorInjectionInterface:
+                if self.timer("errorInjection", timeout = 10, autoReset = False):
+                    # undervoltage tests
+                    if errorInjectionTest == 1:
+                        vMin = 2.0
+                    elif errorInjectionTest == 2:
+                        voltageList[0]  = 1.3
+                    elif errorInjectionTest == 3:
+                        voltageList[3]  = 1.3
+                    elif errorInjectionTest == 4:
+                        voltageList[-1] = 1.3
+                    # overvoltage tests
+                    elif errorInjectionTest == 5:
+                        vMax = 4.0
+                    elif errorInjectionTest == 6:
+                        voltageList[0]  = 4.3
+                    elif errorInjectionTest == 7:
+                        voltageList[3] = 4.3
+                    elif errorInjectionTest == 8:
+                        voltageList[-1] = 4.3
+
+                    Supporter.debugPrint(f"{self.name} ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds", color = f"{colorama.Fore.RED}")
+                
 
         if ("errors" in values) and values["errors"]:
             for errorByte, errorBit in values["errors"]:
@@ -624,7 +678,7 @@ class DalyBmsUartInterface(BasicUartInterface):
 
         message = {"toggleIfMsgSeen" : self.toggle, "Vmin" : vMin, "Vmax" : vMax, "VoltageList" : voltageList, "BmsEntladeFreigabe" : dischargingOk, "BmsLadeFreigabe" : chargingOk}
         self.toggle = not self.toggle       # toggle our toggle bit, if we are here all values have been read successfully!
-        
+
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False)
 
         self.logger.debug(self.name, str(message))

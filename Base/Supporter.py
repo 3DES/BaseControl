@@ -11,6 +11,7 @@ import sys
 import Base
 from gc import get_referents
 import os
+import colorama
 
 
 class Supporter(object):
@@ -277,7 +278,7 @@ class Supporter(object):
 
 
     @classmethod
-    def deltaOutsideRange(self, newValue : float, oldValue : float, minVal : float, maxVal : int, percent : int = 1, dynamic : bool = False, minIgnoreDelta : float = 0.0):
+    def deltaOutsideRange(cls, newValue : float, oldValue : float, minVal : float, maxVal : int, percent : int = 1, dynamic : bool = False, minIgnoreDelta : float = 0.0):
         if not dynamic:
             valueRange = abs(maxVal - minVal)    # ignore delta only depends on valid value range but not on current value
         else:
@@ -290,4 +291,57 @@ class Supporter(object):
 
         # if given value is valid check if its difference to the old value is greater or equal to +/- ignore delta
         return (minVal <= newValue <= maxVal) and (delta >= ignoreDelta)
+
+
+    @classmethod
+    def debugPrint(cls, message : str, marker : str = None, color : str = None, frameSize : int = 1):
+        '''
+        Print given stuff in eye-catching manner
+        message will be printed between a frame, the frame has frameSize leading and trailing lines
+        the frame is printed witch given character "marker" or with "#" as default character, but marker can be longer than a character if necessary
+        an optional color code, e.g. "colorama.Fore.YELLOW" can be given
+        '''
+        MAX_LENGTH = 60
+        if marker is not None and len(marker):
+            printLength = int((MAX_LENGTH + (len(marker) - 1)) / len(marker))
+        else:
+            printLength = MAX_LENGTH
+            marker = "#"
+        
+        if color is None:
+            color = f"{colorama.Fore.YELLOW}"
+        
+        print(color, end = "")
+        for _ in range(frameSize):
+            print(f"    {marker * printLength}")
+        print(f"    {message}")
+        for _ in range(frameSize):
+            print(f"    {marker * printLength}")
+        print(f"{colorama.Style.RESET_ALL}", end = "")
+        print("")
+        sys.stdout.flush()
+
+
+    @classmethod
+    def formatedTime(cls, timeInSeconds : int, addCurrentTime : bool = False):
+        timeInSeconds = int(timeInSeconds)
+        days    = timeInSeconds // (24 * 60 * 60)
+        timeInSeconds %= (24 * 60 * 60)
+        hours   = timeInSeconds // (60 * 60)
+        timeInSeconds %= (60 * 60)
+        minutes = timeInSeconds // 60
+        timeInSeconds %= 60
+        seconds = timeInSeconds
+
+        if addCurrentTime:
+            timeString = datetime.now().strftime("%d/%m/%Y - %H:%M:%S - ")
+        else:
+            timeString = ""
+        
+        addItems = False
+        if days:
+            timeString += f"{days} day{'s' if days != 1 else ''}, "
+        timeString += f"{hours:02} hour{'s' if hours != 1 else ''}, {minutes:02} min{'s' if minutes != 1 else ''}, {seconds:02} second{'s' if seconds != 1 else ''}"
+
+        return timeString
 

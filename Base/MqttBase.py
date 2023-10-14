@@ -484,14 +484,22 @@ class MqttBase(Base):
 
 
     @classmethod
-    def createOutTopic(cls, topic : str, subTopic = None):
+    def createSubTopic(cls, topic : str, subTopic : str = None):
         '''
         Create topic for OUT messages
         '''
         if subTopic is None:
-            return topic + "/out"
+            return topic
         else:
-            return topic + "/out" + "/" + str(subTopic)
+            return topic + "/" + str(subTopic)
+
+
+    @classmethod
+    def createOutTopic(cls, topic : str, subTopic : str = None):
+        '''
+        Create topic for OUT messages
+        '''
+        return cls.createSubTopic(topic + "/out", subTopic) 
 
 
     def getInterfaceNameFromOutTopic(self, topic):

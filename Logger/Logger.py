@@ -22,6 +22,7 @@ class Logger(ThreadBase):
 
 
     class LOG_LEVEL(Enum):
+        NONE  = -1
         FATAL = 0
         ERROR = 1
         WARN  = 2
@@ -61,9 +62,9 @@ class Logger(ThreadBase):
 
 
     __logQueue_always_use_getters_and_setters       = None                          # ensures Logger is a "singleton"
-    __logLevel_always_use_getters_and_setters       = LOG_LEVEL.DEBUG               # will be overwritten in __init__
-    __logBuffer_always_use_getters_and_setters      = collections.deque([], 500)    # length of 500 elements
-    __printAlways_always_use_getters_and_setters    = False                         # print log messages always even if level is not LOG_LEVEL.DEBUG
+    __logLevel_always_use_getters_and_setters       = LOG_LEVEL.DEBUG               # default is log everything
+    __printLogLevel_always_use_getters_and_setters  = LOG_LEVEL.NONE                # default is print nothing
+    __logBuffer_always_use_getters_and_setters      = collections.deque([], 5000)   # length of 5000 elements
     __preLogBuffer_always_use_getters_and_setters   = []                            # list to collect all log messages created before logger has been started up (they should be printed too for the case the logger will never come up!), if the logger comes up it will log all these messages first!
     __logFilter_always_use_getters_and_setters      = r""                           # filter regex
 
@@ -103,9 +104,30 @@ class Logger(ThreadBase):
         with cls.get_threadLock():
             if newLogLevel > Logger.LOG_LEVEL.DEBUG.value:
                 newLogLevel = Logger.LOG_LEVEL.DEBUG.value
-            elif newLogLevel < Logger.LOG_LEVEL.ERROR.value:
-                newLogLevel = Logger.LOG_LEVEL.DEBUG.value
+            elif newLogLevel < Logger.LOG_LEVEL.NONE.value:
+                newLogLevel = Logger.LOG_LEVEL.NONE.value
             Logger._Logger__logLevel_always_use_getters_and_setters = Logger.LOG_LEVEL(newLogLevel)
+
+
+    @classmethod
+    def get_printLogLevel(cls):
+        '''
+        Getter for __logLevel variable
+        '''
+        return Logger._Logger__printLogLevel_always_use_getters_and_setters
+
+
+    @classmethod
+    def set_printLogLevel(cls, newPrintLogLevel : int):
+        '''
+        To change log level, e.g. during development to show debug information or in productive state to hide too many log information nobody needs
+        '''
+        with cls.get_threadLock():
+            if newPrintLogLevel > Logger.LOG_LEVEL.DEBUG.value:
+                newPrintLogLevel = Logger.LOG_LEVEL.DEBUG.value
+            elif newPrintLogLevel < Logger.LOG_LEVEL.NONE.value:
+                newPrintLogLevel = Logger.LOG_LEVEL.NONE.value
+            Logger._Logger__printLogLevel_always_use_getters_and_setters = Logger.LOG_LEVEL(newPrintLogLevel)
 
 
     @classmethod
@@ -115,23 +137,6 @@ class Logger(ThreadBase):
         '''
         with cls.get_threadLock():
             Logger._Logger__logFilter_always_use_getters_and_setters = newLogFilter
-
-
-    @classmethod
-    def get_printAlways(cls):
-        '''
-        Getter for __logLevel variable
-        '''
-        return Logger.__printAlways_always_use_getters_and_setters
-
-
-    @classmethod
-    def set_printAlways(cls, printAlways : bool):
-        '''
-        To change log level, e.g. during development to show debug information or in productive state to hide too many log information nobody needs
-        '''
-        with cls.get_threadLock():
-            Logger.__printAlways_always_use_getters_and_setters = printAlways
 
 
     @classmethod
@@ -157,11 +162,11 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def add_preLogMessage(cls, logEntry : str):
+    def add_preLogMessage(cls, logEntry : dict):
         '''
         To add a log message before logger has been set up, logger should handle them first when it comes up
         '''
-        print("(P) " + logEntry)        # (P) means pre-logged message printed to STDOUT
+        print("(P) " + logEntry["message"])        # (P) means pre-logged message printed to STDOUT
         with cls.get_threadLock():
             Logger._Logger__preLogBuffer_always_use_getters_and_setters.append(logEntry)
 
@@ -202,19 +207,23 @@ class Logger(ThreadBase):
         self.logger.info(self, "init (Logger)")
 
 
-    def _handleMessage(self, newLogEntry : str):
+    def _handleMessage(self, newLogEntry : dict):
         '''
         Handles the given log entry and returns True in case it has been logged or False in case it has been ignored because of log level
         '''
         self.logCounter += 1;
 
-        self.add_logMessage(newLogEntry)
-        
-        if (self.get_logLevel() == Logger.LOG_LEVEL.DEBUG) or self.get_printAlways():
-            if (not "messageFilter" in self.configuration) or re.search(self.configuration["messageFilter"], newLogEntry):
-                print("#" + str(self.logCounter) + " " + newLogEntry)   # print is OK here!
+        message = newLogEntry["message"]
+        level = newLogEntry["level"]
+
+        # store message in log buffer
+        self.add_logMessage(message)
+
+        if (Logger.get_printLogLevel() >= level):
+            if (not "messageFilter" in self.configuration) or re.search(self.configuration["messageFilter"], message):
+                print("#" + str(self.logCounter) + " " + message)   # print is OK here!
                 return True
-        
+
         return False
 
 
@@ -353,7 +362,10 @@ class Logger(ThreadBase):
             if not isinstance(message, str):
                 message = str(message)
 
-            logMessage = str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message
+            logMessage = {
+                "message" : str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message,
+                "level"   : level
+            }
 
             preLogged = False       # in case logger is not running the given message is pre-logged and in case of error or fatal it is additionally printed to STDOUT!
 
@@ -372,11 +384,11 @@ class Logger(ThreadBase):
             if level == cls.LOG_LEVEL.ERROR:
                 logging.error(logMessage)
                 if not preLogged:     # only print if not pre-logged to suppress double printing
-                    print("(E) " + logMessage)      # (E) means error printed to STDOUT
+                    print("(E) " + logMessage["message"])      # (E) means error printed to STDOUT
             elif level == cls.LOG_LEVEL.FATAL:
                 logging.critical(logMessage)
                 if not preLogged:     # only print if not pre-logged to suppress double printing
-                    print("(F) " + logMessage)      # (W) means fatal error printed to STDOUT
+                    print("(F) " + logMessage["message"])      # (W) means fatal error printed to STDOUT
 
 
     @classmethod

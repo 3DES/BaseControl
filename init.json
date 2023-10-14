@@ -165,7 +165,7 @@
 #    {
 #        "class":         "BMS.BasicBms.BasicBms",
 #        #"parameters":    {"vBal": 3.5},                                             # optional
-#        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional, vbal will manage relBalance. you can map it to a gpio 
+#        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional, vBal will manage relBalance. you can map it to a gpio 
 #        "interfaces":
 #        {
 #            "BmsEins":
@@ -189,8 +189,9 @@
 #    {
 #        "class":           "GPIO.BasicUsbRelais.BasicUsbRelais",
 #        "triggerThread":   "Bms",                                                                                              # this is the triggerThread which triggers the wd Relais
-#        "gpioHandler": ["PowerPlant"],                                                                                         # this threads are controlling the given gpios in relMapping
-#        "relMapping":{"relWr": ["Relay1", "Relay5"], "relPvAus": "Relay4", "relBalance": "Relay3", "relNetzAus": "Relay2"},
+#        "gpioHandler":     ["PowerPlant"],                                                                                     # this threads are controlling the given gpios in relMapping
+#        "otherWatchdogs":  ["WdUsbRelais2"],                                                                                   # other BasicUsbRelais for test synchronization
+#        "relMapping":      {"relWr": ["Relay1", "Relay5"], "relPvAus": "Relay4", "relBalance": "Relay3", "relNetzAus": "Relay2"},
 #        "interfaces":
 #        {
 #            "WdUartUsbRelais":
