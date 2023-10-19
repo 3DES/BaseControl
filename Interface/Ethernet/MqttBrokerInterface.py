@@ -1,6 +1,6 @@
 import time
 import paho.mqtt.client as mqtt
-import json 
+import socket
 
 from Base.InterfaceBase import InterfaceBase
 from Base.Supporter import Supporter
@@ -28,7 +28,12 @@ class MqttBrokerInterface(InterfaceBase):
         self.dontCareList = {}
         self.logger.info(self, f"{self.name}: Try to establish MQTT connection")
         self.client.username_pw_set(self.configuration["user"], self.configuration["password"])
-        self.client.connect(self.configuration["server"], self.configuration["port"], 60 )
+        if self.configuration["server"] == "localhost":
+            hostname=socket.gethostname()
+            serverIp=socket.gethostbyname(hostname)
+        else:
+            serverIp = self.configuration["server"]
+        self.client.connect(serverIp, self.configuration["port"], 60 )
         self.client.loop_start()
 
     def on_connect(self, client, userdata, flags, rc):
