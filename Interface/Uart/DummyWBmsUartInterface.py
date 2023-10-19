@@ -21,7 +21,7 @@ class DummyWBmsUartInterface(InterfaceBase):
         self.HminVal = 3.4
 
     def threadInitMethod(self):
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True, "BmsLadeFreigabe":True}
         #self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "VoltageList":[3.33,3.22,3.55,3.77], "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True}
 
 
