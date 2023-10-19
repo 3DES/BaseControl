@@ -65,6 +65,7 @@
     "Bms":
     {
         "class":        "BMS.BasicBms.BasicBms",
+        "socMonitor": "SocMonitor",
         "interfaces":
         {
             "BmsSw":
@@ -72,6 +73,12 @@
                 "connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
                 "interface":    "/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller-if00-port0",
                 "baudrate":     9600
+            },
+            "BmsJbd":
+            {
+                "connection":   "Interface.Uart.Jbd485Interface.Jbd485Interface",
+                "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.1:1.0-port0",
+                "battCount":    1
             }
         }
     },
@@ -136,6 +143,7 @@
             "UartWrEffektaWest",
             "UartWrEffektaOst",
             "BmsSw",
+            "BmsJbd",
             "EpeverInterface",
             "UartSocMonitor",
             "WdUsbRelais",
@@ -148,7 +156,7 @@
     {
         "class": "Worker.PowerPlant.PowerPlant",
         "managedEffektas": ["West", "Ost"],
-        "socMonitorName": "SocMonitor",
+        "socMonitorName": "Bms",
         "bmsName": "Bms",
         "weatherName": "Wetter",                            # optional
         "initModeEffekta": "Auto"                           # Auto, Akku, Netz.  Fallback: Netz

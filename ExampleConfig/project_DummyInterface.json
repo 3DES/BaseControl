@@ -27,7 +27,7 @@
             "UartWrEffektaWest":
             {
                 #"connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
-                "connection":   "Interface.Uart.DummyEffektaUartInterface.DummyEffektaUartInterface",
+                "connection":   "Interface.Dummy.DummyEffektaUartInterface.DummyEffektaUartInterface",
                 "interface":    "COM4",
                 "baudrate":     2400
             }
@@ -56,14 +56,14 @@
             "BmsEins":
             {
                 #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
-                "connection":   "Interface.Uart.DummyWBmsUartInterface.DummyWBmsUartInterface",
+                "connection":   "Interface.Dummy.DummyWBmsUartInterface.DummyWBmsUartInterface",
                 "interface":    "COM4",
                 "baudrate":     2400
             },
             "BmsZwei":
             {
                 #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
-                "connection":   "Interface.Uart.DummyWBmsUartInterface.DummyWBmsUartInterface",
+                "connection":   "Interface.Dummy.DummyWBmsUartInterface.DummyWBmsUartInterface",
                 "interface":    "COM4",
                 "baudrate":     2400
             }
@@ -78,7 +78,7 @@
             "UartSocMonitor":
             {
                 #"connection":   "Interface.Uart.SocMeterUartInterface.SocMeterUartInterface",
-                "connection":   "Interface.Uart.DummySocMeterUartInterface.DummySocMeterUartInterface",
+                "connection":   "Interface.Dummy.DummySocMeterUartInterface.DummySocMeterUartInterface",
                 "interface":    "COM4",
                 "baudrate":     9600
             }

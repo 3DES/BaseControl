@@ -164,6 +164,11 @@ class BasicBms(ThreadObject):
         # self.globalBmsWerte["merged"]["BmsEntladeFreigabe"] is overwritten if upper check result is false
         # Balancer Relais is also managed here
         if "vMin" in self.configuration["parameters"]:
+            # If vMin is included then vMax is required
+            if not "vMax" in self.configuration["parameters"]:
+                raise Exception("Parameter vMin given but not vMax!")
+            if not "vMinTimer" in self.configuration["parameters"]:
+                raise Exception("Parameter vMin given but not vMinTimer!")
             if "Vmin" in self.globalBmsWerte["merged"]:
                 if self.globalBmsWerte["merged"]["Vmin"] < self.configuration["parameters"]["vMin"]:
                     self.globalBmsWerte["calc"]["VminOk"] = False
@@ -181,6 +186,9 @@ class BasicBms(ThreadObject):
             self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
 
         if "vMax" in self.configuration["parameters"]:
+            # If vMax is included then vMin is required
+            if not "vMin" in self.configuration["parameters"]:
+                raise Exception("Parameter vMax given but not vMin!")
             if "Vmax" in self.globalBmsWerte["merged"]:
                 if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vMax"]:
                     self.globalBmsWerte["calc"]["VmaxOk"] = False 

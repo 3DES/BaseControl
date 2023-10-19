@@ -33,3 +33,5 @@ systemctl start base_control
 Start manually:
 cd BaseControl
 python3 __main__.py
+with prints:
+python3 __main__.py -p 3 -l 3 -e
