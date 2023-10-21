@@ -50,15 +50,20 @@ class GenericCharger(ThreadObject):
 
     def threadInitMethod(self):
         self.chargerValues = {"CompleteProduction": 0.0, "DailyProduction": 0.0}
-        #subscribe to get old data from mqtt
+        # subscribe to our own out topic get old data from mqtt
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
         self.query_Cycle = 20
         self.tempDailyProduction = 0.0
+        self.initialMqttTimeout = False
 
     def threadMethod(self):
         def takeDataAndSend():
-            self.chargerValues.update(newMqttMessageDict["content"])
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = True, enableEcho = False)
+            if self.initialMqttTimeout:
+                self.chargerValues.update(newMqttMessageDict["content"])
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = True, enableEcho = False)
+
+        if self.timer(name = "timerInitialMqttTimeout", timeout = 15):
+            self.initialMqttTimeout = True
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
@@ -99,6 +104,7 @@ class GenericCharger(ThreadObject):
                     # if we get our own Data will overwrite internal data. For initial settings like ...Production
                     self.chargerValues["CompleteProduction"] = newMqttMessageDict["content"]["CompleteProduction"]
                     self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
+                    self.initialMqttTimeout = True
 
 
         now = datetime.datetime.now()

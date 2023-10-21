@@ -84,6 +84,7 @@ class JBD:
         self.debug = debug
         self.writeNVMOnExit = False
         self.bkgReadThread = None
+        self.serialAlwaysOpen = False
         self.bkgReadQ = queue.Queue()
 
         self.eeprom_regs = [
@@ -195,6 +196,7 @@ class JBD:
         self.s = s 
 
     def open(self):
+        if self.serialAlwaysOpen and self._open_cnt > 0: return
         if self.bkgReadThread: return
         self._lock.acquire()
         self._open_cnt += 1
@@ -202,6 +204,7 @@ class JBD:
             self.s.open()
     
     def close(self):
+        if self.serialAlwaysOpen: return
         if self.bkgReadThread:
             return
         if not self._open_cnt: 
@@ -795,6 +798,7 @@ class JBDUP(JBD):
         super().__init__(s,timeout, debug)
 
         self.basicInfoReg = BasicInfoRegUpSeries('basic_info', 0x03)
+        self.serialAlwaysOpen = True
 
     @staticmethod
     def chksum(payload):
@@ -833,4 +837,5 @@ class JBDUP(JBD):
 
     # zum disablen von charge Fet muss man mit FactoryMode im Register 0xE1 einen uint16 bit 0 setzen 
     # zum disablen von discharge Fet muss man mit FactoryMode im Register 0xE1 einen uint16 bit 1 setzen
+ 
  

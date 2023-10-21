@@ -30,8 +30,8 @@ class BasicUsbRelais(ThreadObject):
     nextWatchDogAction = _WATCHDOG_NOT_INITIALIZED
 
 
-    _TIME_BETWEEN_TESTS = 30
-    #TIME_FOR_NEXT_TEST = 4*24*60*60     # Watchdog Test every max 100h, we do it all 4d = 4*24*60*60        # @todo aktivieren fuer Produktivbetrieb!!!
+    #_TIME_BETWEEN_TESTS = 30            # only for debugging
+    _TIME_BETWEEN_TESTS = 4*24*60*60     # Watchdog Test every max 100h, we do it all 4d = 4*24*60*60
     _TIME_BETWEEN_CANDIDATES = 10       # when it's time for another test, a candidate waits 30 seconds until it starts its test when it got the test tocken from its predecessor
     _TIME_FOR_TEST = 20                 # after 20 seconds watchdog should have finished its test
 
@@ -94,7 +94,7 @@ class BasicUsbRelais(ThreadObject):
                 {
                     "watchDogTestIndex":self.watchDogIndex, 
                     "watchDogTestRequest":message
-                }, globalPublish = False, enableEcho = False)                                                                                   # inform next watchdog in watchdog chain
+                }, globalPublish = False, enableEcho = True)                                                                                   # inform next watchdog in watchdog chain
 
         # handle watchdog test
         if self.nextWatchDogAction == self._WATCHDOG_START_TIMER:

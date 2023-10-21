@@ -45,7 +45,7 @@ class Jbd485Interface(InterfaceBase):
         try:
             self.jbd.readBasicInfo()
         except:
-            pass
+            time.sleep(2)
 
         # self.jbd.readDeviceInfo()        # {'device_name': 'JBD-UP16S010-L16S-200A-B-R-C'}
         self.bmsName = self.jbd.readDeviceInfo()['device_name']
@@ -87,10 +87,12 @@ class Jbd485Interface(InterfaceBase):
             self.BmsWerte["BmsEntladeFreigabe"] = not (not basicInfo["dsg_fet_en"] or basicInfo["puv_alm"] or basicInfo["cuv_alm"])
             self.BmsWerte["BmsLadeFreigabe"] = not (not basicInfo["chg_fet_en"] or basicInfo["pov_alm"] or basicInfo["cov_alm"])
             self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
+            if self.timerExists("timeoutJbdRead"):
+                self.timer("timeoutJbdRead", remove=True)
         except Exception as e:
             self.logger.error(self, f"Error reading {self.name} inteface.")
             self.logger.error(self, e)
-            if self.timer(name = "timeoutPylontechRead", timeout = 60):
+            if self.timer(name = "timeoutJbdRead", timeout = 60):
                 raise Exception(f'{self.name} connection to bms: {self.bmsName} is broken since 60s!')
 
         # todo einzelne Packs falls nötig aus dem system nehmen um balancieren lassen

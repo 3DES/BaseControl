@@ -58,7 +58,8 @@ class Pylontech485Interface(InterfaceBase):
             self.BmsWerte["Current"] = 0.0
             for module in data["AnaloglList"]:
                 self.BmsWerte["Current"] += module["Current"]
-    
+
+            # Extract BmsEntladeFreigabe and BmsLadeFreigabe from CellAlarm  
             self.BmsWerte["BmsEntladeFreigabe"] = True
             self.BmsWerte["BmsLadeFreigabe"] = True
             for module in data["AlarmInfoList"]:
