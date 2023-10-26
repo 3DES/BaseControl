@@ -167,7 +167,7 @@ class BasicUsbRelais(ThreadObject):
 
             # check if we got a msg from our interface
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
-                #todo evtl ausgelesenen wert mit localen vergleichen und nur dann weiterschicken
+                #todo auf inputs prüfen, mit einem mapping dict aus der init.json mappen. evtl nur die keys mit dem Nicename ersetzen 
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
                 if not "triggerWd" in newMqttMessageDict["content"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)

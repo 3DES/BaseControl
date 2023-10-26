@@ -73,9 +73,9 @@ class PowerPlant(Worker):
         self.SkriptWerte["verbrauchNachtAkku"] = 25.0
         self.SkriptWerte["verbrauchNachtNetz"] = 3.0
         self.SkriptWerte["AkkuschutzAbschalten"] = self.SkriptWerte["schaltschwelleAkkuSchlechtesWetter"] + 15.0
-        # AkkuschutzAbschalten muss größer als minAkkustandNacht() damit der Akkuschutz nicht 
+        # AkkuschutzAbschalten muss größer als minAkkustandNacht() damit der Akkuschutz nicht durch unterschreiten wieder eingeschaltet wird. Die Funktion akkuStandAusreichend() ist an der Entscheidung beteiligt.
         if self.SkriptWerte["AkkuschutzAbschalten"] < self.minAkkustandNacht():
-            self.SkriptWerte["AkkuschutzAbschalten"] = self.minAkkustandNacht() -1 
+            self.SkriptWerte["AkkuschutzAbschalten"] = self.minAkkustandNacht() + 1 
         if self.SkriptWerte["AkkuschutzAbschalten"] > 100:
             self.SkriptWerte["AkkuschutzAbschalten"] = 100
 
@@ -304,6 +304,7 @@ class PowerPlant(Worker):
                     # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     self.sleeptime = 600
                     self.TransferToPvState = 2
+                    # todo sauber zurück schalten!!
                     return self.OutputVoltageError
                 elif self.getLinkedEffektaData()["OutputVoltageHighAnd"] == True:
                     self.timer(name = "timeoutAcOut", remove = True)
@@ -354,7 +355,6 @@ class PowerPlant(Worker):
                 if now.hour == 20 and now.minute == 1:
                     self.aufNetzSchaltenErlaubt = True
                     self.aufPvSchaltenErlaubt = True
-                    self.OutputVoltageError = False
                 switchToDeciredMode(self.SkriptWerte["WrMode"])
             else: # Powersave off
                 # Wir resetten die Verriegelung hier auch, damit man durch aus und einchalten von PowerSaveMode das Umschalten auf Netz wieder frei gibt.
@@ -363,7 +363,7 @@ class PowerPlant(Worker):
                 if self.aktualMode == self.OutputVoltageError:
                     self.aufPvSchaltenErlaubt = False
         else: # Fehler vom Inverter
-            # wir erlauben das umschalten auf netz damit die anlage auch ummschalten kann
+            # wir erlauben das umschalten auf netz damit die anlage auch umschalten kann
             self.aufNetzSchaltenErlaubt = True
             # Wenn ein Fehler 80s ansteht, dann werden wir aktiv und schalten auf Netz um
             if self.timer(name = "ErrorTimer", timeout = 80):
@@ -381,7 +381,16 @@ class PowerPlant(Worker):
             self.sendeMqtt = True
 
 
-    def wetterPrognoseMorgenSchlecht(self):
+    def wetterPrognoseHeuteSchlecht(self, schaltschwelle):
+        if "Tag_1" in self.localDeviceData[self.configuration["weatherName"]]:
+            if self.localDeviceData[self.configuration["weatherName"]]["Tag_0"] != None:
+                if self.localDeviceData[self.configuration["weatherName"]]["Tag_0"]["Sonnenstunden"] <= schaltschwelle:
+                    return True
+            elif self.timer(name = "timerErrorPrint", timeout = 600, firstTimeTrue = True):
+                self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
+            return False
+
+    def wetterPrognoseMorgenSchlecht(self, schaltschwelle):
         # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
         # Dazu wird geprüft wie das Wetter (Sonnenstunden) am nächsten Tag ist und dementsprechend früher oder später umgeschaltet.
         # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.
@@ -389,22 +398,14 @@ class PowerPlant(Worker):
         # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
         if "Tag_1" in self.localDeviceData[self.configuration["weatherName"]]:
             if self.localDeviceData[self.configuration["weatherName"]]["Tag_1"] != None:
-                if self.localDeviceData[self.configuration["weatherName"]]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
+                if self.localDeviceData[self.configuration["weatherName"]]["Tag_1"]["Sonnenstunden"] <= schaltschwelle:
                     return True
-            else:
-                # todo macht hier keinen Sinn, error zyklisch mit timer schicken wenn dict leer ist
+            elif self.timer(name = "timerErrorPrint", timeout = 600, firstTimeTrue = True):
                 self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
             return False
 
-    def wetterPrognoseHeuteUndMorgenSchlecht(self):
-        if "Tag_0" in self.localDeviceData[self.configuration["weatherName"]] and "Tag_1" in self.localDeviceData[self.configuration["weatherName"]]:
-            if self.localDeviceData[self.configuration["weatherName"]]["Tag_0"] != None and self.localDeviceData[self.configuration["weatherName"]]["Tag_1"] != None:
-                if self.localDeviceData[self.configuration["weatherName"]]["Tag_0"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"] and self.localDeviceData[self.configuration["weatherName"]]["Tag_1"]["Sonnenstunden"] <= self.SkriptWerte["wetterSchaltschwelleNetz"]:
-                    return True
-            else:
-                # todo macht hier keinen Sinn, error zyklisch mit timer schicken wenn dict leer ist
-                self.myPrint(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
-        return False
+    def wetterPrognoseHeuteUndMorgenSchlecht(self, schaltschwelle):
+        return self.wetterPrognoseHeuteSchlecht(schaltschwelle) and self.wetterPrognoseMorgenSchlecht(schaltschwelle)
 
     def minAkkustandNacht(self):
         return self.SkriptWerte["verbrauchNachtAkku"] + self.SkriptWerte["MinSoc"]
@@ -659,12 +660,12 @@ class PowerPlant(Worker):
                     # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag den Akkuschutz einschalten müssen. Der Akkuschutz schaltet auf einen höheren (einstellbar) SOC Bereich um.
                     if not self.SkriptWerte["Akkuschutz"]:
                         if now.hour >= 17 and now.hour < 23:
-                            if self.wetterPrognoseMorgenSchlecht() and not self.akkuStandAusreichend():
+                            if self.wetterPrognoseMorgenSchlecht(self.SkriptWerte["wetterSchaltschwelleNetz"]) and not self.akkuStandAusreichend():
                                 #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                                 self.SkriptWerte["Akkuschutz"] = True
                                 self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte Akkuschutz ein." %self.SkriptWerte["wetterSchaltschwelleNetz"])
                         if now.hour >= 12 and now.hour < 23:
-                            if self.wetterPrognoseHeuteUndMorgenSchlecht() and not self.akkuStandAusreichend():
+                            if self.wetterPrognoseHeuteUndMorgenSchlecht(self.SkriptWerte["wetterSchaltschwelleNetz"]) and not self.akkuStandAusreichend():
                                 #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                                 self.SkriptWerte["Akkuschutz"] = True
                                 self.myPrint(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte Akkuschutz ein." %self.SkriptWerte["wetterSchaltschwelleNetz"])
@@ -724,7 +725,7 @@ class PowerPlant(Worker):
                     self.SkriptWerte["Error"] = True
                     # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
                     if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
-                        raise Exception("SOC Wert unplaulibel und FloatMode Inverter aktiv!") 
+                        raise Exception(f'SOC: {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}, EntladeFreigabe: {self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]}, und FloatMode von Inverter aktiv! Unplausibel!') 
                     self.myPrint(Logger.LOG_LEVEL.ERROR, 'Error wurde gesetzt, reset bei vollem Akku. FloatMode.')
                 self.myPrint(Logger.LOG_LEVEL.ERROR, f'Unterspannung BMS bei {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}%')
                 self.sendeMqtt = True
