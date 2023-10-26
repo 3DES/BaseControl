@@ -501,7 +501,7 @@ class PowerPlant(Worker):
                 if message["content"] != self.dummyCommand:
                     self.sendeMqtt = True
                     self.SkriptWerte["AutoMode"] = False
-                    self.logger.info(self, "Die Anlage wurde auf Manuell gestellt")
+                    self.myPrint(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf Manuell gestellt")
                     if message["content"] == "NetzSchnellLadenEin":
                         self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
                     elif message["content"] == "NetzLadenEin":
@@ -629,6 +629,7 @@ class PowerPlant(Worker):
         if not self.localDeviceData["initialMqttTimeout"]:
             if self.timer(name = "timeoutMqtt", timeout = 30):
                 self.timer(name = "timeoutMqtt", remove = True)
+                self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
                 self.localDeviceData["initialMqttTimeout"] = True
                 self.logger.info(self, "MQTT init timeout.")
 

@@ -58,11 +58,11 @@ class GenericCharger(ThreadObject):
 
     def threadMethod(self):
         def takeDataAndSend():
-            if self.initialMqttTimeout:
-                self.chargerValues.update(newMqttMessageDict["content"])
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = True, enableEcho = False)
+            self.chargerValues.update(newMqttMessageDict["content"])
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = True, enableEcho = False)
 
-        if self.timer(name = "timerInitialMqttTimeout", timeout = 15):
+        if self.timer(name = "timerInitialMqttTimeout", timeout = 60):
+            self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
             self.initialMqttTimeout = True
 
         # check if a new msg is waiting
@@ -74,31 +74,32 @@ class GenericCharger(ThreadObject):
                 pass
 
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
-                if not "Power" in self.chargerValues:
-                    # if we have to initialise variable
-                    takeDataAndSend()
-                    # send Values to a homeAutomation to get there sliders sensors selectors and switches
-                    self.homeAutomation.mqttDiscoverySensor(self, self.chargerValues)
-                elif self.checkWerteSprung(newMqttMessageDict["content"]["Power"], self.chargerValues["Power"], 10, -1, 10000):
-                    takeDataAndSend()
-
-                # optional Values
-                if "PvVoltage" in newMqttMessageDict["content"]:
-                    if self.checkWerteSprung(newMqttMessageDict["content"]["PvVoltage"], self.chargerValues["PvVoltage"], 10, -1, 200):
+                if self.initialMqttTimeout:
+                    if not "Power" in self.chargerValues:
+                        # if we have to initialise variable
                         takeDataAndSend()
-                if "PvCurrent" in newMqttMessageDict["content"]:
-                    if self.checkWerteSprung(newMqttMessageDict["content"]["PvCurrent"], self.chargerValues["PvCurrent"], 20, -1, 200, 5):
+                        # send Values to a homeAutomation to get there sliders sensors selectors and switches
+                        self.homeAutomation.mqttDiscoverySensor(self, self.chargerValues)
+                    elif self.checkWerteSprung(newMqttMessageDict["content"]["Power"], self.chargerValues["Power"], 10, -1, 10000):
                         takeDataAndSend()
-
-                # Publish internally
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = False, enableEcho = False)
-
-                self.tempDailyProduction = self.tempDailyProduction + (int(self.chargerValues["Power"]) * self.query_Cycle / 60 / 60 / 1000)
-                self.chargerValues["DailyProduction"] = round(self.tempDailyProduction, 2)
-
-                # We publish every 120s
-                if self.timer(name = "timerChargerPublish", timeout = 120):
-                    takeDataAndSend()
+    
+                    # optional Values
+                    if "PvVoltage" in newMqttMessageDict["content"]:
+                        if self.checkWerteSprung(newMqttMessageDict["content"]["PvVoltage"], self.chargerValues["PvVoltage"], 10, -1, 200):
+                            takeDataAndSend()
+                    if "PvCurrent" in newMqttMessageDict["content"]:
+                        if self.checkWerteSprung(newMqttMessageDict["content"]["PvCurrent"], self.chargerValues["PvCurrent"], 20, -1, 200, 5):
+                            takeDataAndSend()
+    
+                    # Publish internally
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = False, enableEcho = False)
+    
+                    self.tempDailyProduction = self.tempDailyProduction + (int(self.chargerValues["Power"]) * self.query_Cycle / 60 / 60 / 1000)
+                    self.chargerValues["DailyProduction"] = round(self.tempDailyProduction, 2)
+    
+                    # We publish every 120s
+                    if self.timer(name = "timerChargerPublish", timeout = 120):
+                        takeDataAndSend()
             else:
                 if "CompleteProduction" in newMqttMessageDict["content"]:
                     # if we get our own Data will overwrite internal data. For initial settings like ...Production

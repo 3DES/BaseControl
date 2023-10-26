@@ -159,7 +159,8 @@
 #        {
 #            "EpeverInterface":
 #            {
-#                "connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
+#                #"connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
+#                "connection":   "Interface.Dummy.DummyChargerUartInterface.DummyChargerUartInterface",
 #                "interface":    "COM12",
 #                "floatVoltage": 52.7,          # optional, if both voltages are given we configure epever
 #                "boostVoltage": 53.6,          # optional
