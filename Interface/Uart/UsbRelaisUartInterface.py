@@ -1,5 +1,4 @@
 import time
-import json
 
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 from Base.Supporter import Supporter
@@ -54,11 +53,7 @@ class UsbRelaisUartInterface(BasicUartInterface):
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             if "cmd" in newMqttMessageDict["content"]:
                 if "readRelayState" == newMqttMessageDict["content"]["cmd"]:

@@ -1,7 +1,7 @@
 import time
-import json
 from Base.ThreadObject import ThreadObject
 import datetime
+from Base.Supporter import Supporter
 
 
 class GenericCharger(ThreadObject):
@@ -22,35 +22,9 @@ class GenericCharger(ThreadObject):
         '''
         super().__init__(threadName, configuration)
 
-
-    def checkWerteSprung(self, newValue, oldValue, percent, minVal, maxVal, minAbs = 0):
-        
-        # Diese Funktion prüft, dass der neue Wert innerhalb der angegebenen maxVal maxVal Grenzen und ausserhalb der angegebenen Prozent Grenze
-        # Diese Funktion wird verwendet um kleine Wertsprünge rauszu Filtern und Werte Grenzen einzuhalten
-
-        if newValue == oldValue == 0:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-
-        percent = percent * 0.01
-        valuePercent = abs(oldValue) * percent
-        
-        if valuePercent < minAbs:
-            valuePercent = minAbs
-
-        minPercent = oldValue - valuePercent
-        maxPercent = oldValue + valuePercent
-
-        if minVal <= newValue <= maxVal and not (minPercent < newValue < maxPercent):
-            #myPrint("wert wird uebernommen")
-            return True
-        else:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-
     def threadInitMethod(self):
         self.chargerValues = {"CompleteProduction": 0.0, "DailyProduction": 0.0}
-        # subscribe to our own out topic get old data from mqtt
+        # subscribe to own out topic get old data from mqtt
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
         self.query_Cycle = 20
         self.tempDailyProduction = 0.0
@@ -61,17 +35,13 @@ class GenericCharger(ThreadObject):
             self.chargerValues.update(newMqttMessageDict["content"])
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = True, enableEcho = False)
 
-        if self.timer(name = "timerInitialMqttTimeout", timeout = 60):
+        if (not self.initialMqttTimeout) and self.timer(name = "timerInitialMqttTimeout", timeout = 60, removeOnTimeout = True):
             self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
             self.initialMqttTimeout = True
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
                 if self.initialMqttTimeout:
@@ -79,24 +49,24 @@ class GenericCharger(ThreadObject):
                         # if we have to initialise variable
                         takeDataAndSend()
                         # send Values to a homeAutomation to get there sliders sensors selectors and switches
-                        self.homeAutomation.mqttDiscoverySensor(self, self.chargerValues)
-                    elif self.checkWerteSprung(newMqttMessageDict["content"]["Power"], self.chargerValues["Power"], 10, -1, 10000):
+                        self.homeAutomation.mqttDiscoverySensor(self.chargerValues)
+                    elif Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Power"], self.chargerValues["Power"], -1, 10000, percent = 10, dynamic = True):
                         takeDataAndSend()
-    
+
                     # optional Values
                     if "PvVoltage" in newMqttMessageDict["content"]:
-                        if self.checkWerteSprung(newMqttMessageDict["content"]["PvVoltage"], self.chargerValues["PvVoltage"], 10, -1, 200):
+                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["PvVoltage"], self.chargerValues["PvVoltage"], -1, 200, percent = 10, dynamic = True):
                             takeDataAndSend()
                     if "PvCurrent" in newMqttMessageDict["content"]:
-                        if self.checkWerteSprung(newMqttMessageDict["content"]["PvCurrent"], self.chargerValues["PvCurrent"], 20, -1, 200, 5):
+                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["PvCurrent"], self.chargerValues["PvCurrent"], -1, 200, percent = 20, dynamic = True, minIgnoreDelta = 5):
                             takeDataAndSend()
-    
+
                     # Publish internally
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.chargerValues, globalPublish = False, enableEcho = False)
-    
+
                     self.tempDailyProduction = self.tempDailyProduction + (int(self.chargerValues["Power"]) * self.query_Cycle / 60 / 60 / 1000)
                     self.chargerValues["DailyProduction"] = round(self.tempDailyProduction, 2)
-    
+
                     # We publish every 120s
                     if self.timer(name = "timerChargerPublish", timeout = 120):
                         takeDataAndSend()

@@ -1,5 +1,4 @@
 import time
-import json
 
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 from Base.Supporter import Supporter
@@ -8,6 +7,8 @@ import os
 import subprocess
 import re
 import colorama
+
+
 
 class WatchdogRelaisUartInterface(BasicUartInterface):
     '''
@@ -163,7 +164,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 return {"Error":"invalidStartup"}
             else:
                 return {"Error":"E"}
-#Docker container für Powerplant erzeugen und automatisiert starten!!!
+
     def processSerialCmd(self, cmd):
         maxTries = 10
         for tries in range(maxTries):
@@ -198,7 +199,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     delayNextRead = False
                 if not self.getDiagnosis:
                     # prevent recursion if we get an error while getAndLogDiagnosis()
-                    self.logger.error(self, f"We sended cmd: {wdCommand}, real framenumber would have been {self.frameCounter}")
+                    self.logger.error(self, f"We sent CMD: {wdCommand}, real framenumber would have been {self.frameCounter}")
                     self.getAndLogDiagnosis()
                 if delayNextRead:
                     time.sleep(2)
@@ -282,6 +283,27 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             self.logger.info(self, f"Watchdog firmware is up to date. Ours: --{ourFw}-- Wd: --{hwFw}--")
 
     def getAndLogDiagnosis(self):
+        '''
+        Diagnosis command contains diagnosis, errors and executed tests, e.g.
+                                    0;D;1;0;0
+                                        | | |
+              diagnosis info  ----------  | | 
+              error number    ------------  |
+              # executed tests  ------------
+              
+              currently used values (version "1.5_4xUNPULSED"):
+                eERROR_INITIAL_SELF_TEST_ERROR           = 0x0001,   // error number in case of self test error during self test initial phase
+                eERROR_REPEATED_SELF_TEST_ON_ERROR       = 0x0002,   // error number in case of self test error while self test has been repeated
+                eERROR_REPEATED_SELF_TEST_OFF_ERROR      = 0x0003,   // error number in case of self test error while self test has been repeated
+                eERROR_REPEATED_SELF_TEST_REQUEST_MISSED = 0x0004,   // error number in case of self test has not been requested early enough
+                eERROR_WATCHDOG_NOT_TRIGGERED            = 0x1000,   // watchdog was already running but it was not triggered anymore
+                eERROR_WATCHDOG_CLEARED                  = 0x1001,   // watchdog was already running and has been cleared via command
+                eERROR_WATCHDOG_STOPPED_UNEXPECTEDLY     = 0x1002,   // watchdog was already running but now it has been stopped but is not in ERROR state
+
+                eDIAGNOSIS_STARTUP = 1 << 0,
+
+                eEXECUTED_TEST_SELF_TEST = 1 << 0,         // lowest bit is self test indicator
+        '''
         self.getDiagnosis = True        # To Prevent Recursion during handling error and get a error during getAndLogDiagnosis()
         self.logger.error(self,f'Watchdog Diagnosis: {self.sendCommand("D")}')
         self.getDiagnosis = False
@@ -300,7 +322,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         retval = self.sendRequest("W", "1")
         if not retval == "1":
             self.getAndLogDiagnosis()
-            raise Exception("Watchdog was not 1 after trigger, PowerPlant will be stopped! Watchdog must have been in any error state and blocks reset pin for 1 minute, e.g. because PowerPlant has been stopped and Watchdog hasn't been retriggered, or self test failed.")
+            raise Exception("Watchdog was not 1 after trigger, PowerPlant will be stopped! Either power supply is OFF or Watchdog is in any error state and blocks reset pin for 1 minute, e.g. because PowerPlant has been stopped and Watchdog hasn't been retriggered, or self test failed.")
         return retval
 
     def clearWdRelay(self):
@@ -334,11 +356,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             if "cmd" in newMqttMessageDict["content"]:
                 if "readInputState" == newMqttMessageDict["content"]["cmd"]:

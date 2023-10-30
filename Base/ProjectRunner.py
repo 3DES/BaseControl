@@ -7,6 +7,7 @@ import time
 import logging
 from signal import signal
 from signal import SIGINT
+import json
 
 
 import Worker.Worker
@@ -25,7 +26,10 @@ signalReceived = False
  
 # handle sigint
 def custom_handler(signum, frame):
-    Logger.Logger.Logger.fatal(self, "Signal received, will stop working as soon as possible")
+    additionalText = ""
+    if signum == 2:
+        additionalText = " (=Ctrl+C)"
+    Logger.Logger.Logger.fatal(custom_handler, f"Signal {signum}{additionalText} received, will stop working as soon as possible")
     global signalReceived
     signalReceived = True
 
@@ -173,7 +177,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool):
+    def executeProject(cls, initFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -195,6 +199,8 @@ class ProjectRunner(object):
         Logger.Logger.Logger.set_logFilter(logFilter)
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
+        if jsonDump:
+            print(json.dumps(configuration, indent = 4))
 
         stopReason = ""
 
@@ -223,7 +229,7 @@ class ProjectRunner(object):
         # in error case try to write the log buffer content out to disk
         if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds or signalReceived:
             deltaTime = endTime - startTime
-            uptimeMessage = f"{os.path.basename(__file__)}: overall uptime ... {Supporter.formatedTime(deltaTime, addCurrentTime = True)}"
+            uptimeMessage = f"{os.path.basename(__file__)}: overall uptime ... {Supporter.formattedTime(deltaTime, addCurrentTime = True)}"
             Supporter.debugPrint(uptimeMessage, color = f"{colorama.Fore.RED}")
             Logger.Logger.Logger.error(cls, uptimeMessage)
             Logger.Logger.Logger.error(cls, "write last log messages to disc before exit")

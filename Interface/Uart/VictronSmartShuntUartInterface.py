@@ -17,13 +17,15 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        
+
         self.SocMonitorWerte = {"Current":0, "Prozent":SocMeter.InitAkkuProz}
-        self.cmdList = []
+        self.cmdList = []       # @todo brauchen wir diese Variable?
 
         self.matchedValues = {}
         self.data = b""     # bytearray("")
         self.initialChecksumFound = False
+        
+        self.READ_TIMEOUT = 20      # tries to read valid values for up to 20 seconds
 
 
     def matchBuffer(self):
@@ -50,6 +52,13 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
         self.data = b""
         self.initialChecksumFound = False
 
+        while not self.mqttRxQueue.empty():
+            newMqttMessageDict = self.readMqttQueue(error = False)
+            if "cmd" in newMqttMessageDict["content"]:
+                if newMqttMessageDict["content"]["cmd"] == "resetSoc":
+                    # @todo Victron resetten, falls das über die Kommunikationsschnittstelle irgendwie möglich ist, ggf. ist das auch garnicht nötig, wenn sich der Victron Shunt selbst beim Erreichen der Max.Spg. selbst resettet
+                    pass
+        
         self.serialReset_input_buffer()
 
         if not self.toSimulate():
@@ -58,8 +67,8 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
                 self.data += self.serialRead(length = DEFAULT_READ_LENGTH, timeout = timeout)
                 self.matchBuffer()
     
-                if self.timer(name = "readValues", timeout = 20):
-                    raise Exception("Reading Victron values timed out after 20 seconds")
+                if self.timer(name = "readValues", timeout = self.READ_TIMEOUT):
+                    raise Exception(f"Reading Victron values timed out after {self.READ_TIMEOUT} seconds")
             self.timer(name = "readValues", remove = True)
         else:
             # simulation mode, so simulate some values

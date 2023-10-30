@@ -2,6 +2,7 @@ import time
 import datetime
 import json
 from Base.ThreadObject import ThreadObject
+from Base.Supporter import Supporter
 
 
 class EffektaController(ThreadObject):
@@ -127,44 +128,17 @@ class EffektaController(ThreadObject):
     def updateChargeValues(self):
         self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
 
-    def checkWerteSprung(self, newValue, oldValue, percent, minVal, maxVal, minAbs = 0):
-        
-        # Diese Funktion prüft, dass der neue Wert innerhalb der angegebenen maxVal maxVal Grenzen und ausserhalb der angegebenen Prozent Grenze
-        # Diese Funktion wird verwendet um kleine Wertsprünge rauszu Filtern und Werte Grenzen einzuhalten
-
-        if newValue == oldValue == 0:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-            
-        percent = percent * 0.01
-        valuePercent = abs(oldValue) * percent
-        
-        if valuePercent < minAbs:
-            valuePercent = minAbs
-            
-        minPercent = oldValue - valuePercent
-        maxPercent = oldValue + valuePercent
-        
-        if minVal <= newValue <= maxVal and not (minPercent < newValue < maxPercent):
-            #myPrint("wert wird uebernommen")
-            return True
-        else:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-
-
     def threadInitMethod(self):
         self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
         self.tempDailyProduction = 0.0
-        self.timeStamp = time.time()
         self.valideChargeValues = []
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()) + "/#", globalSubscription = True)
         #self.mqttSubscribeTopic(self.createInTopic(self.getClassTopic()) + "/#", globalSubscription = True)
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
-        self.homeAutomation.mqttDiscoverySensor(self, self.EffektaData["EffektaWerte"])
-        self.homeAutomation.mqttDiscoverySwitch(self, ["OverloadUtility"], onCmd=json.dumps(self.getSetValueDict("PEb", extern =True)), offCmd=json.dumps(self.getSetValueDict("PDb", extern =True)))
+        self.homeAutomation.mqttDiscoverySensor(self.EffektaData["EffektaWerte"])
+        self.homeAutomation.mqttDiscoverySwitch(["OverloadUtility"], onCmd = json.dumps(self.getSetValueDict("PEb", extern = True)), offCmd = json.dumps(self.getSetValueDict("PDb", extern = True)))
         self.initialMqttSend = True
 
     def threadMethod(self):
@@ -187,27 +161,19 @@ class EffektaController(ThreadObject):
         # tempDailyDischarge = 0.0
         # tempDailyCharge = 0.0
 
-        if self.timeStamp + effekta_Query_Cycle < time.time():
-            self.timeStamp = time.time()
+        if self.timer(name = "queryTimer", timeout = effekta_Query_Cycle, autoReset = True):        # @todo firstTimeTrue = True ?
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QPIGS"), globalPublish = False, enableEcho = False)
-            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QID"), globalPublish = False, enableEcho = False)
-            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMOD"), globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QID"),   globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMOD"),  globalPublish = False, enableEcho = False)
             if not self.valideChargeValues:
-                # If valideChargeValues is emty we send a query and fill it if effekta answers
+                # If valideChargeValues is empty we send a query and fill it if effekta answers
                 self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
 
         self.sendeGlobalMqtt = False
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
-
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             # First we check if the msg is not from our Interface
             if not (newMqttMessageDict["topic"] in self.interfaceOutTopics):
@@ -246,38 +212,32 @@ class EffektaController(ThreadObject):
                         (Netzspannung, Netzfrequenz, AcOutSpannung, AcOutFrequenz, AcOutPowerVA, AcOutPower, AcOutLoadProz, BusVoltage, BattSpannung, BattCharge, BattCapacity, InverterTemp, PvCurrent, PvVoltage, BattVoltageSCC, BattDischarge, DeviceStatus1, BattOffset, EeVersion, PvPower, DeviceStatus2) = newMqttMessageDict["content"]["query"]["response"].split()
                         self.EffektaData["EffektaWerte"]["AcOutSpannung"] = float(AcOutSpannung)
 
-                        if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["Netzspannung"], int(float(Netzspannung)), 3, -1, 10000):
-                            self.EffektaData["EffektaWerte"]["Netzspannung"] = int(float(Netzspannung))
-                            self.sendeGlobalMqtt = True
-                        if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["AcOutPower"], int(AcOutPower), 10, -1, 10000) or self.sendeGlobalMqtt:
-                            self.EffektaData["EffektaWerte"]["AcOutPower"] = int(AcOutPower)
-                            self.sendeGlobalMqtt = True
-                        if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["PvPower"], int(PvPower), 10, -1, 10000) or self.sendeGlobalMqtt:
-                            self.EffektaData["EffektaWerte"]["PvPower"] = int(PvPower)
-                            self.sendeGlobalMqtt = True
-                        if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["BattCharge"], int(BattCharge), 10, -1, 10000) or self.sendeGlobalMqtt:
-                            self.EffektaData["EffektaWerte"]["BattCharge"] = int(BattCharge)
-                            self.sendeGlobalMqtt = True
-                        if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["BattDischarge"], int(BattDischarge), 10, -1, 10000) or self.sendeGlobalMqtt:
-                            self.EffektaData["EffektaWerte"]["BattDischarge"] = int(BattDischarge)
-                            self.sendeGlobalMqtt = True
-                        if self.EffektaData["EffektaWerte"]["DeviceStatus2"] != DeviceStatus2:
-                            self.EffektaData["EffektaWerte"]["DeviceStatus2"] = DeviceStatus2
-                            self.sendeGlobalMqtt = True
-                        if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["BattSpannung"], float(BattSpannung), 0.5, -1, 100) or self.sendeGlobalMqtt:
-                            self.EffektaData["EffektaWerte"]["BattSpannung"] = float(BattSpannung)
-                            self.sendeGlobalMqtt = True
-                        if self.checkWerteSprung(self.EffektaData["EffektaWerte"]["BattCapacity"], int(BattCapacity), 1, -1, 101) or self.sendeGlobalMqtt:
-                            self.EffektaData["EffektaWerte"]["BattCapacity"] = int(BattCapacity)
-                            self.sendeGlobalMqtt = True
-
-                        self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
-                        self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
-
                         # If first data arrived, and software just start up we want to send. Powerplant checks this.
                         if self.initialMqttSend:
                             self.initialMqttSend = False
                             self.sendeGlobalMqtt = True
+
+                        self.sendeGlobalMqtt |= Supporter.deltaOutsideRange(self.EffektaData["EffektaWerte"]["Netzspannung"], int(float(Netzspannung)), -1, 10000, percent = 3, dynamic = True)
+                        self.sendeGlobalMqtt |= Supporter.deltaOutsideRange(self.EffektaData["EffektaWerte"]["AcOutPower"], int(AcOutPower), -1, 10000, percent = 10, dynamic = True)
+                        self.sendeGlobalMqtt |= Supporter.deltaOutsideRange(self.EffektaData["EffektaWerte"]["PvPower"], int(PvPower), -1, 10000, percent = 10, dynamic = True)
+                        self.sendeGlobalMqtt |= Supporter.deltaOutsideRange(self.EffektaData["EffektaWerte"]["BattCharge"], int(BattCharge), -1, 10000, percent = 10, dynamic = True)
+                        self.sendeGlobalMqtt |= Supporter.deltaOutsideRange(self.EffektaData["EffektaWerte"]["BattDischarge"], int(BattDischarge), -1, 10000, percent = 10, dynamic = True)
+                        self.sendeGlobalMqtt |= (self.EffektaData["EffektaWerte"]["DeviceStatus2"] != DeviceStatus2)
+                        self.sendeGlobalMqtt |= Supporter.deltaOutsideRange(self.EffektaData["EffektaWerte"]["BattSpannung"], float(BattSpannung), -1, 100, percent = 0.5, dynamic = True)
+                        self.sendeGlobalMqtt |= Supporter.deltaOutsideRange(self.EffektaData["EffektaWerte"]["BattCapacity"], int(BattCapacity), -1, 101, percent = 1, dynamic = True)
+                        if self.sendeGlobalMqtt:
+                            self.EffektaData["EffektaWerte"]["Netzspannung"]  = int(float(Netzspannung))
+                            self.EffektaData["EffektaWerte"]["AcOutPower"]    = int(AcOutPower)
+                            self.EffektaData["EffektaWerte"]["PvPower"]       = int(PvPower)
+                            self.EffektaData["EffektaWerte"]["BattCharge"]    = int(BattCharge)
+                            self.EffektaData["EffektaWerte"]["BattDischarge"] = int(BattDischarge)
+                            self.EffektaData["EffektaWerte"]["DeviceStatus2"] = DeviceStatus2
+                            self.EffektaData["EffektaWerte"]["BattSpannung"]  = float(BattSpannung)
+                            self.EffektaData["EffektaWerte"]["BattCapacity"]  = int(BattCapacity)
+
+                        self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
+                        self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
+
 
         now = datetime.datetime.now()
         if now.hour == 23:

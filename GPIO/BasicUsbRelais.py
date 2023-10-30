@@ -1,9 +1,9 @@
-import json
 import time
 import sys
 from Base.ThreadObject import ThreadObject
 from queue import Queue
 from Base.Supporter import Supporter
+from collections import Counter
 
 
 class BasicUsbRelais(ThreadObject):
@@ -30,8 +30,8 @@ class BasicUsbRelais(ThreadObject):
     nextWatchDogAction = _WATCHDOG_NOT_INITIALIZED
 
 
-    #_TIME_BETWEEN_TESTS = 30            # only for debugging
-    _TIME_BETWEEN_TESTS = 4*24*60*60     # Watchdog Test every max 100h, we do it all 4d = 4*24*60*60
+    _TIME_BETWEEN_TESTS = 4*24*60*60    # Watchdog Test every max 100h, we do it all 4d = 4*24*60*60
+    _MIN_TIME_BETWEEN_TESTS = 60        # parametrized time should not be lower that this amount of seconds
     _TIME_BETWEEN_CANDIDATES = 10       # when it's time for another test, a candidate waits 30 seconds until it starts its test when it got the test tocken from its predecessor
     _TIME_FOR_TEST = 20                 # after 20 seconds watchdog should have finished its test
 
@@ -43,19 +43,29 @@ class BasicUsbRelais(ThreadObject):
         super().__init__(threadName, configuration)
         self.tagsIncluded(["triggerThread"], optional = True, default = "noTriggerThreadDefined")
         self.tagsIncluded(["relMapping"], optional = True, default = {})
+        self.tagsIncluded(["inputMapping"], optional = True, default = {})
         self.tagsIncluded(["gpioHandler"], optional = True, default = [])
+        self.tagsIncluded(["noInitialTest"], optional = True, default = False)                          # if False the first test will be executed earlier than given in "timeBetweenTests", otherwise the first test will be executed after "timeBetweenTests" seconds
+        self.tagsIncluded(["timeBetweenTests"], optional = True, default = self._TIME_BETWEEN_TESTS)    # seconds between test execution but also the time it takes until the first test is executed
+        if self.configuration["timeBetweenTests"] > self._TIME_BETWEEN_TESTS:                           # there is a maximum allowed time between tests
+            self.logger.warning(self, f"timeBetweenTests parameter is too large and will be reduced to {self._TIME_BETWEEN_TESTS}")
+            self.configuration["timeBetweenTests"] = self._TIME_BETWEEN_TESTS
+        elif self.configuration["timeBetweenTests"] < self._MIN_TIME_BETWEEN_TESTS:                     # there is a minimum allowed time between tests
+            self.logger.warning(self, f"timeBetweenTests parameter is too short and will be set to {self._MIN_TIME_BETWEEN_TESTS}")
+            self.configuration["timeBetweenTests"] = self._MIN_TIME_BETWEEN_TESTS
 
         self.triggerActive = True
-        
+        self.executedTestsCounter = 0
+
         # to synchronize hardware watchdogs others have to be given, otherwise the test executed every x hours will fail!
         # all watchdogs will subscribe to all others' outtopics and only the master handles the timer
         # when the master sends out that it has done its test, the next one in the row can execute its test, and so on...
         watchDogList = [ self.name ]            # add current watchdog to the watchdog list but make all entries unique again later on to ensure that it doesn't matter if the configurator adds all watchdogs to the watchdog list or not  
-        if self.tagsIncluded(["furtherWatchdogs"], optional = True, default = []):
-            if type(self.configuration["furtherWatchdogs"]) == list:
-                watchDogList += self.configuration["furtherWatchdogs"]
+        if self.tagsIncluded(["watchdogRelays"], optional = True, default = []):
+            if type(self.configuration["watchdogRelays"]) == list:
+                watchDogList += self.configuration["watchdogRelays"]
             else:
-                watchDogList.append(self.configuration["furtherWatchdogs"])
+                watchDogList.append(self.configuration["watchdogRelays"])
         watchDogList = list(set(watchDogList))  # make all entries unique!
         watchDogList.sort()                     # sort the list to get alphanumeric order, what will be necessary later on to decide when current watchdog can execute its test
 
@@ -70,7 +80,7 @@ class BasicUsbRelais(ThreadObject):
         if self.masterWatchDog:
             self.watchDogPredecessorIndex = len(watchDogList) - 1               # current watchdog is next in chain if last publishing watchdog was predecessor watchdog (predecessor of master is last watchdog in watchdog chain)
             self.nextWatchDogAction = self._WATCHDOG_START_TIMER                # master watchdog has to start its timer first
-            self.watchDogTimeout = self._TIME_BETWEEN_TESTS
+            self.watchDogTimeout = self.configuration["timeBetweenTests"]
         else:
             self.watchDogPredecessorIndex = self.watchDogIndex - 1              # current watchdog is next in chain if last publishing watchdog was predecessor watchdog
             self.nextWatchDogAction = self._WATCHDOG_WAIT_FOR_INDEX             # non-master watchdog has to wait until it's its turn
@@ -90,26 +100,38 @@ class BasicUsbRelais(ThreadObject):
         Futhermore, there can be several watchdogs and all of them have to execute their tests one after another and not together to prevent any race conditions.
         '''
         def publishStateSwitch(message : str):
+            # inform next watchdog in watchdog chain
             self.mqttPublish(self.watchDogTestTopic,
                 {
                     "watchDogTestIndex":self.watchDogIndex, 
                     "watchDogTestRequest":message
-                }, globalPublish = False, enableEcho = True)                                                                                   # inform next watchdog in watchdog chain
+                },
+                globalPublish = False,
+                enableEcho = True)      # if there is only one watchdog in the chain it must be able to send the message out to itself!
 
         # handle watchdog test
         if self.nextWatchDogAction == self._WATCHDOG_START_TIMER:
-            if self.timer(name = "timerTestWd", timeout = self.watchDogTimeout, oneShot = True):
-                self.triggerActive = False                                                                                                      # de-activating triggering for current watchdog since it's testing now
-                self.timer(name = "timerTestMeassuring", timeout = 6000)
+            testTimeout = self.watchDogTimeout
+
+            # in case of very first test and if "noInitialTest" has not been set, reduce time for first test to minimum time
+            if self.masterWatchDog:
+                if self.executedTestsCounter == 0:
+                    if not self.configuration["noInitialTest"]:
+                        testTimeout = self._MIN_TIME_BETWEEN_TESTS
+
+            if self.timer(name = "timerTestWd", timeout = testTimeout, autoReset = True):
+                self.executedTestsCounter += 1
+                self.triggerActive = False                                                                                                      # de-activating triggering for current watchdog since it's tested now
                 publishStateSwitch("TRIGGERING_DISABLED")                                                                                       # inform next watchdog in watchdog chain
                 self.nextWatchDogAction = self._WATCHDOG_MONITORING_OFF                                                                         # now wait until whole watchdog chain has been handled
                 self.timer(name = "timerTestWd", remove = True)                                                                                 # one shot timer no longer needed
         elif self.nextWatchDogAction == self._WATCHDOG_EXECUTE_TEST:
-            self.mqttPublish(self.interfaceInTopics[0], {"cmd":"testWdRelay"}, globalPublish = False, enableEcho = False)                       # command watchdog test
+            if not self.toSimulate():
+                self.mqttPublish(self.interfaceInTopics[0], {"cmd":"testWdRelay"}, globalPublish = False, enableEcho = False)                   # command watchdog test
             self.nextWatchDogAction = self._WATCHDOG_FINISH_TEST
         elif self.nextWatchDogAction == self._WATCHDOG_FINISH_TEST:
             # xxxxxxxxxxxxxx @TODO hier besser auf Antwort von Relay warten!!!
-            if self.timer(name = "timerTestEndWd", timeout = self._TIME_FOR_TEST, oneShot = True):                                                               # give test some seconds time to finish
+            if self.timer(name = "timerTestEndWd", timeout = self._TIME_FOR_TEST, oneShot = True):                                              # give test some seconds time to finish
                 publishStateSwitch("TRIGGERING_ENABLED")                                                                                        # inform next watchdog in watchdog chain
                 self.nextWatchDogAction = self._WATCHDOG_MONITORING_ON
                 self.timer(name = "timerTestEndWd", remove = True)                                                                              # one shot timer no longer needed
@@ -117,21 +139,16 @@ class BasicUsbRelais(ThreadObject):
             publishStateSwitch("NEXT_ONE_PLEASE")                                                                                               # inform next watchdog in watchdog chain
             self.nextWatchDogAction = self._WATCHDOG_WAIT_FOR_INDEX
             self.triggerActive = True     
-            remainingTime = 6000 - self.timer(name = "timerTestMeassuring", remainingTime = True)
-            self.timer(name = "timerTestMeassuring", remove = True)
         else:
             while not self.mqttWdTestQueue.empty():
-                predecessorMessageDict = self.mqttWdTestQueue.get(block = False)
-                try:
-                    messageContent = json.loads(predecessorMessageDict["content"])  # try to convert content in dict
-                except:
-                    pass
+                predecessorMessageDict = self.readMqttQueue(self.mqttWdTestQueue, error = False)
+                messageContent = predecessorMessageDict["content"]
                 if "watchDogTestIndex" in messageContent and "watchDogTestRequest" in messageContent:
                     if messageContent["watchDogTestIndex"] == self.watchDogPredecessorIndex:
                         if messageContent["watchDogTestRequest"] == "TRIGGERING_DISABLED":
                             self.triggerActive = False                                                                                          # de-activate triggering for other watchdogs when one watchdog is currently testing
                             if self.nextWatchDogAction == self._WATCHDOG_MONITORING_OFF:
-                                self.nextWatchDogAction = self._WATCHDOG_EXECUTE_TEST                                                           # active testing watchdog will proceed
+                                self.nextWatchDogAction = self._WATCHDOG_EXECUTE_TEST                                                           # actively testing watchdog will proceed
                             else:
                                 publishStateSwitch("TRIGGERING_DISABLED")                                                                       # all others will just inform the next one in the chain
                         elif messageContent["watchDogTestRequest"] == "TRIGGERING_ENABLED":
@@ -159,17 +176,18 @@ class BasicUsbRelais(ThreadObject):
     def threadMethod(self):
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             # check if we got a msg from our interface
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
-                #todo auf inputs prüfen, mit einem mapping dict aus der init.json mappen. evtl nur die keys mit dem Nicename ersetzen 
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
-                if not "triggerWd" in newMqttMessageDict["content"]:
+                if "inputs" in newMqttMessageDict["content"]:
+                    for inputName in list(newMqttMessageDict["content"]["inputs"].keys()):
+                        if inputName in self.configuration["inputMapping"]:
+                            # rename key
+                            newMqttMessageDict["content"]["inputs"][self.configuration["inputMapping"][inputName]] = newMqttMessageDict["content"]["inputs"].pop(inputName)
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
+                elif not "triggerWd" in newMqttMessageDict["content"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
             else:
                 if "cmd" in newMqttMessageDict["content"]:

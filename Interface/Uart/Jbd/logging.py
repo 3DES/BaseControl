@@ -79,7 +79,8 @@ class Logger:
         self.fn = fn
 
     def _logRow(self, row):
-        if not self.logFileHandle: return
+        if not self.logFileHandle:
+            return
         h = self.logFileHandle
         if isinstance(h, Workbook):
             worksheets = h.worksheets()
@@ -138,7 +139,8 @@ class Logger:
         return time.strftime('%Y-%m-%d', t), time.strftime('%H:%M:%S', t)
 
     def close(self):
-        if not self.logFileHandle: return
+        if not self.logFileHandle:
+            return
         self.logFileHandle.close()
         self.logFileHandle = None
         print(self.fn, 'closed')

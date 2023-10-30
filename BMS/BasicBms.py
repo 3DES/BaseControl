@@ -1,5 +1,4 @@
 import time
-import json
 from Base.ThreadObject import ThreadObject
 from GPIO.BasicUsbRelais import BasicUsbRelais
 from Base.Supporter import Supporter
@@ -42,7 +41,7 @@ class BasicBms(ThreadObject):
     A global publish is also triggert every 120 seconds
     '''
 
-    allBmsDataTopicExtension = "/allData"
+    allBmsDataTopicExtension = "allData"
 
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -229,15 +228,11 @@ class BasicBms(ThreadObject):
             self.mergeBmsData()
 
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.globalBmsWerte, globalPublish = True, enableEcho = False)
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + self.allBmsDataTopicExtension, self.bmsWerte, globalPublish = True, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.allBmsDataTopicExtension), self.bmsWerte, globalPublish = True, enableEcho = False)
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             # at first we check which msg is arrived. a socmonitor has prozent and Current
             # A bms has vmin, vmax, BmsEntladeFreigabe, toggleIfMsgSeen and optional prozent and Current
@@ -272,8 +267,8 @@ class BasicBms(ThreadObject):
                         # delete soc monitor to prevent double discovery in homeassistant, the soc monitor discovers it self at homeassistant. We mustn't do it.
                         if self.configuration["socMonitor"] in self.bmsWerte:
                             del self.bmsWerte[self.configuration["socMonitor"]]
-                        self.homeAutomation.mqttDiscoverySensor(self, self.bmsWerte, subTopic = self.allBmsDataTopicExtension)
-                        self.homeAutomation.mqttDiscoverySensor(self, self.globalBmsWerte)
+                        self.homeAutomation.mqttDiscoverySensor(self.bmsWerte, subTopic = self.allBmsDataTopicExtension)
+                        self.homeAutomation.mqttDiscoverySensor(self.globalBmsWerte)
     
                     # At first we check required bit toggleIfMsgSeen. We remember it and add this info at least to bms data of this topic 
                     toggleSeen = (newMqttMessageDict["content"]["toggleIfMsgSeen"] != self.bmsWerte[interfaceName]["toggleIfMsgSeen"])

@@ -1,9 +1,10 @@
 import time
 import datetime
-import json
 import requests
 import re
 from Base.ThreadObject import ThreadObject
+from Base.Supporter import Supporter
+
 
 
 class WetterOnline(ThreadObject):
@@ -176,7 +177,7 @@ class WetterOnline(ThreadObject):
     def discoverNestedDict(self, nestedDict, equalSubKey):
         for key in nestedDict:
             if equalSubKey in str(nestedDict[key]):
-                self.homeAutomation.mqttDiscoverySensor(self, [f"{key}.{equalSubKey}"])
+                self.homeAutomation.mqttDiscoverySensor([f"{key}.{equalSubKey}"])
 
     def threadInitMethod(self):
         self.wetterdaten = {"lastrequest":0}
@@ -185,11 +186,7 @@ class WetterOnline(ThreadObject):
     def threadMethod(self):
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
         publishWeather = False
         now = datetime.datetime.now()
@@ -229,8 +226,10 @@ class WetterOnline(ThreadObject):
                     self.wetterdaten["Tag_4"] = None
 
         if publishWeather:
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.wetterdaten, globalPublish = True, enableEcho = False)
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.wetterdaten, globalPublish = False, enableEcho = False)
+            outTopic = self.createOutTopic(self.getObjectTopic())
+            self.mqttPublish(outTopic, self.wetterdaten, globalPublish = True, enableEcho = False)
+            self.mqttPublish(outTopic, self.wetterdaten, globalPublish = False, enableEcho = False)
+            #Supporter.debugPrint(f"published to {outTopic} [{self.wetterdaten}]")
 
 
     def threadBreak(self):

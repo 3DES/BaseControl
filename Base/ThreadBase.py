@@ -88,6 +88,27 @@ class ThreadBase(Base.MqttBase.MqttBase):
         self.thread.start()                             # finally start all thread interfaces and the new thread
 
 
+    def mqttRxQueueEmptyDecorator(self, functionToDecorate):
+        def mqttRxQueueEmptyMonitor(*args, **kwargs):
+            returnValue = functionToDecorate(*args, **kwargs)
+            self._mqttRxQueueEmptyWasTrue = returnValue
+            #Supporter.debugPrint(f"{self.name} self.mqttRxQueue.empty wrapper called")
+            return returnValue
+        return mqttRxQueueEmptyMonitor
+
+
+    def installMqttRxQueueEmptyMonitor(self):
+        self.mqttRxQueue.empty = self.mqttRxQueueEmptyDecorator(self.mqttRxQueue.empty)
+        self.logger.debug(self.name, f"installed self.mqttRxQueue.empty monitor")
+
+
+    def removeMqttRxQueue(self):
+        '''
+        Threads that don't need a mqttRxQueue should call this method to remove it since ThreadBase checks if it has been read each time threadMethod is called and if it hasn't been read an exception will be thrown
+        '''
+        del self.mqttRxQueue
+
+
     def threadBreak(self):
         '''
         This is to ensure that each thread has at least a little sleep per loop run
@@ -95,6 +116,20 @@ class ThreadBase(Base.MqttBase.MqttBase):
         If the thread wants to handle this by itself it has to overwrite this method
         '''
         time.sleep(.1)          # give other threads a chance to run and ensure that a thread which writes to the logger doesn't flood it
+
+
+    def threadRxQueueMonitor(self):
+        # check if threadMethod handled mqttRxQueue correctly, what means it has to do one of the following three options:
+        #     - it read the queue until empty returned with True
+        #     - it set self._mqttRxQueueGetIgnoreOnce
+        #     - it has deleted its queue completely
+        if not self._mqttRxQueueEmptyWasTrue and not self._mqttRxQueueGetIgnoreOnce and hasattr(self, "mqttRxQueue"):
+            # thread doesn't read its mqttRxQueue, so let's check if anybody sends stuff to it
+            if not self.mqttRxQueue.empty():
+                while not self.mqttRxQueue.empty():
+                    self.logger.debug(self.name, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
+            self.logger.debug(self.name, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
+            raise Exception(f"{self.name}({self.__class__.__name__}) hasn't called self.mqttRxQueue.get() or self.mqttRxQueue.empty() and got True, what is not allowed! Either delete self.mqttRxQueue or set self._mqttRxQueueGetIgnoreOnce to True each time it cannot be read")
 
 
     def threadLoop(self, event):
@@ -118,6 +153,13 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         loopCount = 0
 
+        # maybe mqttRxQueue has been deleted in threadInitMethod?
+        if hasattr(self, "mqttRxQueue"):
+            self.installMqttRxQueueEmptyMonitor()
+        else:
+            self.logger.debug(self.name, f"didn't install self.mqttRxQueue.empty monitor since self.mqttRxQueue has already been removed")
+
+
         # execute thread loop until thread gets killed
         try:
             # execute thread loop until we get killed
@@ -129,7 +171,13 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 #timeStamps[0][0] = Supporter.getTimeStamp()            # remember current start time
                 self.threadTraceMethod()        # print tracing info
                 #timeStamps[0][1] = Supporter.getTimeStamp()            # time before thread main loop starts
-                self.threadMethod()
+
+                self._mqttRxQueueEmptyWasTrue = False   # reset monitoring variable
+                self._mqttRxQueueGetIgnoreOnce = False  # to be set in threadMethod if the queue cannot be read temporarily
+
+                self.threadMethod()             # execute working method
+                self.threadRxQueueMonitor()     # check if mqttRxQueue has been handled as expected
+
                 #timeStamps[0][2] = Supporter.getTimeStamp()            # time before thread main loop has been finished (delta is loop time)
                 self.logger.debug(self, "alive")
                 # do some overall thread related stuff here (@todo)

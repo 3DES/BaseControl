@@ -215,9 +215,9 @@
     # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
     "@import": [
-        "json/project.json",        # general project settings
-        "json/secure.json",         # secure stuff not to be pushed
-        "json/temporary.json"       # to overwrite values temporarily for debugging or development
+        "json/project.json"             # general project settings
+#        "ExampleConfig/project_PowerPlantTester.json"             # general project settings
+#        "json/projectDummy.json"        # general project settings (dummy for offline debugging)
     ]
 }
 

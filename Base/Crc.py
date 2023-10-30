@@ -111,6 +111,10 @@ class Crc(object):
 
 
     @classmethod
-    def bytesToWordBigEndian(cls, string : bytes):
-        return (ord(string[0:1]) << 8) | ord(string[1:2])
+    def twoBytesToWord(cls, string : bytes, bigEndian : bool = False):
+        if bigEndian:
+            return (ord(string[0:1]) << 8) | ord(string[1:2])
+        else:
+            return (ord(string[1:2]) << 8) | ord(string[0:1])
+
 

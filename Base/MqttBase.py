@@ -26,6 +26,8 @@ class MqttBase(Base):
     __threadNames_always_use_getters_and_setters                = set()                                             # collect object names and ensure that they are all unique
     __mqttLock_always_use_getters_and_setters                   = threading.Lock()                                  # class lock to access class variables
 
+    _CONTENT_TAG = "content"
+
 
     class MQTT_TYPE(Enum):
         CONNECT               = 0  # to register as listener own queue to MqttBridge 
@@ -273,10 +275,18 @@ class MqttBase(Base):
                 self.interfaceOutTopics.append(outTopic)  # add OUT topic of this interface to send messages
                 self.interfaceInTopicOwner[inTopic] = interface.name
                 self.interfaceOutTopicOwner[outTopic] = interface.name
-                if (interfaceQueues is not None) and (interface in interfaceQueues):
-                    self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[interface])   # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
+
+                # interface queue with key "None" will be used for all interfaces where not a dedicated queue has been given
+                if (interfaceQueues is not None) and ((None in interfaceQueues) or (interface in interfaceQueues)):
+                    if interface in interfaceQueues:
+                        # a dedicated queue has been given for current interface, so subscribe with this queue
+                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[interface])   # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
+                    else:
+                        # common queue for all interfaces has been given (key = None), so subscribe with this queue
+                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[None])        # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
                 else:
-                    self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                                       # subscribe to OUT topic of this interface to receive messages
+                    # no special interface queue given, so published messages will be received via default queue
+                    self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                                           # subscribe to OUT topic of this interface to receive messages
 
 
     @classmethod
@@ -407,80 +417,52 @@ class MqttBase(Base):
         return True
 
 
-    def createTopic(self, classTopic : bool = False, inTopic : bool = False, filterTopic : bool = False):
-        '''
-        Create a topic type depending on given flags
-        
-        classTopic flag decides if a class or object topic will be created
-        
-        inTopic flag decides if a in or out topic will be created
-        
-        filterTopic flag decides if a common topic or a topic filter (/#) will be created
-        '''
-        if classTopic:
-            topic = self.getClassTopic()
-        else:
-            topic = self.getObjectTopic()
-
-        if filterTopic:
-            if inTopic:
-                topic = self.createInTopicFilter(topic)
-            else:
-                topic = self.createOutTopicFilter(topic)
-        else:
-            if inTopic:
-                topic = self.createInTopic(topic)
-            else:
-                topic = self.createOutTopic(topic)
-        return topic
-        
-    
-    def getObjectTopic(self, objectName = None):
+    def getObjectTopic(self, objectName = None, subTopic : str = None):
         '''
         Create object topic for current object or give object
         '''
         if objectName is None:
-            return self.createProjectTopic(self.name)
+            return self.createProjectTopic(self.name, subTopic = subTopic)
         else:
-            return self.createProjectTopic(objectName)
+            return self.createProjectTopic(objectName, subTopic = subTopic)
 
 
-    def getClassTopic(self):
+    def getClassTopic(self, subTopic : str = None):
         '''
         Create class topic for current object
         '''
-        return self.createProjectTopic(self.__class__.__name__)
+        return self.createProjectTopic(self.__class__.__name__, subTopic)
 
     @classmethod
-    def createProjectTopic(cls, objectName : str):
+    def createProjectTopic(cls, objectName : str, subTopic : str = None):
         '''
         Creates a topic for given objectName, objectName should be a class name or a thread name or a interface name
         '''
-        return cls.get_projectName() + "/" + objectName
+        return cls.createSubTopic(cls.get_projectName() + "/" + objectName, subTopic)
 
 
     @classmethod
-    def createInTopicFilter(cls, topic : str):
+    def createInTopicFilter(cls, topic : str, subTopic : str = None):
         '''
         Create topic filter for IN messages to given topic and children
         '''
-        return cls.createInTopic(topic) + "/#"
+        return cls.createInTopic(topic, subTopic) + "/#"
 
 
     @classmethod
-    def createInTopic(cls, topic : str):
+    def createInTopic(cls, topic : str, subTopic : str = None):
         '''
         Create topic for IN messages
         '''
-        return topic + "/in"
+        return cls.createSubTopic(topic + "/in", subTopic)
 
 
     @classmethod
-    def createOutTopicFilter(cls, topic : str):
+    def createOutTopicFilter(cls, topic : str, subTopic : str = None):
         '''
         Create topic filter for OUT messages to given topic and children
         '''
-        return cls.createOutTopic(topic) + "/#"
+        return cls.createOutTopic(topic, subTopic) + "/#"
 
 
     @classmethod
@@ -488,7 +470,7 @@ class MqttBase(Base):
         '''
         Create topic for OUT messages
         '''
-        if subTopic is None:
+        if (subTopic is None) or (not len(subTopic)):
             return topic
         else:
             return topic + "/" + str(subTopic)
@@ -499,7 +481,7 @@ class MqttBase(Base):
         '''
         Create topic for OUT messages
         '''
-        return cls.createSubTopic(topic + "/out", subTopic) 
+        return cls.createSubTopic(topic + "/out", subTopic)
 
 
     def getInterfaceNameFromOutTopic(self, topic):
@@ -592,17 +574,28 @@ class MqttBase(Base):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
-    def mqttDiscoverySensor(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, unitDict = {}, subTopic = ""):
+    def mqttDiscoverySensor(self, sensorList, ignoreKeys : dict = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = "") -> str:
         """
         sensorList: dict, nestedDict oder List der Sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         nameDict: dict. Hier koennen einzelne keys mit einzelnen frindlyNames drin stehen
         unitDict: dict. Hier koennen einzelne keys mit einzelnen Einheiten drin stehen
+        
+        @result        created topic to which the sensor values have to be published to
         """
+        senderObj = Supporter.getCaller()      # get caller object
+
+        # nameDict is needed even if it hasn't been given
+        if nameDict is None:
+            nameDict = []
+
+        # create sensors out topic
+        topic = self.createOutTopic(self.createProjectTopic(senderObj.name), subTopic = subTopic)
+
         if type(sensorList) == dict:
             nameList = []
             for key in sensorList:
-                # dedect a nested dict
+                # detect a nested dict
                 if type(sensorList[key]) == dict:
                     for nestedKey in sensorList[key]:
                         nameList.append(f"{key}.{nestedKey}")
@@ -614,21 +607,24 @@ class MqttBase(Base):
                     nameList.append(key)
         else:
             nameList = sensorList
+
+        #Supporter.debugPrint(f"discover sensor called: [{senderObj.name}] [{topic}] [{nameList}]")
+
         for key in nameList:
             niceName = ""
             unit = ""
-            if key not in ignoreKeys:
+            if (ignoreKeys is None) or (key not in ignoreKeys):
                 if key in nameDict:
                     niceName = nameDict[key]
-                if key in unitDict:
+                if (unitDict is not None) and (key in unitDict):
                     unit = unitDict[key]
-                preparedMsg = self.homeAutomation.getDiscoverySensorCmd(senderObj.name, key, niceName, unit, subTopic)
+                preparedMsg = self.homeAutomation.getDiscoverySensorCmd(senderObj.name, key, niceName, unit, topic)
                 sensorTopic = self.homeAutomation.getDiscoverySensorTopic(senderObj.name, key)
-                if sensorTopic:
-                    senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+                senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+        return topic
 
 
-    def mqttDiscoveryInputNumberSlider(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, minValDict = {}, maxValDict = {}):
+    def mqttDiscoveryInputNumberSlider(self, sensorList, ignoreKeys : dict = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None):
         """
         sensorList: dict oder List der Slider die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
@@ -636,6 +632,8 @@ class MqttBase(Base):
         minValDict: dict der minimal Slider Werte. default 0
         maxValDict: dict der maximal Slider Werte. default 100
         """
+        senderObj = Supporter.getCaller()      # get caller object
+
         if type(sensorList) == dict:
             nameList = list(sensorList.keys())
         else:
@@ -644,12 +642,12 @@ class MqttBase(Base):
             niceName = ""
             minVal = 0
             maxVal = 100
-            if key not in ignoreKeys:
-                if key in nameDict:
+            if (ignoreKeys is None) or (key not in ignoreKeys):
+                if (nameDict is not None) and (key in nameDict):
                     niceName = nameDict[key]
-                if key in minValDict:
+                if (minValDict is not None) and (key in minValDict):
                     minVal = minValDict["key"]
-                if key in maxValDict:
+                if (maxValDict is not None) and (key in maxValDict):
                     maxVal = maxValDict["key"]
                 preparedMsg = self.homeAutomation.getDiscoveryInputNumberSliderCmd(senderObj.name, key, niceName, minVal, maxVal)
                 sensorTopic = self.homeAutomation.getDiscoveryInputNumberSliderTopic(senderObj.name, key)
@@ -657,40 +655,44 @@ class MqttBase(Base):
                     senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 
 
-    def mqttDiscoverySelector(self, senderObj, sensorList, ignoreKeys = [], niceName=""):
+    def mqttDiscoverySelector(self, sensorList, ignoreKeys : list = None, niceName : str = ""):
         """
         sensorList: dict oder List der optionen die zu auswaehlen angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         niceName: der Name des Selectors
         """
+        senderObj = Supporter.getCaller()      # get caller object
+        
         if type(sensorList) == dict:
             nameList = list(sensorList.keys())
         else:
             nameList = sensorList
-        nameListMinusIgnore = []
+        nameListWithoutIgnoredOnes = []
         for item in nameList:
-            if item not in ignoreKeys:
-                nameListMinusIgnore.append(item)
-        preparedMsg = self.homeAutomation.getDiscoverySelectorCmd(senderObj.name, nameListMinusIgnore, niceName)
+            if (ignoreKeys is None) or (item not in ignoreKeys):
+                nameListWithoutIgnoredOnes.append(item)
+        preparedMsg = self.homeAutomation.getDiscoverySelectorCmd(senderObj.name, nameListWithoutIgnoredOnes, niceName)
         sensorTopic = self.homeAutomation.getDiscoverySelectorTopic(senderObj.name, niceName.lower().replace(" ", "_"))
         if sensorTopic:
             senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 
 
-    def mqttDiscoverySwitch(self, senderObj, sensorList, ignoreKeys = [], nameDict = {}, onCmd = "", offCmd= ""):
+    def mqttDiscoverySwitch(self, sensorList, ignoreKeys : list = None, nameDict : dict = None, onCmd : str = "", offCmd : str = ""):
         """
         sensorList: dict oder List der sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
         """
+        senderObj = Supporter.getCaller()      # get caller object
+
         if type(sensorList) == dict:
             nameList = list(sensorList.keys())
         else:
             nameList = sensorList
         for key in nameList:
             niceName = ""
-            if key not in ignoreKeys:
-                if key in nameDict:
+            if (ignoreKeys is None) or (key not in ignoreKeys):
+                if (nameDict is not None) and (key in nameDict):
                     niceName = nameDict[key]
                 if len(onCmd):
                     preparedMsg = self.homeAutomation.getDiscoverySwitchOptimisticStringCmd(senderObj.name, key, onCmd, offCmd, niceName)
@@ -706,11 +708,11 @@ class MqttBase(Base):
         Universal send method to send all types of supported mqtt messages
         '''
         mqttMessageDict = {
-            "sender"    : self.name if incocnito is None else incocnito,    # incocnito sending is usually only useful for testing system behavior!
-            "command"   : mqttCommand,
-            "topic"     : topic,  
-            "content"   : content,
-            "timestamp" : Supporter.getTimeStamp()
+            "sender"          : self.name if incocnito is None else incocnito,    # incocnito sending is usually only useful for testing system behavior!
+            "command"         : mqttCommand,
+            "topic"           : topic,  
+            self._CONTENT_TAG : content,
+            "timestamp"       : Supporter.getTimeStamp()
         }
 
         # validate mqttCommand
@@ -729,4 +731,47 @@ class MqttBase(Base):
             self.get_mqttTxQueue().put(mqttMessageDict, block = False)
         else:
             raise Exception(self.name + " tried to send invalid mqtt type: " + str(mqttMessageDict)) 
+
+
+    def readMqttQueue(self, mqttQueue : Queue = None, convert : bool = True, error : bool = True, exception : bool = True, contentTag : str = None, information : str = None):
+        '''
+        Reads a message from given queue or from self.mqttRxQueue if no queue has been given
+        Caller is responsible that queue is not empty when this method has been called
+
+        @param queue        The queue the message should be read from, if not given self.mqttRxQueue will be used instead
+        @param convert      If True it's expected that the read message contains a "content" key with a json string as value,
+                            that json string will be converted into a dict and written back to "content" element
+                            To be set to False in cases where non-json strings can be received
+        @param error        If True an error will be written to logger
+                            If False error -AND- exceptions are suppressed
+        @param exception    If True an exception thrown by json.loads() will be thrown again,
+                            in case of False the exception will be suppressed
+        @param contentTag   Tag in message dict that contains json string that has to be converted
+                            This is also the tag of the element that will be printed in debug case
+                            
+        @return             received and maybe converted message will be given back to caller
+        '''
+        if mqttQueue is None:
+            mqttQueue = self.mqttRxQueue
+            
+        if contentTag is None:
+            contentTag = self._CONTENT_TAG
+
+        message = mqttQueue.get(block = False)                                                  # read a message from queue
+        infoText = '' if information is None else f" [{information}]"
+        self.logger.debug(self, f"received message{infoText}: {str(message[contentTag])}")      # debug message
+        if convert:
+            try:
+                # @todo pruefen ob [contentTag] ueberhaupt existiert und falls nicht, was dann?
+                # @todo pruefen ob [contentTag] string enthaelt, falls Inhalt = dict, was dann?
+                message[contentTag] = json.loads(message[contentTag])                           # try to convert content into dict
+            except Exception as ex:
+                if error:
+                    self.logger.error(self, f'Cannot convert content {message[contentTag]} to python dict, {ex}')
+                    if exception:
+                        raise Exception(ex)
+                else:
+                    self.logger.debug(self, f'Cannot convert content {message[contentTag]} to python dict, {ex}')
+
+        return message
 

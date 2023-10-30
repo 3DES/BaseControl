@@ -1,7 +1,6 @@
 from Base.InterfaceBase import InterfaceBase
 import time
 from epevermodbus.driver import EpeverChargeController
-import json
 
 class Epever485Interface(InterfaceBase):
     '''
@@ -93,11 +92,7 @@ class Epever485Interface(InterfaceBase):
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             if "cmd" in newMqttMessageDict["content"]:
                 if "readState" == newMqttMessageDict["content"]["cmd"]:

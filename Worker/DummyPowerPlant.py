@@ -6,7 +6,6 @@ from Worker.Worker import Worker
 from Base.Supporter import Supporter
 import Base
 import subprocess
-import json
 
 
 class DummyPowerPlant(Worker):
@@ -19,12 +18,7 @@ class DummyPowerPlant(Worker):
 
     def threadMethod(self):
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
-            self.logger.debug(self, "received message :" + str(newMqttMessageDict))
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
         ## @todo nur zum spielen...
         #if Supporter.counter("A", 10, autoReset = True):

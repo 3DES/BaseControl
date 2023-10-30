@@ -1,4 +1,4 @@
-import json
+from Base.Supporter import Supporter
 from Base.ThreadObject import ThreadObject
 import time
 
@@ -51,7 +51,7 @@ class PowerPlantTester(ThreadObject):
         self.mqttPublish(self.createOutTopic(ThreadObject.createProjectTopic(self.configuration["bmsName"])), data, globalPublish = False, enableEcho = False)
 
     def initPowerplant(self):
-        data = {"WrNetzladen": False, "Akkuschutz": False, "RussiaMode": False, "Error": False, "PowerSaveMode": False, "WrMode": "Akku", "AutoMode": True, "schaltschwelleAkku": 20.0, "schaltschwelleNetz": 10.0, "schaltschwelleAkkuTollesWetter": 20.0, "schaltschwelleAkkuRussia": 100.0, "schaltschwelleNetzRussia": 80.0, "schaltschwelleAkkuSchlechtesWetter": 45.0, "schaltschwelleNetzSchlechtesWetter": 30.0, "schaltschwelleNetzLadenaus": 12.0, "schaltschwelleNetzLadenein": 6.0, "MinSoc": 10.0, "SchaltschwelleAkkuTollesWetter": 20.0, "AkkuschutzAbschalten": 60.0, "verbrauchNachtAkku": 25.0, "verbrauchNachtNetz": 3.0, "wetterSchaltschwelleNetz": 6}
+        data = {"WrNetzladen": False, "Akkuschutz": False, "RussiaMode": False, "Error": False, "PowerSaveMode": False, "WrMode": "Akku", "AutoMode": True, "schaltschwelleAkku": 20.0, "schaltschwelleNetz": 10.0, "schaltschwelleAkkuTollesWetter": 20.0, "schaltschwelleAkkuRussia": 100.0, "schaltschwelleNetzRussia": 80.0, "schaltschwelleAkkuSchlechtesWetter": 45.0, "schaltschwelleNetzSchlechtesWetter": 30.0, "schaltschwelleNetzLadenAus": 12.0, "schaltschwelleNetzLadenEin": 6.0, "MinSoc": 10.0, "SchaltschwelleAkkuTollesWetter": 20.0, "AkkuschutzAbschalten": 60.0, "verbrauchNachtAkku": 25.0, "verbrauchNachtNetz": 3.0, "wetterSchaltschwelleNetz": 6}
         self.mqttPublish(self.createOutTopic(ThreadObject.createProjectTopic(self.configuration["powePlantName"])), data, globalPublish = True, enableEcho = False)
 
     def setAkkuSoc(self, prozent):
@@ -152,7 +152,7 @@ class PowerPlantTester(ThreadObject):
         set setable values wich are received global
         """
 
-        # check if a expected device sended a msg and store it
+        # check if a expected device sent a msg and store it
         for key in self.deviceList:
             if key in message["topic"]:
                 if not key in self.localDeviceData:
@@ -165,12 +165,7 @@ class PowerPlantTester(ThreadObject):
         while not self.timer(name = "timeoutMsg", timeout = waitTime):
             time.sleep(0.1) # be nice to other threads
             while not self.mqttRxQueue.empty():
-                newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
-                self.logger.info(self, "received message :" + str(newMqttMessageDict["content"]))
-                try:
-                    newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-                except:
-                    pass
+                newMqttMessageDict = self.readMqttQueue(error = False)
                 self.handleMessage(newMqttMessageDict)
                 msgCounter += 1
         self.timer(name = "timeoutMsg", remove = True)
@@ -268,7 +263,7 @@ class PowerPlantTester(ThreadObject):
 
         # Wir pruefen jetzt ob NetzLaden an bleibt weil Unterspannungserkennung noch anliegt
         # Fehler: Wrong count of msg: 0 ist normal
-        self.cycleSocAndAssert(self.getPowerPlantValue("MinSoc"), self.getPowerPlantValue("schaltschwelleNetzLadenaus"), self.assertNetzLaden)
+        self.cycleSocAndAssert(self.getPowerPlantValue("MinSoc"), self.getPowerPlantValue("schaltschwelleNetzLadenAus"), self.assertNetzLaden)
         self.fakeBMSNormalBetrieb()
 
 
@@ -279,11 +274,11 @@ class PowerPlantTester(ThreadObject):
         self.fakeBMSUnterSpannung()
         self.assertNetzLaden(False, "Netzladen nach Unterspannung ein")
         self.fakeBMSNormalBetrieb()
-        self.cycleAndCheckSwitchValue("Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "MinSoc", "schaltschwelleNetzLadenaus")
+        self.cycleAndCheckSwitchValue("Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "MinSoc", "schaltschwelleNetzLadenAus")
         # teste erneutes einschalten des Ladens
-        self.cycleAndCheckSwitchValue("Erneutes einschalten Netzladen",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzLadenaus", "schaltschwelleNetzLadenein")
+        self.cycleAndCheckSwitchValue("Erneutes einschalten Netzladen",self.assertNetzLadenAus, self.assertNetzLaden, "schaltschwelleNetzLadenAus", "schaltschwelleNetzLadenEin")
         # teste auf Netzladen aus
-        self.cycleAndCheckSwitchValue("Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "schaltschwelleNetzLadenein", "schaltschwelleNetzLadenaus")
+        self.cycleAndCheckSwitchValue("Netzladen aus ab Schwelle bei Normalbetrieb",self.assertNetzLaden, self.assertNetzLadenAus, "schaltschwelleNetzLadenEin", "schaltschwelleNetzLadenAus")
 
 
 
@@ -325,7 +320,7 @@ class PowerPlantTester(ThreadObject):
         # teste das Verhalten wenn eine Unterspannung auftritt und der SOC größer als NetzLaden aus ist
         self.TestName = "Unterspannung zu hoher SOC. SOC unplausibel Test"
         self.printTestBeginnAndIncrTestNumber()
-        self.setAkkuSoc(self.getPowerPlantValue("schaltschwelleNetzLadenaus") + 1)
+        self.setAkkuSoc(self.getPowerPlantValue("schaltschwelleNetzLadenAus") + 1)
         self.assertNetzLadenAus(checkMsg=False, name="Pruefe Startsbedingung Unterspannung SOC unplausibel Test")
         self.assertAkkuBerieb(checkMsg=False)
         self.assertErrorAus(checkMsg=False)
@@ -337,7 +332,7 @@ class PowerPlantTester(ThreadObject):
         self.assertAkkuschhutz(checkMsg=False)
 
         # teste auf Umschaltung auf Akku wenn SOC > schaltschwelleAkkuSchlechtesWetter
-        self.cycleAndCheckSwitchValue("Netzladen ein bis schaltschwelleAkkuSchlechtesWetter erreicht ist",self.assertNetzLaden, self.assertAkkuBerieb, "schaltschwelleNetzLadenaus", "schaltschwelleAkkuSchlechtesWetter")
+        self.cycleAndCheckSwitchValue("Netzladen ein bis schaltschwelleAkkuSchlechtesWetter erreicht ist",self.assertNetzLaden, self.assertAkkuBerieb, "schaltschwelleNetzLadenAus", "schaltschwelleAkkuSchlechtesWetter")
         self.assertNetzLadenAus(checkMsg=False)
 
         # PowerPlant wieder in den Akkubetrieb setzen

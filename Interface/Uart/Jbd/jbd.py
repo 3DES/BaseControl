@@ -196,15 +196,18 @@ class JBD:
         self.s = s 
 
     def open(self):
-        if self.serialAlwaysOpen and self._open_cnt > 0: return
-        if self.bkgReadThread: return
+        if self.serialAlwaysOpen and self._open_cnt > 0:
+            return
+        if self.bkgReadThread:
+            return
         self._lock.acquire()
         self._open_cnt += 1
         if self._open_cnt == 1:
             self.s.open()
     
     def close(self):
-        if self.serialAlwaysOpen: return
+        if self.serialAlwaysOpen:
+            return
         if self.bkgReadThread:
             return
         if not self._open_cnt: 

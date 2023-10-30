@@ -7,6 +7,7 @@ from Logger.Logger import Logger
 from Base.MqttBase import MqttBase
 from Base.Supporter import Supporter
 from pickle import TRUE
+from _ast import Subscript
 
 
 class MqttBridge(ThreadObject):
@@ -124,6 +125,24 @@ class MqttBridge(ThreadObject):
         '''
         Remove a subscriber from the local and global subscriber lists
         '''
+        def unsubscribe(subscriber : str, topicFilter : str, subscriptions : dict) -> bool:
+            '''
+            Tries to find given subscriber in given subscriber dictionary
+            '''
+            unsubscribed = False
+            if subscriber in subscriptions:
+                #newTopicsList = [topic for topic in subscriptions[subscriber] if (topicFilter == "/".join(topic))]
+                for index, topicAndQueue in enumerate(subscriptions[subscriber]):
+                    topic = topicAndQueue["topicFilter"]
+                    checkTopic = "/".join(topic)        # since the topic parts are stored in split form they have to be joined before they can be compared
+                    if topicFilter == checkTopic:
+                        subscriptions[subscriber].pop(index)
+                        unsubscribed = True
+                        break   # subscription found, leave search loop
+                if not len(subscriptions[subscriber]):
+                    del(subscriptions[subscriber])
+            return unsubscribed
+            
         if subscriber not in self.get_mqttListeners():
             raise Exception("un-subscriber is not a registered MQTT listener : " + str(subscriber))
 
@@ -131,26 +150,20 @@ class MqttBridge(ThreadObject):
         if not self.validateTopicFilter(topicFilter):
             raise Exception("invalid topic filter given: " + Supporter.encloseString(topicFilter, "\"", "\""))
 
-        unsubscribed = False
+        unsubscribedGlobally = unsubscribe(subscriber, topicFilter, self.get_globalSubscribers())
+        unsubscribedLocally  = unsubscribe(subscriber, topicFilter, self.get_localSubscribers())
 
-        # select local or global subscriber list
-        for subscriberDict in (self.get_globalSubscribers(), self.get_localSubscribers()):
-            if subscriber in subscriberDict:
-                #newTopicsList = [topic for topic in subscriberDict[subscriber] if (topicFilter == "/".join(topic))]
-                for index, topicAndQueue in enumerate(subscriberDict[subscriber]):
-                    topic = topicAndQueue["topicFilter"]
-                    checkTopic = "/".join(topic)
-                    if topicFilter == checkTopic:
-                        subscriberDict[subscriber].pop(index)
-                        unsubscribed = True
-                        break
-                if not len(subscriberDict[subscriber]):
-                    del(subscriberDict[subscriber])
-
-        if not unsubscribed:
-            self.logger.warning(self, Supporter.encloseString(subscriber) + " unsubscribed from not subscribed topic: " + Supporter.encloseString(topicFilter, "\"", "\""))
+        if not unsubscribedLocally and not unsubscribedGlobally:
+            self.logger.warning(self, Supporter.encloseString(subscriber) + " tried to unsubscribe from not subscribed topic: " + Supporter.encloseString(topicFilter, "\"", "\""))
         else:
-            self.logger.info(self, Supporter.encloseString(subscriber) + " unsubscribed from " + Supporter.encloseString(topicFilter))
+            unsubscribeText = ""
+            if unsubscribedGlobally:
+                unsubscribeText += "globally"
+            if unsubscribedLocally:
+                if unsubscribedGlobally:
+                    unsubscribeText += " and "
+                unsubscribeText += "locally"
+            self.logger.info(self, f"{Supporter.encloseString(subscriber)} unsubscribed {unsubscribeText} from {Supporter.encloseString(topicFilter)}")
 
 
     def disconnect_subscriber(self, subscriber : str):
@@ -218,9 +231,9 @@ class MqttBridge(ThreadObject):
                                     # no special queue for this subscription so send it to the default one
                                     self.get_mqttListeners()[subscriber]["queue"].put({ "topic" : topic, "global" : globalPublishing, "content" : content }, block = False)
                                 break
-                            except Exception as exception:
+                            except Exception as ex:
                                 # probably any full queue!
-                                raise Exception(f"{self.name} : {subscriber} {self.get_mqttListeners()[subscriber]['queue'].qsize()}")
+                                raise Exception(f"{self.name} : {subscriber} {self.get_mqttListeners()[subscriber]['queue'].qsize()}\ncaught exception:{ex}")
 
 
     def broadcast_message(self, sender : str, content : str):
@@ -241,6 +254,10 @@ class MqttBridge(ThreadObject):
         self.setup_mqttListeners()
         super().__init__(threadName, configuration, interfaceQueues)
         self.logger.info(self, "init (MqttBridge)")
+
+
+    def threadInitMethod(self):
+        self.removeMqttRxQueue()        # mqttRxQueue not needed so remove it
 
 
     turn  = 0

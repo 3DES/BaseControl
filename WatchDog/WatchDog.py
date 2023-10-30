@@ -3,6 +3,7 @@ import json
 from Base.Supporter import Supporter
 from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
+from pickle import FALSE
 
 
 class WatchDog(ThreadObject):
@@ -28,7 +29,7 @@ class WatchDog(ThreadObject):
         self.tagsIncluded(["setupTime"], optional = True, default = configuration["triggerTime"])   # if (optional) setupTime is not given use triggerTime instead
         self.tagsIncluded(["logUpTime"], intIfy = True, optional = True, default = 0)
 
-        self.minimumRemainingTime = { "thread" : "", "remainingTime" : configuration["triggerTime"] + configuration["timeout"] }     # to monitor system stability remember shortest ever seen remaining trigger time
+        self.remainingTime = {"minimumThread" : "", "minimum" : configuration["triggerTime"] + configuration["timeout"]}     # to monitor system stability remember shortest ever seen remaining trigger time
 
         # set global watch dog trigger time
         self.set_watchDogMinimumTime(configuration["triggerTime"])
@@ -54,6 +55,14 @@ class WatchDog(ThreadObject):
         return lastTimeStamp - Supporter.getTimeStamp()
 
 
+    def prepareHomeAutomation(self):
+        changed = False
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "uptime",               Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True), compareValue = changed)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "minimumRemainingTime", self.remainingTime["minimum"], compareValue = changed)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "minimumRemainingTask", self.remainingTime["minimumThread"], compareValue = changed)
+        return changed
+
+
     def threadInitMethod(self):
         '''
         Overwritten thread init method
@@ -61,8 +70,17 @@ class WatchDog(ThreadObject):
         self.watchDogLastInformedInitTime = self.calculateNextTimeoutTime() + self.configuration["setupTime"]       # initial timeout after that all threads must have been seen at least once (use "setupTime" here since it could take some more time until all threads have been set up)
         self.watchDogLastInformedDict = {}                                                                          # to collect all known threads so far with next timeout time
 
-        # init lastDeltaTime to be compared with current delta time to show proper up-time message 
-        self.lastDeltaTime = Supporter.getSecondsSince(self.startupTime)
+        self.homeAutomationValues = {
+            "startTime"            : Supporter.formattedTime(self.startupTime, shortTime = True),
+            "uptime"               : Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True),
+            "minimumRemainingTime" : -1,
+            "minimumRemainingTask" : "None",
+            "warningTime"          : self.configuration["warningTime"]}
+        homeAutomationUnits       = {"minimumRemainingTime" : "s", "warningTime" : "s"}
+
+        # send Values to a homeAutomation to get there sliders sensors selectors and switches
+        self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
+        self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
 
 
     def threadMethod(self):
@@ -81,18 +99,22 @@ class WatchDog(ThreadObject):
                     # do we expect a thread with this name?
                     if sender not in self.configuration["expectThreads"]:
                         raise Exception("watch dog found unexpected thread [" + sender + "]")
-                    
+
                     # ensure there is a timestamp for the sender of the currently received message (if not use startup timeout)
                     if sender not in self.watchDogLastInformedDict:
                         self.watchDogLastInformedDict[sender] = self.watchDogLastInformedInitTime   # this will immediately be overwritten with current time but we need the startup time here for remaining time calculation
 
-                    # ignore "ingored" threads otherwise timing calculation for diagnosis could get damaged
+                    # ignore "ignored" threads otherwise timing calculation for diagnosis could get damaged
                     if sender not in self.configuration["ignoreThreads"]:
                         # calculate remaining time and check if it is shorter as the current minimum remaining time
-                        timeLeft = self.calculateRemainingTime(self.watchDogLastInformedDict[sender])
-                        if timeLeft < self.minimumRemainingTime["remainingTime"]:
-                            self.minimumRemainingTime["remainingTime"] = timeLeft
-                            self.minimumRemainingTime["thread"] = sender
+                        timeLeftForSender = self.calculateRemainingTime(self.watchDogLastInformedDict[sender])
+                        if timeLeftForSender < self.remainingTime["minimum"]:
+                            self.remainingTime["minimum"] = timeLeftForSender
+                            self.remainingTime["minimumThread"] = sender
+
+                        # warning in case current remaining time becomes shorter than defined warning time
+                        if timeLeftForSender <= self.configuration["warningTime"]:
+                            self.logger.warning(self, f"detected remaining time for {sender} is very short: " + Supporter.encloseString(str(self.remainingTime)))
 
                         # finally set new timeout for current sender
                         self.watchDogLastInformedDict[sender] = self.calculateNextTimeoutTime()
@@ -101,11 +123,7 @@ class WatchDog(ThreadObject):
             self.logger.debug(self, "received message :" +
                               str(newMqttMessageDict) +
                               ", shortest remaining time: " +
-                              Supporter.encloseString(str(self.minimumRemainingTime)))
-
-            # warning in case minimum remaining time becomes shorter than defined warning time
-            if self.minimumRemainingTime["remainingTime"] <= self.configuration["warningTime"]:
-                self.logger.warning(self, "minimum detected remaining time is very short: " + Supporter.encloseString(str(self.minimumRemainingTime)))
+                              Supporter.encloseString(str(self.remainingTime)))
 
         # after setup time is over once check amount of threads each time thread loop is executed
         if Supporter.getTimeStamp() >= self.watchDogLastInformedInitTime:
@@ -136,10 +154,13 @@ class WatchDog(ThreadObject):
 
         # log system running time (except it has been deactivated by "logUpTime" == 0)
         if self.configuration["logUpTime"]:
-            deltaTime = Supporter.getSecondsSince(self.startupTime)
-            if self.lastDeltaTime + self.configuration["logUpTime"] <= deltaTime:
-                self.logger.info(self, "WatchDog thread up since " + str(deltaTime) + " seconds = " + self.name)
-                self.lastDeltaTime = deltaTime
+            if self.timer(name = "timeoutExpectedDevices", timeout = self.configuration["logUpTime"], firstTimeTrue = True):            
+                upTimeString = Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True) 
+                self.logger.info(self, f"WatchDog thread [{self.name}] up since {upTimeString}")
+
+                if self.prepareHomeAutomation():
+                    self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
+                    #Supporter.debugPrint(f"update to {self.homeAutomationValues}")
 
 
     def threadBreak(self):

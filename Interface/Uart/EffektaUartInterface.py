@@ -1,5 +1,4 @@
 import time
-import json
 from Base.Supporter import Supporter
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 import Base.Crc
@@ -88,14 +87,8 @@ class EffektaUartInterface(BasicUartInterface):
 
     def threadMethod(self):
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+            newMqttMessageDict = self.readMqttQueue(exception = False)
 
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                self.logger.error(self, f'Cannot convert {newMqttMessageDict["content"]} to dict')
-
-            self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
             # queryTemplate["query"] = {"cmd":"filledfromSender", "response":"filledFromInterface"}
             # setValueTemplate["setValue"] = {"cmd":"filledfromSender", "value":"filledfromSender", "success": filledFromInterface, "extern":filledfromSender}
             if "query" in newMqttMessageDict["content"]:

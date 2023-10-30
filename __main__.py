@@ -34,7 +34,6 @@ object
             |   |   +---TcpInterface
             |   |   |   +---EasyMeterTcpInterface
             |   |   +---EffektaUartInterface
-            |   |   +---UartInterface
             |   +---EasyMeter
             |   +---SignalMessenger
             |   +---MqttBridge
@@ -73,17 +72,19 @@ if __name__ == '__main__':
     stopAfterSeconds = 0
     writeLogToDiskWhenEnds = False
     missingImportMeansError = False
+    jsonDump = False
 
     # handle command line arguments
     argumentParser = argparse.ArgumentParser()
     argumentParser.add_argument("-i", "--init",                 default = initFileName,            dest = "initFileName",           type = str,                      help = "use this init file instead of init.json")
-    argumentParser.add_argument("-l", "--loglevel",             default = logLevel,                dest = "logLevel",               type = int,                      help = "log level 5..0, 5 = all (default = 3)")
-    argumentParser.add_argument("-f", "--logFilter",            default = logFilter,               dest = "logFilter",              type = str,                      help = "log filter regex, only messages from matching threads will be logged except error and fatal messages")
+    argumentParser.add_argument("-l", "--log-level",            default = logLevel,                dest = "logLevel",               type = int,                      help = "log level 5..0, 5 = all (default = 3)")
+    argumentParser.add_argument("-f", "--log-filter",           default = logFilter,               dest = "logFilter",              type = str,                      help = "log filter regex, only messages from matching threads will be logged except error and fatal messages")
     argumentParser.add_argument("-s", "--stop-after",           default = stopAfterSeconds,        dest = "stopAfterSeconds",       type = int,                      help = "for development only, all threads will be teared down after this amount of seconds (default = -1 = endless)")
-    argumentParser.add_argument("-p", "--printLogLevel",        default = None,                    dest = "printLogLevel",          type = int,                      help = "up to which level log entries should be printed onto screen")
+    argumentParser.add_argument("-p", "--print-log-level",      default = None,                    dest = "printLogLevel",          type = int,                      help = "up to which level log entries should be printed onto screen")
     argumentParser.add_argument("-w", "--write-when-ends",      default = writeLogToDiskWhenEnds,  dest = "writeLogToDiskWhenEnds",             action='store_true', help = "always write log buffer to disk when program comes to an end not only in error case")
     argumentParser.add_argument("-e", "--missing-import-error", default = missingImportMeansError, dest = "missingImportMeansError",            action='store_true', help = "an exception will be thrown if an @import file in init file doesn't exist, otherwise it's only printed to stdout")
     argumentParser.add_argument("-d", "--remote-debug",                                            dest = "remoteDebugging",                    action='store_true', help = "remote debugging is enabled and it's expected that the debug server is up and running")
+    argumentParser.add_argument("--json-dump",                  default = False,                   dest = "jsonDump",                           action='store_true', help = "dumps json configuration after read all files recursively")
     arguments = argumentParser.parse_args()
 
     if arguments.remoteDebugging:
@@ -98,8 +99,8 @@ if __name__ == '__main__':
         arguments.printLogLevel = Logger.Logger.Logger.LOG_LEVEL.NONE.value
     elif (arguments.printLogLevel is not None) and (arguments.printLogLevel > arguments.logLevel):
         arguments.printLogLevel = arguments.logLevel
-        
-    stopReason = ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.printLogLevel, arguments.logFilter, arguments.stopAfterSeconds, arguments.writeLogToDiskWhenEnds, arguments.missingImportMeansError)
+
+    stopReason = ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.printLogLevel, arguments.logFilter, arguments.stopAfterSeconds, arguments.writeLogToDiskWhenEnds, arguments.missingImportMeansError, arguments.jsonDump)
 
     Logger.Logger.Logger.trace("__main__", "finito [" + Logger.Logger.Logger.get_projectName() + "]" + (" : " + stopReason) if len(stopReason) else "")
 

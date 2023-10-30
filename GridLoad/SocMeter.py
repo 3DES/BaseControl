@@ -1,7 +1,7 @@
 import time
 import datetime
-import json
 from Base.ThreadObject import ThreadObject
+from Base.Supporter import Supporter
 
 
 class SocMeter(ThreadObject):
@@ -24,36 +24,10 @@ class SocMeter(ThreadObject):
         '''
         super().__init__(threadName, configuration)
 
-
-    def checkWerteSprung(self, newValue, oldValue, percent, minVal, maxVal, minAbs = 0):
-        
-        # Diese Funktion prüft, dass der neue Wert innerhalb der angegebenen maxVal maxVal Grenzen und ausserhalb der angegebenen Prozent Grenze
-        # Diese Funktion wird verwendet um kleine Wertsprünge rauszu Filtern und Werte Grenzen einzuhalten
-
-        if newValue == oldValue == 0:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-
-        percent = percent * 0.01
-        valuePercent = abs(oldValue) * percent
-        
-        if valuePercent < minAbs:
-            valuePercent = minAbs
-            
-        minPercent = oldValue - valuePercent
-        maxPercent = oldValue + valuePercent
-        
-        if minVal <= newValue <= maxVal and not (minPercent < newValue < maxPercent):
-            #myPrint("wert wird uebernommen")
-            return True
-        else:
-            #myPrint("wert wird nicht uebernommen")
-            return False
-
     def threadInitMethod(self):
         self.SocMonitorWerte = { "Ah":-1, "Current":0, "Prozent": self.InitAkkuProz}
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
-        self.homeAutomation.mqttDiscoverySensor(self, self.SocMonitorWerte)
+        self.homeAutomation.mqttDiscoverySensor(self.SocMonitorWerte)
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()), globalSubscription = True)
         
         # subscribe global to own out topic to get old data and set timeout
@@ -73,20 +47,16 @@ class SocMeter(ThreadObject):
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             # check if msg is from our interface
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
                 if "Current" in newMqttMessageDict["content"]:
-                    if self.checkWerteSprung(newMqttMessageDict["content"]["Current"], self.SocMonitorWerte["Current"], 20, -200, 200, 5):
+                    if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Current"], self.SocMonitorWerte["Current"], -200, 200, percent = 20, dynamic = True, minIgnoreDelta = 5):
                         takeDataAndSend()
-                    elif self.checkWerteSprung(newMqttMessageDict["content"]["Prozent"], self.SocMonitorWerte["Prozent"], 1, -1, 101):
+                    elif Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Prozent"], self.SocMonitorWerte["Prozent"], -1, 101, percent = 1, dynamic = True):
                         takeDataAndSend()
-                    elif self.checkWerteSprung(newMqttMessageDict["content"]["Ah"], self.SocMonitorWerte["Ah"], 1, -1, 500, 10):
+                    elif Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Ah"], self.SocMonitorWerte["Ah"], -1, 500, percent = 1, dynamic = True, minIgnoreDelta = 10):
                         takeDataAndSend()
                     # send always localy
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)

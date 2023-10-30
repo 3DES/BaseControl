@@ -12,6 +12,7 @@ import Base
 from gc import get_referents
 import os
 import colorama
+import inspect
 
 
 class Supporter(object):
@@ -94,6 +95,7 @@ class Supporter(object):
 
         # return completely loaded init file
         return loadPseudoJsonFile({ "@import" : initFileName })        # initial content to import given "init.json" file
+
 
     @classmethod
     def encloseString(cls, string, leftEnclosing : str = "[", rightEnclosing : str = "]"):
@@ -203,7 +205,7 @@ class Supporter(object):
 
 
     @classmethod
-    def hexDump(cls, string):
+    def hexDump(cls, string, separator : str = ''):
         '''
         Create hex dump from given string (supports unicode strings, too)
         '''
@@ -211,8 +213,28 @@ class Supporter(object):
         for unicodeChar in string:
             chars = str(unicodeChar)
             for char in chars:
-                hexString += ":{:02x}".format(ord(char))
+                hexString += ":{:02X}".format(ord(char))
+                if separator:
+                    hexString += separator
+        if separator:
+            hexString = hexString[:-len(separator)]
         return hexString
+
+
+    @classmethod
+    def hexCharDump(cls, string, separator : str = ''):
+        '''
+        Create hex/char dump from given string
+        '''
+        hexCharString = ""
+        for index, char in enumerate(string):
+            if char <= 32 or char >= 127:    # replace non-readable ASCII values by its hex equivalent
+                hexCharString += '{:02X}'.format(char)
+            else:
+                hexCharString += chr(char)
+            if separator and index < (len(string) - 1):
+                hexCharString += separator
+        return hexCharString
 
 
     @classmethod
@@ -227,7 +249,7 @@ class Supporter(object):
             nonlocal asciiString
             nonlocal overallString
             nonlocal charCounter
-            hexString += " {:02x}".format(byte)
+            hexString += " {:02X}".format(byte)
             asciiString += chr(byte) if (byte > 32 and byte < 127) else "."
             charCounter += 1
             if charCounter % width == 0:
@@ -279,6 +301,19 @@ class Supporter(object):
 
     @classmethod
     def deltaOutsideRange(cls, newValue : float, oldValue : float, minVal : float, maxVal : int, percent : int = 1, dynamic : bool = False, minIgnoreDelta : float = 0.0):
+        '''
+        Can be used to decide if a delta between two values has an certain amount.
+
+        @param newValue            new value that has to be checked
+        @param oldValue            last accepted value
+        @param minValue            the new value has to be larger than or equal to min value
+        @param maxValue            the new value has to be smaller than or equal to max value
+        @param percent             percent range, the new value must be outside of the range [old value - percent, old value + percent]
+        @param dynamic             if False [minValue, maxValue] will be used as range so ignore range has always same size, if True the smaller the value is the smaller the ignore range will be
+        @param minIgnoreDelta      the difference between the old and the new value has to be at least "old value * percent"
+
+        @return    True if new value is inside [minValue, maxValue] range on the one side but outside of the ignore range [oldValue - ignoreDelta, oldValue + ignoreDelta]
+        '''
         if not dynamic:
             valueRange = abs(maxVal - minVal)    # ignore delta only depends on valid value range but not on current value
         else:
@@ -294,12 +329,17 @@ class Supporter(object):
 
 
     @classmethod
-    def debugPrint(cls, message : str, marker : str = None, color : str = None, frameSize : int = 1):
+    def debugPrint(cls, message : str, marker : str = None, color : str = None, borderSize : int = 1):
         '''
         Print given stuff in eye-catching manner
-        message will be printed between a frame, the frame has frameSize leading and trailing lines
+        message will be printed between a frame, the frame has borderSize leading and trailing lines
         the frame is printed witch given character "marker" or with "#" as default character, but marker can be longer than a character if necessary
         an optional color code, e.g. "colorama.Fore.YELLOW" can be given
+        
+        @param message      message to be printed, caller's name will be added in front of it in square brackets
+        @param marker       character (or string) that will be used to print the border
+        @param color        default color is yellow but another color can be given, either one of the supported colors, e.g. RED, GREEN, YELLOW or BLUE or a colorama.Fore.<color> string
+        @param borderSize   amount of leading and trailing border lines to be printed
         '''
         MAX_LENGTH = 60
         if marker is not None and len(marker):
@@ -310,37 +350,190 @@ class Supporter(object):
         
         if color is None:
             color = f"{colorama.Fore.YELLOW}"
+        elif color == "GREEN":
+            color = f"{colorama.Fore.GREEN}"
+        elif color == "RED":
+            color = f"{colorama.Fore.RED}"
+        elif color == "YELLOW":
+            color = f"{colorama.Fore.YELLOW}"
+        elif color == "BLUE":
+            color = f"{colorama.Fore.BLUE}"
 
-        printText = color 
-        for _ in range(frameSize):
+        # try to get object name but if not possible get class name instead
+        if not (callerName := cls.getCallerName()):
+            callerName = cls.getCaller().__class__.__name__ + "(class)"
+        else:
+            callerName += "(module)"
+
+        printText = color
+        for _ in range(borderSize):
             printText += f"    {marker * printLength}\n"
-        printText += f"    {message}\n"
-        for _ in range(frameSize):
-            printText += f"    {marker * printLength}"
+        printText += f"    # printed at {cls.getCallerPosition()}\n"
+        printText += f"    [{callerName}]: {message}\n"
+        for _ in range(borderSize):
+            printText += f"    {marker * (printLength - 5)}"
         printText += f"{colorama.Style.RESET_ALL}"
         print(printText, flush=True)
 
 
     @classmethod
-    def formatedTime(cls, timeInSeconds : int, addCurrentTime : bool = False):
-        timeInSeconds = int(timeInSeconds)
+    def formattedUptime(cls, timeInSeconds : int, noSeconds : bool = False):
+        timeInSeconds = int(timeInSeconds)          # yes, this is necessary, otherwise the values are e.g. "02.0" and not "02"; don't know why since parameter is also defined as int!?!?
         days    = timeInSeconds // (24 * 60 * 60)
-        timeInSeconds %= (24 * 60 * 60)
+        timeInSeconds %=           (24 * 60 * 60)
         hours   = timeInSeconds // (60 * 60)
-        timeInSeconds %= (60 * 60)
+        timeInSeconds %=           (60 * 60)
         minutes = timeInSeconds // 60
-        timeInSeconds %= 60
+        timeInSeconds %=           60
         seconds = timeInSeconds
 
-        if addCurrentTime:
-            timeString = datetime.now().strftime("%d/%m/%Y - %H:%M:%S - ")
-        else:
-            timeString = ""
-        
-        addItems = False
-        if days:
-            timeString += f"{days} day{'s' if days != 1 else ''}, "
-        timeString += f"{hours:02} hour{'s' if hours != 1 else ''}, {minutes:02} min{'s' if minutes != 1 else ''}, {seconds:02} second{'s' if seconds != 1 else ''}"
+        timeString = f"{days}d {hours:02}:{minutes:02}"
+
+        if not noSeconds:
+            timeString += f":{seconds:02}"
 
         return timeString
+
+
+    @classmethod
+    def formattedTime(cls, timeInSeconds : int, addCurrentTime : bool = False, noSeconds : bool = False, shortTime : bool = False):
+        def pluralify(string : str, value : int):
+            if value != 1:
+                return string + 's'
+            else:
+                return string
+
+        timeInSeconds = int(timeInSeconds)          # yes, this is necessary, otherwise the values are e.g. "02.0" and not "02"; don't know why since parameter is also defined as int!?!?
+        timeString = ""
+
+        if addCurrentTime:
+            timeString += datetime.now().strftime("%d/%m/%Y - %H:%M:%S - ")      # noSeconds only influence given value timeInSeconds but not the current time part
+
+        if shortTime:
+            timeString += datetime.fromtimestamp(timeInSeconds).strftime("%d/%m/%Y - %H:%M:%S")
+        else:
+            days    = timeInSeconds // (24 * 60 * 60)
+            timeInSeconds %=           (24 * 60 * 60)
+            hours   = timeInSeconds // (60 * 60)
+            timeInSeconds %=           (60 * 60)
+            minutes = timeInSeconds // 60
+            timeInSeconds %=           60
+            seconds = timeInSeconds
+    
+    
+            if days:
+                timeString += f"{days} {pluralify('day', days)}, "
+    
+            if days or hours: 
+                timeString += f"{hours:02} {pluralify('hour', hours)}, "
+            
+            timeString     += f"{minutes:02} {pluralify('min', minutes)}"
+            
+            if not noSeconds:
+                timeString += f", {seconds:02} {pluralify('second', seconds)}"
+
+        return timeString
+
+
+    @classmethod
+    def getCallStack(cls, skip : int = 2):
+        '''
+        Create call stack string and give it back
+        '''
+        callStackString = ""
+        callStack = inspect.stack()
+        indent = len(callStack) - 1 - skip
+
+        for index, stackIndex in enumerate(range(skip, len(callStack) - 1)):
+            callStackString += "  " * indent
+            parentframe = callStack[stackIndex]
+            fileName   = parentframe.filename
+            lineNumber = parentframe.lineno
+            if 'self' in parentframe[0].f_locals:
+                moduleClass = parentframe[0].f_locals['self'].__class__.__name__
+                if hasattr(parentframe[0].f_locals['self'], 'name'):
+                    moduleName  = parentframe[0].f_locals['self'].name
+                    callStackString += f"{index}: {moduleClass}({moduleName}) - {parentframe[0].f_locals['self'].name} - {fileName}:{lineNumber}"
+                else:
+                    callStackString += f"{index}: {moduleClass} - {fileName}:{lineNumber}"
+            else:
+                callStackString += f"{index}: {fileName}:{lineNumber}"
+
+            # re-calculate indent, and add a new line as long as there are further calls
+            indent -= 1
+            if indent:
+                callStackString += "\n"
+
+        return callStackString
+
+
+    @classmethod
+    def getCaller(cls, skip : int = 2, getSelf : bool = True) -> object:
+        '''
+        Returns object of the caller that called the method that called getCaller()
+        
+        @param skip       default is 2 since caller of getCaller() would be one but caller of getCaller() wants to know its caller so there are two
+        @param getSelf    returns object.self if True, otherwise the whole frame is returned
+        
+        @result    object of getCaller() callers caller or None if that doesn't exist
+        '''
+        callStack = inspect.stack()
+        stackIndex = skip
+        parentframe = callStack[stackIndex]
+        if getSelf and ('self' in parentframe[0].f_locals):
+            return parentframe[0].f_locals['self']
+        else:
+            return parentframe
+
+
+    @classmethod
+    def getCallerName(cls, skip : int = 2) -> str:
+        '''
+        Returns self.name of the caller that called the method that called getCaller()
+        
+        @param skip    default is 2 since caller of getCaller() would be one but caller of getCaller() wants to know its caller so there are two
+        
+        @result    self.name of getCaller() callers caller or "" if that one has no self.name value
+        '''
+        caller = cls.getCaller(skip = skip + 1)        # skip one more since this method getCallerName() has also be skipped
+        if hasattr(caller, 'name'):
+            return caller.name
+        return ""
+
+
+    @classmethod
+    def getCallerPosition(cls, skip : int = 2) -> str:
+        '''
+        Returns file name and line number of the caller that called the method that called getCaller()
+        
+        @param skip    default is 2 since caller of getCaller() would be one but caller of getCaller() wants to know its caller so there are two
+        
+        @result    file name and line number of getCaller() callers caller
+        '''
+        caller = cls.getCaller(skip = skip + 1, getSelf = False)        # skip one more since this method getCallerName() has also be skipped
+        return f"{caller.filename}:{caller.lineno}"
+
+
+    @classmethod
+    def compareAndSetDictElement(cls, dictionary : dict, elementName, elementValue, compareValue : bool = False) -> bool:
+        '''
+        Checks if a given element is contained in a given dictionary and if so it compares the two values
+        If the element is not contained or the elements are not equal, the element will be inserted/changed and True will be given back
+        
+        @param dictionary       dictionary that should be checked
+        @param elementName      name of the element in the dictionary that should be checked
+        @param elementValue     value the element in the dictionary should be compared to
+        @param compareValue     for easier check if sth. has changed a boolean can be given that will be "OR"-ed with previous checks simply
+                                by giving back True if sth. has been changed or the given boolean in case nth. has been changed
+        @return        False/compareValue in case nth. has been changed, True in case sth. has been changed
+        '''
+        if elementName in dictionary:
+            if dictionary[elementName] != elementValue:
+                dictionary[elementName] = elementValue
+                return True
+        else:
+            dictionary[elementName] = elementValue
+            return True
+
+        return compareValue
 

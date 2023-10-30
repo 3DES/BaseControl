@@ -27,11 +27,12 @@ class MqttBrokerInterface(InterfaceBase):
         self.dontCareList = {}
         self.logger.info(self, f"{self.name}: Try to establish MQTT connection")
         self.client.username_pw_set(self.configuration["user"], self.configuration["password"])
+
+        # for any reason the one or other mqtt.Client() has problems with hostname "localhost", in that case try to get the IP instead
         if self.configuration["server"] == "localhost":
-            serverIp = "127.0.0.1"
-        else:
-            serverIp = self.configuration["server"]
-        self.client.connect(serverIp, self.configuration["port"], 60 )
+            self.configuration["server"] = "127.0.0.1"          # use it hard coded since getting the IP with socket.gethostbyname(socket.gethostname()) gives "127.0.1.1" what should be OK but doesn't work!?
+        self.client.connect(self.configuration["server"], self.configuration["port"], 60 )
+
         self.client.loop_start()
 
     def on_connect(self, client, userdata, flags, rc):
@@ -112,6 +113,8 @@ class MqttBrokerInterface(InterfaceBase):
                 elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):
                     # check here msg for class Mosquitto
                     self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
+        else:
+            self._mqttRxQueueGetIgnoreOnce = True
 
 
     def threadBreak(self):

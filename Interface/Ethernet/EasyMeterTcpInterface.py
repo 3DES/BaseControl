@@ -1,7 +1,9 @@
 from Interface.Ethernet.TcpInterface import TcpInterface
 #import Interface.Ethernet.TcpInterface
 import Base.Crc
-
+from Base.Supporter import Supporter
+from GridLoad.EasyMeter import EasyMeter
+import colorama
 
 import socket
 import re
@@ -14,95 +16,14 @@ class EasyMeterTcpInterface(TcpInterface):
     '''
 
 
-    @classmethod
-    def processBuffer(cls, buffer : str) -> list:
+    def __init__(self, threadName : str, configuration : dict):
         '''
-        process a received message and print it in formated way to STDOUT
-        
-        should be used for debugging and to analyze the protocoll since only searching the correct values usually is much faster
+        Constructor
         '''
-        def recursiveListHandler(buffer : str, index : int, data : list, entries : int, recursion : int) -> int:
-            INDENT = 8
-            while entries:
-                entries -= 1        # one entry handled
-                elementType = buffer[index]
-                length = elementType & 0x0F
-                subIndex = 1
-    
-                if elementType == 0x00:
-                    # ignore fill byte
-                    index += subIndex
-                    print((" " * (INDENT * recursion)) + "00")
-                    continue
+        super().__init__(threadName, configuration)
 
-                # extra length?            
-                if elementType & 0x80:
-                    length = (length << 4) | (buffer[index + subIndex] & 0x0F)
-                    subIndex += 1
-
-                if elementType & 0x70 == 0x70:
-                    # list element found
-                    newList = []
-                    data.append(newList)
-                    print((" " * (INDENT * recursion)) + " ".join([ "{:02X}".format(char) for char in buffer[index:index + subIndex]]))
-                    index = recursiveListHandler(buffer, index + subIndex, newList, length, recursion + 1)
-                else:
-                    # value element found
-                    data.append(buffer[index:index + length])
-                    print((" " * (INDENT * recursion)) + " ".join([ "{:02X}".format(char) for char in buffer[index:index + length]]))
-                    index += length
-            return index
-
-        if Base.Crc.Crc.crc16EasyMeter(buffer[:-2]) != Base.Crc.Crc.bytesToWordBigEndian(buffer[-2:]):
-            print("invalid CRC")
-
-        index = 0
-        print(" ".join([ "{:02X}".format(char) for char in buffer[:4]]))
-        print(" ".join([ "{:02X}".format(char) for char in buffer[4:8]]))
-        head = buffer[:8]
-        tail = buffer[-8:]
-        buffer = buffer[8:-8]
-        data = [ head[:4], head[4:] ]
-    
-        # handle all lists in the current message
-        while index < (len(buffer)):
-            subIndex = 0
-            elementType = buffer[index]
-            length = elementType & 0x0F
-            subIndex += 1
-
-            if elementType == 0x00:
-                # ignore fill byte
-                index += subIndex
-                print("00")
-                continue
-    
-            # only list entries are allowed at top level
-            if (elementType & 0x70) != 0x70:
-                raise Exception(f"unknown element {buffer[index]} at {index}")
-
-            # extra length?
-            if elementType & 0x80:
-                length = (length << 4) | (buffer[index + subIndex] & 0x0F)
-                # second byte handled
-                subIndex += 1
-
-            newList = []
-            data.append(newList)
-
-            # handle rest of the current message recursively, if list ends maybe there is another one and we will come back to here with a new list entry
-            print(" ".join([ "{:02X}".format(char) for char in buffer[index:index + subIndex]]))
-            index = recursiveListHandler(buffer, index + subIndex, newList, length, 1)
-
-
-        print(" ".join([ "{:02X}".format(char) for char in tail[:4]]))
-        print(" ".join([ "{:02X}".format(char) for char in tail[4:]]))
-        data.append(tail[:4])
-        data.append(tail[4:])
-
-
-    #def threadInitMethod(self):
-    #    pass
+        if not self.tagsIncluded(["messageLength"], intIfy = True, optional = True):
+            self.configuration["messageLength"] = 200     # default value if not given
 
 
     def threadInitMethod(self):
@@ -111,12 +32,12 @@ class EasyMeterTcpInterface(TcpInterface):
         self.received = b""     # collect all received message parts here
 
         # patterns to match messages and values (the ^.*? will ensure that partial messages received at the beginning will be thrown away)
-        self.SML_PATTERN = re.compile(b"^.*?(\x1b{4}\x01{4}.*?\x1b{4}.{4})", re.MULTILINE | re.DOTALL)
+        self.SML_PATTERN = EasyMeter.getSmlPattern()
         #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), "", globalPublish = True)        # to clear retained message from mosquitto
 
 
     def readData(self):
-        #self.processBuffer(bytesArray)
+        #EasyMeter.processBuffer(bytesArray)
         data = self.readSocket()
         if len(data):
             self.received += data               # add received data to receive buffer

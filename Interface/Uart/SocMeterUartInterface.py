@@ -1,5 +1,4 @@
 import time
-import json
 
 from GridLoad.SocMeter import SocMeter
 from Interface.Uart.BasicUartInterface import BasicUartInterface
@@ -23,13 +22,7 @@ class SocMeterUartInterface(BasicUartInterface):
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             if "Prozent" in newMqttMessageDict["content"]:
                 self.cmdList.append("setSocToValue")

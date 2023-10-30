@@ -55,13 +55,7 @@ class Jbd485Interface(InterfaceBase):
     def threadMethod(self):
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
-
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)
-
-            try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
-            except:
-                pass
+            newMqttMessageDict = self.readMqttQueue(error = False)
 
             if "cmd" in newMqttMessageDict["content"]:
                 if newMqttMessageDict["content"]["cmd"] == "resetSoc":

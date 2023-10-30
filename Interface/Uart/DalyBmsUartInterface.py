@@ -4,6 +4,7 @@ import math
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 from Base.Supporter import Supporter
 import colorama
+import sys
 
 
 class DalyBmsUartInterface(BasicUartInterface):
@@ -105,8 +106,11 @@ class DalyBmsUartInterface(BasicUartInterface):
     def __init__(self, threadName : str, configuration : dict):
         super().__init__(threadName, configuration)
 
+        self.removeMqttRxQueue()        # mqttRxQueue not needed so remove it
+
         self.tagsIncluded(["interfaceType"])
         self.address = self.ADDRESS[self.configuration["interfaceType"]]
+        self.tagsIncluded(["errorFilter"], optional = True, default = "")
 
         self.status = None
         self.toggle = False
@@ -137,7 +141,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         return message_bytes
 
 
-    def _read_request(self, command, extra = "", max_responses = 1, return_list = False):
+    def _read_request(self, command, extra = "", max_responses = 1, return_list = False, timeout : int = 1):
         """
         Sends a read request to the BMS and reads the response. In case it fails, it retries 'max_responses' times.
         :param command: Command ID ("90" - "98")
@@ -146,11 +150,12 @@ class DalyBmsUartInterface(BasicUartInterface):
         """
         response_data = None
 
-        response_data = self._read (
+        response_data = self._read(
             command = command,
             extra = extra,
             max_responses = max_responses,
-            return_list = return_list
+            return_list = return_list,
+            timeout = timeout
         )
 
         if not response_data:
@@ -197,16 +202,20 @@ class DalyBmsUartInterface(BasicUartInterface):
         responses = 0
 
         startTime = Supporter.getTimeStamp()
-        while True:
+        while responses < max_responses:
             if Supporter.getSecondsSince(startTime) > timeout:
+                self.logger.debug(self.name, f"leave read loop because of timeout ({timeout}s)")
                 break
 
             receivedBytes = self.serialRead(length = RESPONSE_LENGTH, timeout = timeout)
 
-            # nth. received
+            # read but nth. received, so read again immediately
             if len(receivedBytes) == 0:
                 self.logger.debug(self.name, f"empty response for command [{command}] {max_responses} {responses}")
                 continue
+
+            # timeout is for each response, so if we expect more than one response reset timeout again
+            startTime = Supporter.getTimeStamp()
 
             self.logger.debug(self.name, f"loop {responses}, received [{receivedBytes.hex()}], length {len(receivedBytes)}")
 
@@ -242,10 +251,8 @@ class DalyBmsUartInterface(BasicUartInterface):
             data = receivedBytes[4:-1]
             response_data.append(data)
 
-            # expected responses received?
+            # increment response counter since another valid response has been received
             responses += 1
-            if responses >= max_responses:
-                break
 
         if return_list or len(response_data) > 1:
             return response_data
@@ -447,40 +454,74 @@ class DalyBmsUartInterface(BasicUartInterface):
 
 
     def get_errors(self):
+        '''
+        Request error list from daly bms and convert it into byte/bit list for further processing
+        @return     False in case of request failed
+        @return     [] in case there wasn't any error
+        @return     [[byte1,bit1], [byte2,bit2]] list for all found errors that aren't filtered byte configured filter list
+        '''
+        def getErrorByteBitList(binaryString : str, byte_index : int):
+            '''
+            Convert given bit string into bit index list and combine it with given byte_index
+            @param binaryString  string of bits, e.g. 101101
+            @param byte_index    index of the byte the given binaryString represents
+            @return    list containing all byte/bit combinations of the set bits in binaryString, e.g. [[1, 1], [1, 4]] for the value 0x12
+            '''
+            errorByteBitList = []
+            for bit_index, bit in enumerate(reversed(binaryString)):        # the reverse operation helps here since the given bit string contains, e.g. "11010", leading ZEROs are missed, and reverse handling from LSB to MSB can stop when there are no further ONE bits 
+                if bit == "1":
+                    errorByteBitList.append([byte_index, bit_index])
+            return errorByteBitList
+
+        def getErrorTextsFromByteBitList(byteBitList : list):
+            '''
+            Creates a error text list from given byte/bit list
+            @
+            '''
+            errorTexts = []
+            for errorByte, errorBit in byteBitList:
+                errorTexts.append(self.ERROR_CODES[errorByte][errorBit])
+            return errorTexts
+
         # Battery failure status
         if not (response_data := self._read_request("98")):
-            return False
-        if int.from_bytes(response_data, byteorder='big') == 0:
-            return False
+            return False        # request failed
 
-        byte_index = 0
         errors = []
+        if int.from_bytes(response_data, byteorder='big') == 0:
+            return errors       # no error set at all
+
         filterMask = self.configuration["errorFilter"]
-        for byteContent in response_data:
+
+        for byte_index, byteContent in enumerate(response_data):
+            # error injection
+            #if byte_index == 1:
+            #    byteContent = 0x12
             if "errorFilter" in self.configuration:
                 if len(filterMask) > (byte_index * 2):
                     filter = int(filterMask[byte_index * 2:(byte_index * 2 + 1) + 1], 16)       # additional +1 since the sub string contains all characters EXCLUSIVE the one at the second index!
                     if (byteContent & filter) != byteContent:
-                        ignoredErrors = byteContent & ~filter
-                        self.logger.debug(self.name, f"error byte {byte_index} ignored some errors: 0x{byteContent:02X} & ~{filterMask[byte_index]} = 0x{ignoredErrors:02X}")
-                        byteContent &= filter
+                        inverseFilter = (~filter) & 0xFF    # inverse filter and ignored stuff is for logging only!
+                        ignoredErrors = byteContent & inverseFilter
+                        remainingErrors = byteContent & filter
+                        ignoredErrorBits = bin(ignoredErrors)[2:]     # result is a string, like "0b10010", as you can see the leading ZERO bits are missed but that's not a problem since the bits are handled from LSB to MSB and if there are no further ONE bits we can stop 
+                        ignoredErrorsList = getErrorByteBitList(ignoredErrorBits, byte_index)
+                        ignoredErrorTexts = getErrorTextsFromByteBitList(ignoredErrorsList)
+                        message = f"error byte {byte_index} ignored some errors: 0x{byteContent:02X} & 0x{filter:02X} = 0x{remainingErrors:02X}, ignored error bits = 0x{ignoredErrors:02X} -> {ignoredErrorTexts}"
+                        #Supporter.debugPrint(message)
+                        self.logger.debug(self.name, message)
 
+                        byteContent = remainingErrors    # set filtered value for further processing
+
+            # continue loop in case there are no error bits set in current handled byte
             if byteContent == 0:
-                byte_index += 1
                 continue
-            bits = bin(byteContent)[2:]
-            bit_index = 0
-            
-            for bit in reversed(bits):
-                if bit == "1":
-                    self.logger.debug(self.name, self.ERROR_CODES[byte_index][bit_index])
-                    errors.append([byte_index, bit_index])
 
-                bit_index += 1
+            bits = bin(byteContent)[2:]     # result is a string, like "0b10010", as you can see the leading ZERO bits are missed but that's not a problem since the bits are handled from LSB to MSB and if there are no further ONE bits we can stop 
+            errors += getErrorByteBitList(bits, byte_index)   # concatenate new errors to errors list
+            #Supporter.debugPrint(f"bits {bits}, reversed {list(reversed(bits))}, type {type(bits)}, errors {errors}", color = "BLUE")
 
-            self.logger.debug(self.name, "%s %s %s" % (byte_index, byteContent, bits))
-            byte_index += 1
-
+            self.logger.debug(self.name, f"byteIndex:{byte_index} byteContent:{byteContent} bits:{bits} errors:{errors}")
         return errors
 
 
@@ -607,7 +648,7 @@ class DalyBmsUartInterface(BasicUartInterface):
                 self.logger.debug(self.name, f"repeat: {repeat}, cmd: {key}, result: {result}")
 
                 # since result can be empty as well what means OK we have explicitly to check for False!!!
-                if (result == False):       # yes, compare explicitely with False here!!!
+                if (result == False):       # YES, compare explicitly with False here, since it could also be an empty list what has to be handled differently!!!
                     self.logger.debug(self.name, f"request failed once: {result} == False")
                 else:
                     values[key] = result
@@ -630,6 +671,22 @@ class DalyBmsUartInterface(BasicUartInterface):
 
         # now check if voltage list has a value less or larger than min/max value
         voltageList = []
+        
+        # @todo folgendes if dient zur Fehlersuche, sobalt Fehler gefunden ist, kann das raus! Gesuchter Fehler liegt in Zeile >>>if (not "cell_voltages" in values) or not len(values["cell_voltages"]):<<< 
+        #         File "/share/PowerPlant/Base/ThreadBase.py", line 178, in threadLoop
+        #           self.threadMethod()             # execute working method
+        #         File "/share/PowerPlant/Interface/Uart/DalyBmsUartInterface.py", line 635, in threadMethod
+        #           if (not "cell_voltages" in values) or not len(values["cell_voltages"]):
+        #       TypeError: object of type 'NoneType' has no len()
+        #        (ThreadBase.py:197)
+        # --> siehe fehler_DalyBmsUartInterface_2.txt
+        if (not "cell_voltages" in values):
+            message = f"values = {values}, type is {type(values)}"
+            Supporter.debugPrint(message, color = "BLUE")
+            self.logger.error(self.name, message)
+
+        if (not "cell_voltages" in values) or not len(values["cell_voltages"]):
+            self.logger.error(self.name, f"received invalid values without \"cell_voltages\" element: {values}")
         for cellNumber, cellVoltage in values["cell_voltages"].items():
             # that a single cell voltage is lower/higher than the overall min/max voltage value is common and happens because of different voltage read times!
             if cellVoltage < vMin:
@@ -666,7 +723,7 @@ class DalyBmsUartInterface(BasicUartInterface):
                     elif errorInjectionTest == 8:
                         voltageList[-1] = 4.3
 
-                    Supporter.debugPrint(f"{self.name} ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds", color = f"{colorama.Fore.RED}")
+                    Supporter.debugPrint(f"ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds", color = f"{colorama.Fore.RED}")
 
         # @TODO temperaturen auswerten!!!
 

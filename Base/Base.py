@@ -14,7 +14,7 @@ class Base(object):
 
 
     # @todo ggf. _SIMULATE umbenennen zu __SIMULATE!
-    # @todo externen WD nicht triggern, wenn ein Objekt im Simulations-Moduls l�uft!
+    # @todo externen WD nicht triggern, wenn ein Objekt im Simulations-Moduls l�uft!
     _SIMULATE = False            # to be set to True as soon as at least one of the objects are simulating values, this will prevent the external watchdog relay from being triggered
 
 
@@ -47,7 +47,7 @@ class Base(object):
         # check if current object has parameter "SIMULATE" set to True
         if self.toSimulate():
             self.setSimulate()
-            Supporter.debugPrint(f"{self.name}: SIMULATE set")
+            Supporter.debugPrint(f"SIMULATE set")      # @todo Prio1 hierauf muessen wir noch reagieren und dafür sorgen, daß die Anlage nicht einschaltet!!!
 
 
     def _getCounterName(self, name : str):
@@ -148,7 +148,7 @@ class Base(object):
                 return (nameSpace[counterName][0] == value) or (nameSpace[counterName][0] > value and not singularTrue) 
 
 
-    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False, autoReset : bool = True):
+    def timer(self, name : str, timeout : int = 0, startTime : int = 0, remove : bool = False, removeOnTimeout : bool = False, strict : bool = False, setup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False, autoReset : bool = True):
         '''
         Simple timer returns True if given timeout has been reached or exceeded
 
@@ -160,6 +160,7 @@ class Base(object):
         If startTime is not given current time will be taken, if startTiem has been given it will only be taken to setup the timer but will be ignored if the timer is already running, so a timer can be set up and checked with the same line of code
 
         If remove is True the timer will be deleted
+        If removeOnTimeout is True and the timer has timed out already it will be deleted, but the current result will be returned
 
         If strict is True an Exception will be thrown in case more than one timeout period has passed over since last call, so calling is too slow and timeout events have been lost
 
@@ -172,7 +173,8 @@ class Base(object):
         In case of oneShot is set to True the timer will only return True once when the time is over, it returns True independent from how long the time is already over but only for the first check after the timeout has been reached
         oneShot has no effect if given when the timer is set up but it has to be given when the timer is checked
 
-        autoReset == False prevents timer from being reset when it has timed out, so a once timed out timer will stay timed out; therefore, it's similar to oneShot but if it becomes True it stays True whereas oneShot is True exactly once
+        autoReset = False prevents timer from being reset when it has timed out, so a once timed out timer will stay timed out; therefore, it's similar to oneShot but if it becomes True it stays True whereas oneShot is True exactly once
+        autoReset = True ensures that the time between timer events stays always the same, so you will see a jitter since it depends when you call the timer but you will never see a drift, missed periods are gone but the next one will also be synchronized again!
         '''
         def updateTime(startTime : int, period : int):
             '''
@@ -242,6 +244,11 @@ class Base(object):
                         if nameSpace[existingTimerName][NEXT_TIMEOUT_TIME] != ONE_SHOT_DONE:
                             # oneShot timer shoot only once so remember that is has shot already!
                             nameSpace[existingTimerName][NEXT_TIMEOUT_TIME] = ONE_SHOT_DONE
+
+                            # timeout happened, so remove timer if "removeOnTimeout" has been given
+                            if removeOnTimeout:
+                                del(globals()[existingTimerName])
+
                             return True
                         else:
                             # shot already, will not shoot again
@@ -250,11 +257,19 @@ class Base(object):
                         # the "if/elif" ensures that oneShot implicitly means autoReset=False, but on the other hand independently from oneShot autoReset can be set to False if needed
                         nameSpace[existingTimerName][NEXT_TIMEOUT_TIME] = updateTime(nameSpace[existingTimerName][NEXT_TIMEOUT_TIME], nameSpace[existingTimerName][PERIOD_DURATION])
 
+                    # timeout happened, so remove timer if "removeOnTimeout" has been given
+                    if removeOnTimeout:
+                        del(globals()[existingTimerName])
+
                     if remainingTime:
                         return originalTimeout - currentTime
                     else:
                         return True
                 else:
+                    # timeout happened, so remove timer if "removeOnTimeout" has been given
+                    if removeOnTimeout:
+                        del(globals()[existingTimerName])
+
                     if remainingTime:
                         return originalTimeout - currentTime
                     else:
