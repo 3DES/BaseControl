@@ -106,13 +106,18 @@ class PowerPlant(Worker):
                 setScriptValue(key, keyOrDict[key])
 
 
-    def updateScriptValues(self, data):
+    def updateScriptValues(self, data : dict):
+        '''
+        Updates scriptValues dictionary with given data dictionary and remembers that new values have to be published
+
+        @param data       dictionary containing new values for scriptValues dictionary
+        '''
         self.scriptValues.update(data)
         self.sendeMqtt = True
 
 
     def passeSchaltschwellenAn(self):
-        def setThresholds(gridThreshold : str, accuThreshold : str):
+        def setThresholds(gridThreshold : int, accuThreshold : int):
             '''
             Set threshold values with given thresholds if they are OK
 
@@ -241,7 +246,7 @@ class PowerPlant(Worker):
         # try to search any relay not in expected state
         if expectedStates is not None:
             for relay in expectedStates:
-                if not self.localRelaisData[BasicUsbRelais.gpioCmd][relay] == expectedStates[relay]:
+                if self.localRelaisData[BasicUsbRelais.gpioCmd][relay] != expectedStates[relay]:
                     checkResult = False
                     self.logger.error(self, f"Relay {relay} is in state {self.localRelaisData[BasicUsbRelais.gpioCmd][relay]} but expected state is {expectedStates[relay]}")
                     self.localRelaisData[BasicUsbRelais.gpioCmd][relay] = expectedStates[relay]
@@ -311,6 +316,7 @@ class PowerPlant(Worker):
         STATE_1               || OFF          | ON         | OFF <<<  || switch inverter output voltages off now
         STATE_2               || OFF          | OFF <<<    | OFF      || back in "startup" state
         '''
+# REVIEW END
         # @TODO sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
         # Diese sollte aber bevor sie auf Netz schaltet in diesem Fall ca 1 min warten damit sich die Inverter synchronisieren können.
         def schalteRelaisAufNetz():
@@ -630,6 +636,8 @@ class PowerPlant(Worker):
             Supporter.debugPrint(f"{self.name} got message {message}", color = "GREEN")
             #{'topic': 'AccuControl/UsbRelaisWd1/out', 'global': False, 'content': {'inputs': {'Input3': '0', 'readbackGrid': '0', 'readbackInverter': '0', 'readbackSolarContactor': '0'}}}
             #{'topic': 'AccuControl/UsbRelaisWd2/out', 'global': False, 'content': {'inputs': {'Input0': '0', 'Input1': '0', 'Input2': '0', 'Input3': '0'}}}
+            #"gridActive"
+            #"inverterActive"
 
         # check if its our own topic
         if self.createOutTopic(self.getObjectTopic()) in message["topic"]:
@@ -689,7 +697,7 @@ class PowerPlant(Worker):
                     # if a device sends partial data we have a problem if we copy the msg, so we update our dict instead
                     self.localDeviceData[key].update(message["content"])
 
-            # check if a optional device sent a msg and store it
+            # check if an optional device sent a msg and store it
             for key in self.optionalDevices:
                 if key in message["topic"]:
                     self.localDeviceData[key] = message["content"]
@@ -715,6 +723,10 @@ class PowerPlant(Worker):
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
         self.tagsIncluded(["inputs"], optional = True, default = [])
 
+        # if there was only one module given for inputs convert it to a list
+        if type(self.configuration["inputs"]) != list:
+            self.configuration["inputs"] = [self.configuration["inputs"]]
+
         # Threadnames we have to wait for a initial message. The worker need this data.
         self.expectedDevices = []
         self.expectedDevices.append(self.configuration["socMonitorName"])
@@ -724,6 +736,7 @@ class PowerPlant(Worker):
 
         self.optionalDevices = []
         self.optionalDevices.append(self.configuration["weatherName"])
+        self.optionalDevices += self.configuration["inputs"]
 
         # init some variables
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "linkedEffektaData":{}, self.configuration["weatherName"]:{}}
@@ -731,14 +744,14 @@ class PowerPlant(Worker):
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False}
-        self.sensorList = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
+        self.sensors = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
         self.dummyCommand = "NoCommand"
         self.manualCommands.append(self.dummyCommand)
         self.scriptValues = {}
         self.updateScriptValues(self.setableSlider)
         self.updateScriptValues(self.setableSwitch)
-        self.updateScriptValues(self.sensorList)
+        self.updateScriptValues(self.sensors)
         self.setableScriptValues = []
         self.setableScriptValues += list(self.setableSlider.keys())
         self.setableScriptValues += list(self.setableSwitch.keys())
@@ -781,17 +794,14 @@ class PowerPlant(Worker):
         for device in self.optionalDevices:
             self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(device)), globalSubscription = False)
 
-        for device in self.configuration["inputs"]:
-            self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(device)), globalSubscription = False)
-
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
-        self.homeAutomation.mqttDiscoverySensor(self.sensorList)
+        self.homeAutomation.mqttDiscoverySensor(self.sensors)
         self.homeAutomation.mqttDiscoverySelector(self.manualCommands, niceName = "Pv Cmd")
         self.homeAutomation.mqttDiscoveryInputNumberSlider(self.setableSlider, nameDict = self.niceNameSlider)
         self.homeAutomation.mqttDiscoverySwitch(self.setableSwitch)
 
-        self.homeAutomation.mqttDiscoverySensor(sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO)], subTopic = self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO))
-        self.homeAutomation.mqttDiscoverySensor(sensorList = [self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR)], subTopic = self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR))
+        self.homeAutomation.mqttDiscoverySensor(sensors = [self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO)], subTopic = self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO))
+        self.homeAutomation.mqttDiscoverySensor(sensors = [self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR)], subTopic = self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR))
 
 
     def threadMethod(self):
@@ -909,7 +919,6 @@ class PowerPlant(Worker):
             if self.sendeMqtt:
                 self.sendeMqtt = False
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.scriptValues, globalPublish = True, enableEcho = False)
-                Supporter.debugPrint(f"mqtt publish: {self.scriptValues}")
         else:
             if self.timer(name = "timeoutExpectedDevices", timeout = 10*60):
                 self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Es haben sich nicht alle erwarteten Devices gemeldet!")

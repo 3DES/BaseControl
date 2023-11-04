@@ -1,5 +1,6 @@
 *.pyc
 logger.txt
+logger*.7z
 signal-cli-0.11.4/
 secure.json
 project.json

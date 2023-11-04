@@ -9,6 +9,7 @@ import subprocess
 import Base.Crc
 from queue import Queue
 import colorama
+import functools
 
 
 import sys
@@ -40,6 +41,9 @@ class EasyMeter(ThreadObject):
     DELIVERED_ENERGY_KEY = "2.8.0"
     RECEIVED_ENERGY_KEY  = "1.8.0"
     CURRENT_POWER_KEY    = "16.7.0"
+    CURRENT_POWER_L1_KEY = "36.7.0"
+    CURRENT_POWER_L2_KEY = "56.7.0"
+    CURRENT_POWER_L3_KEY = "76.7.0"
     L1_VOLTAGE_KEY       = "32.7.0"
     L2_VOLTAGE_KEY       = "52.7.0"
     L3_VOLTAGE_KEY       = "72.7.0"
@@ -54,9 +58,9 @@ class EasyMeter(ThreadObject):
         "1.8.1"              : { "fullname" : "1-0:1.8.1",                   "regex" : re.compile(b'\x77\x07\x01\x00\x01\x08\x01\xFF\x01\x01\x62\x1E\x52\xFC\x59(.{8})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 7,      "unit" : "kWh", "ignore" : False, "signed" : False, "description" : "positiveActiveEnergyT1"    },       # "Bezug Tarif1"
         "1.8.2"              : { "fullname" : "1-0:1.8.2",                   "regex" : re.compile(b'\x77\x07\x01\x00\x01\x08\x02\xFF\x01\x01\x62\x1E\x52\xFC\x59(.{8})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 7,      "unit" : "kWh", "ignore" : False, "signed" : False, "description" : "positiveActiveEnergyT2"    },       # "Bezug Tarif2"
         CURRENT_POWER_KEY    : { "fullname" : "1-0:" + CURRENT_POWER_KEY,    "regex" : re.compile(b'\x77\x07\x01\x00\x10\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 2,      "unit" : "W",   "ignore" : False, "signed" : True,  "description" : "activeInstantaneousPower"  },       # "Momentanleistung gesammt, vorzeichenbehaftet"
-        "36.7.0"             : { "fullname" : "1-0:36.7.0",                  "regex" : re.compile(b'\x77\x07\x01\x00\\\x24\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',  re.MULTILINE | re.DOTALL), "resolution" : 2,      "unit" : "W",   "ignore" : False, "signed" : True,  "description" : "activeInstantaneousPowerL1"},       # "Momentanleistung L1, vorzeichenbehaftet"
-        "56.7.0"             : { "fullname" : "1-0:56.7.0",                  "regex" : re.compile(b'\x77\x07\x01\x00\x38\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 2,      "unit" : "W",   "ignore" : False, "signed" : True,  "description" : "activeInstantaneousPowerL2"},       # "Momentanleistung L2, vorzeichenbehaftet"
-        "76.7.0"             : { "fullname" : "1-0:76.7.0",                  "regex" : re.compile(b'\x77\x07\x01\x00\x4C\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 2,      "unit" : "W",   "ignore" : False, "signed" : True,  "description" : "activeInstantaneousPowerL3"},       # "Momentanleistung L3, vorzeichenbehaftet"
+        CURRENT_POWER_L1_KEY : { "fullname" : "1-0:" + CURRENT_POWER_L1_KEY, "regex" : re.compile(b'\x77\x07\x01\x00\\\x24\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',  re.MULTILINE | re.DOTALL), "resolution" : 2,      "unit" : "W",   "ignore" : False, "signed" : True,  "description" : "activeInstantaneousPowerL1"},       # "Momentanleistung L1, vorzeichenbehaftet"
+        CURRENT_POWER_L2_KEY : { "fullname" : "1-0:" + CURRENT_POWER_L2_KEY, "regex" : re.compile(b'\x77\x07\x01\x00\x38\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 2,      "unit" : "W",   "ignore" : False, "signed" : True,  "description" : "activeInstantaneousPowerL2"},       # "Momentanleistung L2, vorzeichenbehaftet"
+        CURRENT_POWER_L3_KEY : { "fullname" : "1-0:" + CURRENT_POWER_L3_KEY, "regex" : re.compile(b'\x77\x07\x01\x00\x4C\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 2,      "unit" : "W",   "ignore" : False, "signed" : True,  "description" : "activeInstantaneousPowerL3"},       # "Momentanleistung L3, vorzeichenbehaftet"
         L1_VOLTAGE_KEY       : { "fullname" : "1-0:" + L1_VOLTAGE_KEY,       "regex" : re.compile(b'\x77\x07\x01\x00\x20\x07\x00\xFF\x01\x01\x62\x23\x52\xFF\x63(.{2})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 1,      "unit" : "V",   "ignore" : False, "signed" : False, "description" : "instantaneousVoltageL1"    },       # "aktuelle Spannung L1"
         L2_VOLTAGE_KEY       : { "fullname" : "1-0:" + L2_VOLTAGE_KEY,       "regex" : re.compile(b'\x77\x07\x01\x00\x34\x07\x00\xFF\x01\x01\x62\x23\x52\xFF\x63(.{2})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 1,      "unit" : "V",   "ignore" : False, "signed" : False, "description" : "instantaneousVoltageL2"    },       # "aktuelle Spannung L2"
         L3_VOLTAGE_KEY       : { "fullname" : "1-0:" + L3_VOLTAGE_KEY,       "regex" : re.compile(b'\x77\x07\x01\x00\x48\x07\x00\xFF\x01\x01\x62\x23\x52\xFF\x63(.{2})\x01',    re.MULTILINE | re.DOTALL), "resolution" : 1,      "unit" : "V",   "ignore" : False, "signed" : False, "description" : "instantaneousVoltageL3"    },       # "aktuelle Spannung L3"
@@ -72,6 +76,9 @@ class EasyMeter(ThreadObject):
     DELIVERED_OVERALL_TEXT         = "DeliveredEnergyOverall"
     RECEIVED_OVERALL_TEXT          = "ReceivedEnergyOverall"
     CURRENT_POWER_TEXT             = "CurrentPower"
+    CURRENT_POWER_L1_TEXT          = "CurrentPowerL1"
+    CURRENT_POWER_L2_TEXT          = "CurrentPowerL2"
+    CURRENT_POWER_L3_TEXT          = "CurrentPowerL3"
     DELIVERED_LAST_15_MINUTES_TEXT = "DeliveredEnergyLast15Minutes"
     RECEIVED_LAST_15_MINUTES_TEXT  = "ReceivedEnergyLast15Minutes"
     GRID_VOLTAGE_L1_TEXT           = "GridVoltageL1"
@@ -147,8 +154,8 @@ class EasyMeter(ThreadObject):
 
 
     def threadInitMethod(self):
-        self.homeAutomationValues = { self.DELIVERED_OVERALL_TEXT : 0,     self.RECEIVED_OVERALL_TEXT : 0,     self.CURRENT_POWER_TEXT : 0  , self.DELIVERED_LAST_15_MINUTES_TEXT : 0,    self.RECEIVED_LAST_15_MINUTES_TEXT : 0,    self.GRID_VOLTAGE_L1_TEXT : 0,   self.GRID_VOLTAGE_L2_TEXT : 0,   self.GRID_VOLTAGE_L3_TEXT : 0   }
-        homeAutomationUnits       = { self.DELIVERED_OVERALL_TEXT : "kWh", self.RECEIVED_OVERALL_TEXT : "kWh", self.CURRENT_POWER_TEXT : "W", self.DELIVERED_LAST_15_MINUTES_TEXT : "Wh", self.RECEIVED_LAST_15_MINUTES_TEXT : "Wh", self.GRID_VOLTAGE_L1_TEXT : "V", self.GRID_VOLTAGE_L2_TEXT : "V", self.GRID_VOLTAGE_L3_TEXT : "V" }
+        self.homeAutomationValues = { self.DELIVERED_OVERALL_TEXT : 0,     self.RECEIVED_OVERALL_TEXT : 0,     self.CURRENT_POWER_TEXT : 0  , self.CURRENT_POWER_L1_TEXT : 0  , self.CURRENT_POWER_L2_TEXT : 0  , self.CURRENT_POWER_L3_TEXT : 0  , self.DELIVERED_LAST_15_MINUTES_TEXT : 0,    self.RECEIVED_LAST_15_MINUTES_TEXT : 0,    self.GRID_VOLTAGE_L1_TEXT : 0,   self.GRID_VOLTAGE_L2_TEXT : 0,   self.GRID_VOLTAGE_L3_TEXT : 0   }
+        homeAutomationUnits       = { self.DELIVERED_OVERALL_TEXT : "kWh", self.RECEIVED_OVERALL_TEXT : "kWh", self.CURRENT_POWER_TEXT : "W", self.CURRENT_POWER_L1_TEXT : "W", self.CURRENT_POWER_L2_TEXT : "W", self.CURRENT_POWER_L3_TEXT : "W", self.DELIVERED_LAST_15_MINUTES_TEXT : "Wh", self.RECEIVED_LAST_15_MINUTES_TEXT : "Wh", self.GRID_VOLTAGE_L1_TEXT : "V", self.GRID_VOLTAGE_L2_TEXT : "V", self.GRID_VOLTAGE_L3_TEXT : "V" }
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
 
@@ -320,7 +327,10 @@ class EasyMeter(ThreadObject):
                             self.energyData[key] = self.energyData[key].strip()
                         else:
                             value = str(int.from_bytes(match[0], byteorder = "big", signed = self.SML_VALUES[key]["signed"]))
-                            self.energyData[key] = value[:-self.SML_VALUES[key]["resolution"]] + "." + value[-self.SML_VALUES[key]["resolution"]:]
+                            if self.SML_VALUES[key]["resolution"] == 0:
+                                self.energyData[key] = int(self.energyData[key])
+                            else:
+                                self.energyData[key] = float(value[:-self.SML_VALUES[key]["resolution"]] + "." + value[-self.SML_VALUES[key]["resolution"]:])
                         #Supporter.debugPrint(f"matched: {key}={self.energyData[key]}")
                     data = re.sub(matcher, b"", data)
             # data that is currently not handled, e.g. lead-in, lead-out, and maybe forgotten values
@@ -440,23 +450,26 @@ class EasyMeter(ThreadObject):
         self.energyProcessData["gridLossDetected"] = False                  # reset grid loss detection for next cycle
 
 
-    def prepareHomeAutomation(self):
+    def prepareHomeAutomation(self, force : bool = False):
         # ensure all needed keys have already been prepared, otherwise return with False
-        keys = [self.RECEIVED_ENERGY_KEY, self.DELIVERED_ENERGY_KEY, self.CURRENT_POWER_KEY, self.L1_VOLTAGE_KEY, self.L2_VOLTAGE_KEY, self.L3_VOLTAGE_KEY]
+        keys = [self.RECEIVED_ENERGY_KEY, self.DELIVERED_ENERGY_KEY, self.CURRENT_POWER_KEY, self.CURRENT_POWER_L1_KEY, self.CURRENT_POWER_L2_KEY, self.CURRENT_POWER_L3_KEY, self.L1_VOLTAGE_KEY, self.L2_VOLTAGE_KEY, self.L3_VOLTAGE_KEY]
+
         for key in keys:
             if key not in self.energyData:
                 #Supporter.debugPrint(f"{key} is still missed in self.energyData!", color = "RED")
                 return False
 
-        changed = False
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_OVERALL_TEXT,          self.energyData[self.RECEIVED_ENERGY_KEY],  compareValue = changed)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_OVERALL_TEXT,         self.energyData[self.DELIVERED_ENERGY_KEY], compareValue = changed)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_TEXT,             self.energyData[self.CURRENT_POWER_KEY],    compareValue = changed)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_LAST_15_MINUTES_TEXT, 0,                                          compareValue = changed)        # @todo sinnvollen Wert einfüllen!
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_LAST_15_MINUTES_TEXT,  0,                                          compareValue = changed)        # @todo sinnvollen Wert einfüllen!
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L1_TEXT,           self.energyData[self.L1_VOLTAGE_KEY],       compareValue = changed)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L2_TEXT,           self.energyData[self.L2_VOLTAGE_KEY],       compareValue = changed)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L3_TEXT,           self.energyData[self.L3_VOLTAGE_KEY],       compareValue = changed)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_OVERALL_TEXT,          self.energyData[self.RECEIVED_ENERGY_KEY],                          compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 10), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_OVERALL_TEXT,         self.energyData[self.DELIVERED_ENERGY_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 10), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_TEXT,             self.energyData[self.CURRENT_POWER_KEY],    compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent =  5), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L1_TEXT,          self.energyData[self.CURRENT_POWER_L1_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent =  5), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L2_TEXT,          self.energyData[self.CURRENT_POWER_L2_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent =  5), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L3_TEXT,          self.energyData[self.CURRENT_POWER_L3_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent =  5), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_LAST_15_MINUTES_TEXT, 0,                                          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 10), force = force)        # @todo sinnvollen Wert einfüllen!
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_LAST_15_MINUTES_TEXT,  0,                                          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 10), force = force)        # @todo sinnvollen Wert einfüllen!
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L1_TEXT,           self.energyData[self.L1_VOLTAGE_KEY],       compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent =  1), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L2_TEXT,           self.energyData[self.L2_VOLTAGE_KEY],       compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent =  1), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L3_TEXT,           self.energyData[self.L3_VOLTAGE_KEY],       compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent =  1), force = force)
         return changed
 
 
@@ -501,17 +514,19 @@ class EasyMeter(ThreadObject):
             self.prepareNewEasyMeterMessage()
 
         # one message every 60 seconds
+        forceHomeAutomationUpdate = False
         if self.timer("messageTimer", timeout = self.configuration["messageInterval"], startTime = Supporter.getTimeOfToday(), firstTimeTrue = False):
             outTopic = self.createOutTopic(self.getObjectTopic())
             self.mqttPublish(outTopic, self.energyData, globalPublish = False)
             self.logger.debug(self, f"new message published at {outTopic}: {str(self.energyData)}")
             self.energyData["updatePowerValue"] = False     # set to False (again) for all following messages until it has been decided to set a new power level
+            forceHomeAutomationUpdate = True
 
-            # prepare data for homeautomation
-            if self.prepareHomeAutomation():
-                # publish data for homeautomation if any values have changed
-                self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True)
-                #Supporter.debugPrint(f"published to {self.homeAutomationTopic} [{self.homeAutomationValues}]")
+        # prepare data for homeautomation (to be sent on any value change that is outside of given threshold)
+        if self.prepareHomeAutomation(force = forceHomeAutomationUpdate):
+            # publish data for homeautomation if any values have changed
+            self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True)
+            #Supporter.debugPrint(f"published to {self.homeAutomationTopic} [{self.homeAutomationValues}]")
 
 
     def threadBreak(self):

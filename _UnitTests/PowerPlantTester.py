@@ -52,7 +52,7 @@ class PowerPlantTester(ThreadObject):
 
     def initPowerplant(self):
         data = {"WrNetzladen": False, "Akkuschutz": False, "RussiaMode": False, "Error": False, "PowerSaveMode": False, "WrMode": "Akku", "AutoMode": True, "schaltschwelleAkku": 20.0, "schaltschwelleNetz": 10.0, "schaltschwelleAkkuTollesWetter": 20.0, "schaltschwelleAkkuRussia": 100.0, "schaltschwelleNetzRussia": 80.0, "schaltschwelleAkkuSchlechtesWetter": 45.0, "schaltschwelleNetzSchlechtesWetter": 30.0, "schaltschwelleNetzLadenAus": 12.0, "schaltschwelleNetzLadenEin": 6.0, "MinSoc": 10.0, "SchaltschwelleAkkuTollesWetter": 20.0, "AkkuschutzAbschalten": 60.0, "verbrauchNachtAkku": 25.0, "verbrauchNachtNetz": 3.0, "wetterSchaltschwelleNetz": 6}
-        self.mqttPublish(self.createOutTopic(ThreadObject.createProjectTopic(self.configuration["powePlantName"])), data, globalPublish = True, enableEcho = False)
+        self.mqttPublish(self.createOutTopic(ThreadObject.createProjectTopic(self.configuration["powerPlantName"])), data, globalPublish = True, enableEcho = False)
 
     def setAkkuSoc(self, prozent):
         data = { "Ah":-1, "Current":0, "Prozent": prozent}
@@ -67,68 +67,68 @@ class PowerPlantTester(ThreadObject):
     def assertBoolFromProwerPlant(self, key, value, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(self.localDeviceData[self.configuration["powePlantName"]][key] == value, name)
+        self.testBoolAndLog(self.localDeviceData[self.configuration["powerPlantName"]][key] == value, name)
 
     def assertAkkuBerieb(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(self.localDeviceData[self.configuration["powePlantName"]]["WrMode"] == "Akku", name)
+        self.testBoolAndLog(self.localDeviceData[self.configuration["powerPlantName"]]["WrMode"] == "Akku", name)
 
     def assertNetzBerieb(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(self.localDeviceData[self.configuration["powePlantName"]]["WrMode"] == "Netz", name)
+        self.testBoolAndLog(self.localDeviceData[self.configuration["powerPlantName"]]["WrMode"] == "Netz", name)
 
     def assertNetzLaden(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(self.localDeviceData[self.configuration["powePlantName"]]["WrNetzladen"], name)
+        self.testBoolAndLog(self.localDeviceData[self.configuration["powerPlantName"]]["WrNetzladen"], name)
 
     def assertNetzLadenAus(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(not self.localDeviceData[self.configuration["powePlantName"]]["WrNetzladen"], name)
+        self.testBoolAndLog(not self.localDeviceData[self.configuration["powerPlantName"]]["WrNetzladen"], name)
 
     def assertAkkuschhutz(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(self.localDeviceData[self.configuration["powePlantName"]]["Akkuschutz"], name)
+        self.testBoolAndLog(self.localDeviceData[self.configuration["powerPlantName"]]["Akkuschutz"], name)
 
     def assertAkkusschutzAus(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(not self.localDeviceData[self.configuration["powePlantName"]]["Akkuschutz"], name)
+        self.testBoolAndLog(not self.localDeviceData[self.configuration["powerPlantName"]]["Akkuschutz"], name)
 
     def assertError(self, checkMsg = True, name=""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(self.localDeviceData[self.configuration["powePlantName"]]["Error"], name)
+        self.testBoolAndLog(self.localDeviceData[self.configuration["powerPlantName"]]["Error"], name)
 
     def assertErrorAus(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(not self.localDeviceData[self.configuration["powePlantName"]]["Error"], name)
+        self.testBoolAndLog(not self.localDeviceData[self.configuration["powerPlantName"]]["Error"], name)
 
     def assertAutoMode(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(self.localDeviceData[self.configuration["powePlantName"]]["AutoMode"], name)
+        self.testBoolAndLog(self.localDeviceData[self.configuration["powerPlantName"]]["AutoMode"], name)
 
     def assertManualMode(self, checkMsg = True, name = ""):
         if checkMsg:
             self.wartenUndMsgTest()
-        self.testBoolAndLog(not self.localDeviceData[self.configuration["powePlantName"]]["AutoMode"], name)
+        self.testBoolAndLog(not self.localDeviceData[self.configuration["powerPlantName"]]["AutoMode"], name)
 
     def getPowerPlantValue(self, name):
-        if type(self.localDeviceData[self.configuration["powePlantName"]][name]) == float:
-            return int(self.localDeviceData[self.configuration["powePlantName"]][name])
+        if type(self.localDeviceData[self.configuration["powerPlantName"]][name]) == float:
+            return int(self.localDeviceData[self.configuration["powerPlantName"]][name])
         else:
-            return self.localDeviceData[self.configuration["powePlantName"]][name]
+            return self.localDeviceData[self.configuration["powerPlantName"]][name]
 
     def setPowerPlantBoolValueAndAssert(self, key, value, name=""):
         if not type(value) == bool:
             raise Exception("Wrong data type")
-        self.mqttPublish(self.createInTopic(ThreadObject.createProjectTopic(self.configuration["powePlantName"])), {key:value}, globalPublish = False, enableEcho = False)
+        self.mqttPublish(self.createInTopic(ThreadObject.createProjectTopic(self.configuration["powerPlantName"])), {key:value}, globalPublish = False, enableEcho = False)
         self.assertBoolFromProwerPlant(key, value, True, name)
 
     def cycleSocAndAssert(self, start, end, assertFunktion):
@@ -232,12 +232,12 @@ class PowerPlantTester(ThreadObject):
 
     def threadInitMethod(self):
         self.deviceList = []
-        self.deviceList.append(self.configuration["powePlantName"])
+        self.deviceList.append(self.configuration["powerPlantName"])
         self.deviceList.append(self.configuration["inverterName"])
         # @todo UsbRelaisName
         self.localDeviceData = {}
-        self.tagsIncluded(["bmsName", "socMonitorName", "inverterName", "powePlantName"])
-        self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(self.configuration["powePlantName"])), globalSubscription = True)
+        self.tagsIncluded(["bmsName", "socMonitorName", "inverterName", "powerPlantName"])
+        self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(self.configuration["powerPlantName"])), globalSubscription = True)
         self.mqttSubscribeTopic(self.createInTopicFilter(self.createProjectTopic(self.configuration["inverterName"])), globalSubscription = False)
         self.TestNumber = 0
         self.TestName = ""

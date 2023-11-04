@@ -56,11 +56,14 @@ class WatchDog(ThreadObject):
 
 
     def prepareHomeAutomation(self):
-        changed = False
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "uptime",               Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True), compareValue = changed)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "uptime",               Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True))
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "minimumRemainingTime", self.remainingTime["minimum"], compareValue = changed)
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "minimumRemainingTask", self.remainingTime["minimumThread"], compareValue = changed)
         return changed
+
+
+    def publishHomeAutomation(self):
+        self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
 
 
     def threadInitMethod(self):
@@ -73,14 +76,14 @@ class WatchDog(ThreadObject):
         self.homeAutomationValues = {
             "startTime"            : Supporter.formattedTime(self.startupTime, shortTime = True),
             "uptime"               : Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True),
-            "minimumRemainingTime" : -1,
-            "minimumRemainingTask" : "None",
+            "minimumRemainingTime" : self.remainingTime["minimum"],
+            "minimumRemainingTask" : "",
             "warningTime"          : self.configuration["warningTime"]}
         homeAutomationUnits       = {"minimumRemainingTime" : "s", "warningTime" : "s"}
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
-        self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
+        self.publishHomeAutomation()
 
 
     def threadMethod(self):
@@ -159,7 +162,7 @@ class WatchDog(ThreadObject):
                 self.logger.info(self, f"WatchDog thread [{self.name}] up since {upTimeString}")
 
                 if self.prepareHomeAutomation():
-                    self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
+                    self.publishHomeAutomation()
                     #Supporter.debugPrint(f"update to {self.homeAutomationValues}")
 
 

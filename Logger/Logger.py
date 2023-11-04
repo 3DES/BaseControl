@@ -198,7 +198,6 @@ class Logger(ThreadBase):
         self.set_homeAutomation(Supporter.loadClassFromFile(configuration["homeAutomation"])())
 
         self.setup_logQueue()                                   # setup log queue
-        self.logBuffer = collections.deque([], 500)             # buffer storing the last 500 elements (for emergency write)
         self.logCounter = 0                                     # counts all logged messages
         self.set_logger(self if logger is None else logger)     # set project wide logger (since this is the base class for all loggers its it's job to set the project logger)
 
@@ -398,17 +397,42 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def writeLogBufferToDisk(cls, logFileName = None):
+    def writeLogBufferToDisk(cls, logFileName = None, leadIn : str = "", leadOut : str = ""):
         '''
-        Without regard to losses the current buffer content is written to disk 
+        Without regard to losses the current buffer content is written to disk
+        
+        @param logFileName     logfile name to be used, default is logger.txt
+        @param leadIn          string that will be inserted at the beginning of the logfile because, at times when this method is called, the logger queue usually doesn't work anymore
+        @param leadOut         string that will be inserted at the end       of the logfile because, at times when this method is called, the logger queue usually doesn't work anymore
         '''
+        def insertFramedText(text : str):
+            data = []
+            data.append("#" * 100) 
+            data.append(text) 
+            data.append("#" * 100) 
+            return data
+
+
+        bufferCopy = []
+
+        # handle log file name        
         if logFileName is None:
             logFileName = "logger.txt"
-        
-        bufferCopy = cls.get_logBuffer().copy()
-        
+
+        # insert lead in
+        if len(leadIn):
+            bufferCopy += insertFramedText(leadIn)
+
+        # take all collected messages from log buffer
+        bufferCopy += cls.get_logBuffer().copy()
+
+        # insert lead out
+        if len(leadOut):
+            bufferCopy += insertFramedText(leadOut)
+
+        # finally write log file
         with open(logFileName, 'w') as logFile:
             for message in bufferCopy:
                 logFile.write(message + "\n")
-            
+
             logFile.close()

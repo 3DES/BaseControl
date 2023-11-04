@@ -177,7 +177,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool):
+    def executeProject(cls, initFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, additionalLeadIn : str = ""):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -199,8 +199,9 @@ class ProjectRunner(object):
         Logger.Logger.Logger.set_logFilter(logFilter)
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
+        readableJsonConfiguration = json.dumps(configuration, indent = 4)
         if jsonDump:
-            print(json.dumps(configuration, indent = 4))
+            print(readableJsonConfiguration)
 
         stopReason = ""
 
@@ -231,10 +232,8 @@ class ProjectRunner(object):
             deltaTime = endTime - startTime
             uptimeMessage = f"{os.path.basename(__file__)}: overall uptime ... {Supporter.formattedTime(deltaTime, addCurrentTime = True)}"
             Supporter.debugPrint(uptimeMessage, color = f"{colorama.Fore.RED}")
-            Logger.Logger.Logger.error(cls, uptimeMessage)
-            Logger.Logger.Logger.error(cls, "write last log messages to disc before exit")
-            cls.projectLogger.writeLogBufferToDisk()
 
+            cls.projectLogger.writeLogBufferToDisk(leadIn = additionalLeadIn + (("\n" + readableJsonConfiguration) if jsonDump else ""), leadOut = uptimeMessage)
         return stopReason
 
 

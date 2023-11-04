@@ -71,19 +71,18 @@ class MqttBrokerInterface(InterfaceBase):
 
         self.InitialConnected = False
 
-        self.tries = 0
-        self.maxInitTries = 10
-        while self.tries <= self.maxInitTries:
-            self.tries += 1
+        tries = 0
+        while tries < self.MAX_INIT_TRIES:
             try:
                 # Try to connect to MQTT server, there could be a exception if ethernet or server is not available
                 self.connectMqtt()
                 break
             except:
                 time.sleep(2)
-                self.logger.info(self, f'Mosquitto connection init. {self.tries} of {self.maxInitTries} failed.')
-                if self.tries >= self.maxInitTries:
-                    self.logger.warning(self, "Could not establish initial MQTT connection")
+                self.logger.info(self, f'Mosquitto connection init. {tries + 1} of {self.MAX_INIT_TRIES} failed.')
+            tries += 1
+        if tries >= self.MAX_INIT_TRIES:
+            self.logger.warning(self, "Could not establish initial MQTT connection")
 
 
     def threadMethod(self):
@@ -92,8 +91,8 @@ class MqttBrokerInterface(InterfaceBase):
                 # (re-)subscribe to projectName/# 
                 self.client.subscribe(f"{self.get_projectName()}/#")
 
+        # if there was no on_connect so far and our mqttRxQueue is filled up at a level of 90% we will try to clear the loop at least even if messages get lost
         if self.mqttRxQueue.qsize() >= (self.QUEUE_SIZE * 0.9):
-            # We set the Variable after timeout, if we are not connected yet the current msg in the queue will be deletet
             self.InitialConnected = True
             self.logger.error(self, "MQTT RX queue quiet full. Eventually we will lost messages.")
 

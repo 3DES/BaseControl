@@ -10,8 +10,6 @@ class Pylontech485Interface(InterfaceBase):
     classdocs
     '''
     
-    maxInitTries = 10
-
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -22,17 +20,17 @@ class Pylontech485Interface(InterfaceBase):
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount"])
         self.tagsIncluded(["baudrate"], optional = True, default = 115200)
-        self.tries = 0
-        while self.tries <= self.maxInitTries:
-            self.tries += 1
+        tries = 0
+        while tries < self.MAX_INIT_TRIES:
             try:
                 self.p = PylontechStack(self.configuration["interface"], baud=self.configuration["baudrate"], manualBattcountLimit=self.configuration["battCount"])
                 break
             except:
                 time.sleep(10)
-                self.logger.info(self, f"Device --{self.name}-- {self.tries} from {self.maxInitTries} inits failed.")
-                if self.tries >= self.maxInitTries:
-                    raise Exception(f'{self.name} connection could not established! Check interface, baudrate, battCount!')
+                self.logger.info(self, f"Device --{self.name}-- {tries + 1} from {self.MAX_INIT_TRIES} inits failed.")
+            tries += 1
+        if tries >= self.MAX_INIT_TRIES:
+            raise Exception(f'{self.name} connection could not established! Check interface, baudrate, battCount!')
 
         #print(p.update())
         #{'SerialNumbers': ['K221027C30801415'], 'Calculated': {'TotalCapacity_Ah': 50.0, 'RemainCapacity_Ah': 25.0, 'Remain_Percent': 50.0, 'Power_kW': 0.0, 'ChargePower_kW': 0, 'DischargePower_kW': -0.0}, 'AnaloglList': [{'VER': 32, 'ADR': 2, 'ID': 70, 'RTN': 0, 'LENGTH': 110, 'PAYLOAD': b'00020F0CDD0CDB0CDC0CDC0CDD0CDD0CDD0CDC0CDD0CDC0CDD0CDD0CDD0CDB0CDD050B680B460B450B440B580000C0EB61A802C3500000', 'InfoFlag': 0, 'CommandValue': 2, 'CellCount': 15, 'CellVoltages': [3.293, 3.291, 3.292, 3.292, 3.293, 3.293, 3.293, 3.292, 3.293, 3.292, 3.293, 3.293, 3.293, 3.291, 3.293], 'TemperatureCount': 5, 'Temperatures': [18.9, 15.5, 15.4, 15.3, 17.3], 'Current': 0.0, 'Voltage': 49.387, 'RemainCapacity': 25.0, 'CapDetect': '<=65Ah', 'ModuleTotalCapacity': 50.0, 'CycleNumber': 0}], 'ChargeDischargeManagementList': [{'VER': 32, 'ADR': 2, 'ID': 70, 'RTN': 0, 'LENGTH': 20, 'PAYLOAD': b'02D002AFC800FAFF06C0', 'CommandValue': 2, 'ChargeVoltage': 53.25, 'DischargeVoltage': 45.0, 'ChargeCurrent': 25.0, 'DischargeCurrent': -25.0, 'StatusChargeEnable': True, 'StatusDischargeEnable': True, 'StatusChargeImmediately1': False, 'StatusChargeImmediately2': False, 'StatusFullChargeRequired': False}], 'AlarmInfoList': [{'VER': 32, 'ADR': 2, 'ID': 70, 'RTN': 0, 'LENGTH': 66, 'PAYLOAD': b'00020F000000000000000000000000000000050000000000000000000E00000000', 'InfoFlag': 0, 'CommandValue': 2, 'CellCount': 15, 'CellAlarm': ['Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok'], 'TemperatureCount': 5, 'TemperatureAlarm': ['Ok', 'Ok', 'Ok', 'Ok', 'Ok'], 'ChargeCurentAlarm': 'Ok', 'ModuleVoltageAlarm': 'Ok', 'DischargeCurrentAlarm': 'Ok', 'Status1': 0, 'Status2': 14, 'Status3': 0, 'Status4': 0, 'Status5': 0}]}

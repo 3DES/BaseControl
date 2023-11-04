@@ -300,7 +300,7 @@ class Supporter(object):
 
 
     @classmethod
-    def deltaOutsideRange(cls, newValue : float, oldValue : float, minVal : float, maxVal : int, percent : int = 1, dynamic : bool = False, minIgnoreDelta : float = 0.0):
+    def deltaOutsideRange(cls, newValue : float, oldValue : float, minValue : float = None, maxValue : float = None, percent : float = 0.0, dynamic : bool = False, minIgnoreDelta : float = 0.0):
         '''
         Can be used to decide if a delta between two values has an certain amount.
 
@@ -309,27 +309,32 @@ class Supporter(object):
         @param minValue            the new value has to be larger than or equal to min value
         @param maxValue            the new value has to be smaller than or equal to max value
         @param percent             percent range, the new value must be outside of the range [old value - percent, old value + percent]
-        @param dynamic             if False [minValue, maxValue] will be used as range so ignore range has always same size, if True the smaller the value is the smaller the ignore range will be
+        @param dynamic             if False [minValue, maxValue] will be used as range so ignore range has always same size, if True the smaller the value is the smaller the ignore range will be, if minValue and/or maxValue is None then dynamic is True
         @param minIgnoreDelta      the difference between the old and the new value has to be at least "old value * percent"
 
         @return    True if new value is inside [minValue, maxValue] range on the one side but outside of the ignore range [oldValue - ignoreDelta, oldValue + ignoreDelta]
         '''
-        if not dynamic:
-            valueRange = abs(maxVal - minVal)    # ignore delta only depends on valid value range but not on current value
+        if dynamic or minValue is None or maxValue is None:
+            valueRange = min(oldValue, newValue)            # ignore delta will be smaller if current value is smaller
         else:
-            valueRange = oldValue                # ignore delta will be smaller if current value is smaller
+            valueRange = abs(maxValue - minValue)           # ignore delta only depends on valid value range but not on current value
 
         ignoreDelta = valueRange * (percent / 100)
         ignoreDelta = max(ignoreDelta, minIgnoreDelta)      # ensure a minimum ignore delta size if one has been given
 
         delta = abs(oldValue - newValue)                    # calculate difference between old an new value to decide if change is inside or outside of the ignore window
 
+        compareResult = (delta >= ignoreDelta)
+        
+        if minValue is not None and maxValue is not None:
+            compareResult &= (minValue <= newValue <= maxValue)
+
         # if given value is valid check if its difference to the old value is greater or equal to +/- ignore delta
-        return (minVal <= newValue <= maxVal) and (delta >= ignoreDelta)
+        return compareResult
 
 
     @classmethod
-    def debugPrint(cls, message : str, marker : str = None, color : str = None, borderSize : int = 1):
+    def debugPrint(cls, messageStringOrList, marker : str = None, color : str = None, borderSize : int = 1):
         '''
         Print given stuff in eye-catching manner
         message will be printed between a frame, the frame has borderSize leading and trailing lines
@@ -339,25 +344,41 @@ class Supporter(object):
         @param message      message to be printed, caller's name will be added in front of it in square brackets
         @param marker       character (or string) that will be used to print the border
         @param color        default color is yellow but another color can be given, either one of the supported colors, e.g. RED, GREEN, YELLOW or BLUE or a colorama.Fore.<color> string
+                            The following keys are known by colorama.Fore and can be used:
+                                BLACK
+                                BLUE
+                                CYAN
+                                GREEN
+                                LIGHTBLACK_EX
+                                LIGHTBLUE_EX
+                                LIGHTCYAN_EX
+                                LIGHTGREEN_EX
+                                LIGHTMAGENTA_EX
+                                LIGHTRED_EX
+                                LIGHTWHITE_EX
+                                LIGHTYELLOW_EX
+                                MAGENTA
+                                RED
+                                RESET
+                                WHITE
+                                YELLOW
         @param borderSize   amount of leading and trailing border lines to be printed
         '''
         MAX_LENGTH = 60
+        DEFAULT_COLOR = "YELLOW"
+        DEFAULT_BORDER = "#"
+
         if marker is not None and len(marker):
             printLength = int((MAX_LENGTH + (len(marker) - 1)) / len(marker))
         else:
             printLength = MAX_LENGTH
-            marker = "#"
-        
+            marker = DEFAULT_BORDER
+
         if color is None:
-            color = f"{colorama.Fore.YELLOW}"
-        elif color == "GREEN":
-            color = f"{colorama.Fore.GREEN}"
-        elif color == "RED":
-            color = f"{colorama.Fore.RED}"
-        elif color == "YELLOW":
-            color = f"{colorama.Fore.YELLOW}"
-        elif color == "BLUE":
-            color = f"{colorama.Fore.BLUE}"
+            color = DEFAULT_COLOR
+        colors = dict(colorama.Fore.__dict__.items())        
+        if color in colors.keys():
+            color = colors[color]
 
         # try to get object name but if not possible get class name instead
         if not (callerName := cls.getCallerName()):
@@ -369,7 +390,15 @@ class Supporter(object):
         for _ in range(borderSize):
             printText += f"    {marker * printLength}\n"
         printText += f"    # printed at {cls.getCallerPosition()}\n"
-        printText += f"    [{callerName}]: {message}\n"
+        if type(messageStringOrList) == str:
+            messageStringOrList = [messageStringOrList]
+        
+        for index, string in enumerate(messageStringOrList):
+            if index == 0:
+                printText += f"    [{callerName}]: {string}\n"
+            else:
+                printText += f"    {string}\n"
+                
         for _ in range(borderSize):
             printText += f"    {marker * (printLength - 5)}"
         printText += f"{colorama.Style.RESET_ALL}"
@@ -515,7 +544,7 @@ class Supporter(object):
 
 
     @classmethod
-    def compareAndSetDictElement(cls, dictionary : dict, elementName, elementValue, compareValue : bool = False) -> bool:
+    def compareAndSetDictElement(cls, dictionary : dict, elementName, elementValue, compareValue : bool = False, compareMethod : callable = None, force : bool = False) -> bool:
         '''
         Checks if a given element is contained in a given dictionary and if so it compares the two values
         If the element is not contained or the elements are not equal, the element will be inserted/changed and True will be given back
@@ -525,13 +554,19 @@ class Supporter(object):
         @param elementValue     value the element in the dictionary should be compared to
         @param compareValue     for easier check if sth. has changed a boolean can be given that will be "OR"-ed with previous checks simply
                                 by giving back True if sth. has been changed or the given boolean in case nth. has been changed
-        @return        False/compareValue in case nth. has been changed, True in case sth. has been changed
+        @param force            if force is True the elementValue will be set the compare will return True
+        @return        False/compareValue in case nth. has been changed, True in case sth. has been changed or force was True
         '''
+        toBeSet = force
         if elementName in dictionary:
-            if dictionary[elementName] != elementValue:
-                dictionary[elementName] = elementValue
-                return True
+            if (compareMethod is not None):
+                toBeSet |= compareMethod(elementValue, dictionary[elementName])
+            else:
+                toBeSet |= (dictionary[elementName] != elementValue)
         else:
+            toBeSet = True
+
+        if toBeSet:
             dictionary[elementName] = elementValue
             return True
 

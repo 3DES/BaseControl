@@ -175,7 +175,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             wdCommand = self.getCommand(cmd)
             self.serialWrite(wdCommand)
             response = self.serialReadLine()
-            #Supporter.debugPrintself.name}:\n        write {wdCommand}\n        read  {response}", color = f"{colorama.Fore.GREEN}")
+            #Supporter.debugPrint([f"{self.name}:", f"write {wdCommand}", f"read  {response}"], color = "GREEN")
             procMsg = self.processMsg(Supporter.decode(response))
             if not "Error" in procMsg:
                 self.frameCounter +=1
@@ -185,7 +185,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             else:
                 delayNextRead = True
                 if procMsg["Error"] == "noMsg" and cmd == "V":
-                    # If we got no msg on version request we suggess that there is a new Arduino plugged in.
+                    # If we got no msg on version request we suggest that there is a new Arduino plugged in.
                     return "newArduino"
                 if procMsg["Error"] == "framenumber":
                     self.frameCounter = procMsg["requiredFramenumber"]
@@ -322,7 +322,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         retval = self.sendRequest("W", "1")
         if not retval == "1":
             self.getAndLogDiagnosis()
-            raise Exception("Watchdog was not 1 after trigger, PowerPlant will be stopped! Either power supply is OFF or Watchdog is in any error state and blocks reset pin for 1 minute, e.g. because PowerPlant has been stopped and Watchdog hasn't been retriggered, or self test failed.")
+            raise Exception("Watchdog was not running after trigger, PowerPlant will be stopped! Watchdog seems to be in any error state and blocks reset pin for 1 minute, e.g. because PowerPlant has been stopped and Watchdog hasn't been retriggered, or self test failed, or there is any other reason why the watchdog cannot be reset.")
         return retval
 
     def clearWdRelay(self):

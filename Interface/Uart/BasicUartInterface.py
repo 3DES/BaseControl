@@ -11,11 +11,6 @@ class BasicUartInterface(InterfaceBase):
     classdocs
     '''
 
-
-    receivedData = b""
-    maxInitTries = 10
-
-
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -32,6 +27,8 @@ class BasicUartInterface(InterfaceBase):
         self.tagsIncluded(["xonxoff"], optional = True, default = False)
         self.tagsIncluded(["rtscts"], optional = True, default = False)
         self.tagsIncluded(["writeTimeout"], optional = True, default = 4)
+
+        self.receivedData = b""
 
 
     def reInitSerial(self):
@@ -102,50 +99,50 @@ class BasicUartInterface(InterfaceBase):
         self.receivedData = b""
 
 
-    def serialRead(self, length : int = 0, timeout : int = 0):
+    def serialRead(self, length : int = 0, timeout : int = None):
         '''
         Reads data from serial until length bytes have been received or timeout has been reached
-        
+
         @param length       amount of bytes to be received, 0 = read only once up to timeout, n = read until this amount of bytes have been received
-        @param timeout      seconds to read from serial, 0 = use default timeout, n = read up to n seconds
-        
+        @param timeout      seconds to read from serial, None = use default timeout, n = read up to n seconds, 0 or negative value = read once then stop reading
+
         if not enough bytes have been received after timeout seconds an empty byte string will be returned! 
         don't mix serialRead() and serialReadLine()
         '''
         returnData = b""
 
-        if timeout == 0:
+        if timeout is None:
             timeout = self.configuration["timeout"]
 
-        if timeout:
+        if timeout > 0:
             startTime = Supporter.getTimeStamp()
+
         try:
             while True:
-                if self.serialConn.inWaiting():
-                    receivedTemp = self.serialConn.read(self.serialConn.inWaiting())
-    
-                    if receivedTemp:
-                        self.receivedData += receivedTemp
-    
-                # if length has been given check if length characters have been received
-                if len(self.receivedData) >= length:
-                    if length:
-                        # only send first "length" bytes
-                        returnData = self.receivedData[:length]
-                        self.receivedData = self.receivedData[length:]
-                    else:
-                        # send all data
-                        returnData = self.receivedData
-                        self.receivedData = b""
-                    self.logger.debug(self, f"OK")
+                if bytesWaiting := self.serialConn.inWaiting():
+                    self.receivedData += self.serialConn.read(bytesWaiting)
+
+                    # if length has been given check if length characters have been received
+                    if len(self.receivedData) >= length:
+                        if length:
+                            # only send first "length" bytes, rest stays in received data until read is called next time
+                            returnData = self.receivedData[:length]
+                            self.receivedData = self.receivedData[length:]
+                        else:
+                            # send all data
+                            returnData = self.receivedData
+                            self.receivedData = b""
+                        break
+
+                if timeout <= 0 and not length:
+                    # if timeout is <= 0 no length has been given, read only once and leave without debug log
                     break
-    
-                # if timeout has been given check if time is over
-                if timeout and Supporter.getSecondsSince(startTime) > timeout:
+                elif Supporter.getSecondsSince(startTime) > timeout:
+                    # if timeout has been given check if time is over (this works also if timeout was 0 and self.configuration["timeout"] was also 0)
                     self.logger.debug(self, f"timeout {len(self.receivedData)} {timeout}")
                     break
-        except Exception as e:
-            self.logger.warning(self, f"Exception caught in serialRead method: {e}, re-init serial")
+        except Exception as ex:
+            self.logger.warning(self, f"Exception caught in serialRead method: {ex}, re-init serial")
             self.reInitSerial()
 
         return returnData
@@ -166,17 +163,17 @@ class BasicUartInterface(InterfaceBase):
 
 
     def threadInitMethod(self):
-        self.tries = 0
-        while self.tries <= self.maxInitTries:
-            self.tries += 1
+        tries = 0
+        while tries < self.MAX_INIT_TRIES:
             try:
                 self.serialInit()
                 break
             except:
                 time.sleep(2)
-                self.logger.error(self, f'Serial connection --{self.configuration["interface"]}-- init. {self.tries} of {self.maxInitTries} failed.')
-                if self.tries >= self.maxInitTries:
-                    raise Exception(f'Serial connection --{self.configuration["interface"]}-- could not established')
+                self.logger.error(self, f'Serial connection --{self.configuration["interface"]}-- init. {tries + 1} of {self.MAX_INIT_TRIES} failed.')
+            tries += 1
+        if tries >= self.MAX_INIT_TRIES:
+            raise Exception(f'Serial connection --{self.configuration["interface"]}-- could not established')
         self.logger.info(self, f'Serial connection --{self.configuration["interface"]}-- initialised.')
 
     #def threadMethod(self):

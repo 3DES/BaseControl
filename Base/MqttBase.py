@@ -574,9 +574,9 @@ class MqttBase(Base):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
-    def mqttDiscoverySensor(self, sensorList, ignoreKeys : dict = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = "") -> str:
+    def mqttDiscoverySensor(self, sensors, ignoreKeys : list = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = "") -> str:
         """
-        sensorList: dict, nestedDict oder List der Sensoren die angelegt werden sollen
+        sensors: dict, nestedDict oder List der Sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         nameDict: dict. Hier koennen einzelne keys mit einzelnen frindlyNames drin stehen
         unitDict: dict. Hier koennen einzelne keys mit einzelnen Einheiten drin stehen
@@ -587,17 +587,17 @@ class MqttBase(Base):
 
         # nameDict is needed even if it hasn't been given
         if nameDict is None:
-            nameDict = []
+            nameDict = {}
 
         # create sensors out topic
         topic = self.createOutTopic(self.createProjectTopic(senderObj.name), subTopic = subTopic)
 
-        if type(sensorList) == dict:
+        if type(sensors) == dict:
             nameList = []
-            for key in sensorList:
+            for key in sensors:
                 # detect a nested dict
-                if type(sensorList[key]) == dict:
-                    for nestedKey in sensorList[key]:
+                if type(sensors[key]) == dict:
+                    for nestedKey in sensors[key]:
                         nameList.append(f"{key}.{nestedKey}")
                         # check if key is a topic then extract threadname and create niceName with threadname and nested key
                         if "/" in key:
@@ -606,7 +606,7 @@ class MqttBase(Base):
                 else:
                     nameList.append(key)
         else:
-            nameList = sensorList
+            nameList = sensors
 
         #Supporter.debugPrint(f"discover sensor called: [{senderObj.name}] [{topic}] [{nameList}]")
 
@@ -624,9 +624,9 @@ class MqttBase(Base):
         return topic
 
 
-    def mqttDiscoveryInputNumberSlider(self, sensorList, ignoreKeys : dict = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None):
+    def mqttDiscoveryInputNumberSlider(self, sensors, ignoreKeys : list = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None):
         """
-        sensorList: dict oder List der Slider die angelegt werden sollen
+        sensors: dict oder List der Slider die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
         minValDict: dict der minimal Slider Werte. default 0
@@ -634,10 +634,10 @@ class MqttBase(Base):
         """
         senderObj = Supporter.getCaller()      # get caller object
 
-        if type(sensorList) == dict:
-            nameList = list(sensorList.keys())
+        if type(sensors) == dict:
+            nameList = list(sensors.keys())
         else:
-            nameList = sensorList
+            nameList = sensors
         for key in nameList:
             niceName = ""
             minVal = 0
@@ -651,44 +651,42 @@ class MqttBase(Base):
                     maxVal = maxValDict["key"]
                 preparedMsg = self.homeAutomation.getDiscoveryInputNumberSliderCmd(senderObj.name, key, niceName, minVal, maxVal)
                 sensorTopic = self.homeAutomation.getDiscoveryInputNumberSliderTopic(senderObj.name, key)
-                if sensorTopic:
-                    senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+                senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 
 
-    def mqttDiscoverySelector(self, sensorList, ignoreKeys : list = None, niceName : str = ""):
+    def mqttDiscoverySelector(self, sensors, ignoreKeys : list = None, niceName : str = ""):
         """
-        sensorList: dict oder List der optionen die zu auswaehlen angelegt werden sollen
+        sensors: dict oder List der optionen die zu auswaehlen angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         niceName: der Name des Selectors
         """
         senderObj = Supporter.getCaller()      # get caller object
         
-        if type(sensorList) == dict:
-            nameList = list(sensorList.keys())
+        if type(sensors) == dict:
+            nameList = list(sensors.keys())
         else:
-            nameList = sensorList
+            nameList = sensors
         nameListWithoutIgnoredOnes = []
         for item in nameList:
             if (ignoreKeys is None) or (item not in ignoreKeys):
                 nameListWithoutIgnoredOnes.append(item)
         preparedMsg = self.homeAutomation.getDiscoverySelectorCmd(senderObj.name, nameListWithoutIgnoredOnes, niceName)
         sensorTopic = self.homeAutomation.getDiscoverySelectorTopic(senderObj.name, niceName.lower().replace(" ", "_"))
-        if sensorTopic:
-            senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+        senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 
 
-    def mqttDiscoverySwitch(self, sensorList, ignoreKeys : list = None, nameDict : dict = None, onCmd : str = "", offCmd : str = ""):
+    def mqttDiscoverySwitch(self, sensors, ignoreKeys : list = None, nameDict : dict = None, onCmd : str = "", offCmd : str = ""):
         """
-        sensorList: dict oder List der sensoren die angelegt werden sollen
+        sensors: dict oder List der sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         nameDict: dict. Hier koennen einzelne keys mit frindlyNames drin stehen
         """
         senderObj = Supporter.getCaller()      # get caller object
 
-        if type(sensorList) == dict:
-            nameList = list(sensorList.keys())
+        if type(sensors) == dict:
+            nameList = list(sensors.keys())
         else:
-            nameList = sensorList
+            nameList = sensors
         for key in nameList:
             niceName = ""
             if (ignoreKeys is None) or (key not in ignoreKeys):

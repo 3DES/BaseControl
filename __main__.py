@@ -59,7 +59,6 @@ import sys
 
 from Base.ProjectRunner import ProjectRunner
 import Logger.Logger
-from Base.MqttBase import MqttBase
 
 
 '''
@@ -73,6 +72,9 @@ if __name__ == '__main__':
     writeLogToDiskWhenEnds = False
     missingImportMeansError = False
     jsonDump = False
+
+    commandLine = f"command line parameters: {sys.argv}" 
+    print(commandLine)
 
     # handle command line arguments
     argumentParser = argparse.ArgumentParser()
@@ -100,7 +102,7 @@ if __name__ == '__main__':
     elif (arguments.printLogLevel is not None) and (arguments.printLogLevel > arguments.logLevel):
         arguments.printLogLevel = arguments.logLevel
 
-    stopReason = ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.printLogLevel, arguments.logFilter, arguments.stopAfterSeconds, arguments.writeLogToDiskWhenEnds, arguments.missingImportMeansError, arguments.jsonDump)
+    stopReason = ProjectRunner.executeProject(arguments.initFileName, arguments.logLevel, arguments.printLogLevel, arguments.logFilter, arguments.stopAfterSeconds, arguments.writeLogToDiskWhenEnds, arguments.missingImportMeansError, arguments.jsonDump, additionalLeadIn = commandLine)
 
     Logger.Logger.Logger.trace("__main__", "finito [" + Logger.Logger.Logger.get_projectName() + "]" + (" : " + stopReason) if len(stopReason) else "")
 

@@ -10,8 +10,6 @@ class Jbd485Interface(InterfaceBase):
     classdocs
     '''
     
-    maxInitTries = 10
-
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -22,18 +20,18 @@ class Jbd485Interface(InterfaceBase):
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount"])
         self.tagsIncluded(["baudrate"], optional = True, default = 9600)
-        #self.tries = 0
-        #while self.tries <= self.maxInitTries:
-        #    self.tries += 1
+        #tries = 0
+        #while tries < self.MAX_INIT_TRIES:
         #    try:
         #        
         #        self.p = PylontechStack(self.configuration["interface"], baud=self.configuration["baudrate"], manualBattcountLimit=self.configuration["battCount"])
         #        break
         #    except:
         #        time.sleep(10)
-        #        self.logger.info(self, f"Device --{self.name}-- {self.tries} from {self.maxInitTries} inits failed.")
-        #       if self.tries >= self.maxInitTries:
-        #           raise Exception(f'{self.name} connection could not established! Check interface, baudrate, battCount!')
+        #        self.logger.info(self, f"Device --{self.name}-- {tries + 1} from {self.MAX_INIT_TRIES} inits failed.")
+        #    tries += 1
+        #if tries >= self.MAX_INIT_TRIES:
+        #    raise Exception(f'{self.name} connection could not established! Check interface, baudrate, battCount!')
 
         self.serialConn = serial.Serial(
             port         = self.configuration["interface"],

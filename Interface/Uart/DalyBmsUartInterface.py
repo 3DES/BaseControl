@@ -4,7 +4,6 @@ import math
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 from Base.Supporter import Supporter
 import colorama
-import sys
 
 
 class DalyBmsUartInterface(BasicUartInterface):
@@ -98,9 +97,8 @@ class DalyBmsUartInterface(BasicUartInterface):
         "Bluetooth" : 8,
     }
 
-    
+
     WARNING_THRESHOLD = 3
-    readRequestFailed = {}
 
 
     def __init__(self, threadName : str, configuration : dict):
@@ -114,6 +112,8 @@ class DalyBmsUartInterface(BasicUartInterface):
 
         self.status = None
         self.toggle = False
+        
+        self.readRequestFailed = {}
 
 
     @classmethod
@@ -141,7 +141,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         return message_bytes
 
 
-    def _read_request(self, command, extra = "", max_responses = 1, return_list = False, timeout : int = 1):
+    def _read_request(self, command, extra = "", max_responses = 1, return_list = False, timeout : int = 2):
         """
         Sends a read request to the BMS and reads the response. In case it fails, it retries 'max_responses' times.
         :param command: Command ID ("90" - "98")
@@ -182,7 +182,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         return response_data
 
 
-    def _read(self, command, extra : str = "", max_responses : int = 1, return_list : bool = False, timeout : int = 1):
+    def _read(self, command, extra : str = "", max_responses : int = 1, return_list : bool = False, timeout : int = 2):
         RESPONSE_LENGTH = 13
 
         # throw away any received data
@@ -197,33 +197,32 @@ class DalyBmsUartInterface(BasicUartInterface):
         if not self.serialWrite(message_bytes):
             self.logger.error(self.name, f"serial write failed for command [{command}]")
             return False
-        
+
         response_data = []
         responses = 0
 
         startTime = Supporter.getTimeStamp()
         while responses < max_responses:
             if Supporter.getSecondsSince(startTime) > timeout:
-                self.logger.debug(self.name, f"leave read loop because of timeout ({timeout}s)")
+                message = f"response timeout ({timeout}s), cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
+                #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
+                self.logger.debug(self.name, message)
+                response_data = []
                 break
 
-            receivedBytes = self.serialRead(length = RESPONSE_LENGTH, timeout = timeout)
-
-            # read but nth. received, so read again immediately
-            if len(receivedBytes) == 0:
-                self.logger.debug(self.name, f"empty response for command [{command}] {max_responses} {responses}")
+            # try to read again if nth. has been received
+            if not (receivedBytes := self.serialRead(length = RESPONSE_LENGTH, timeout = timeout)):
                 continue
 
-            # timeout is for each response, so if we expect more than one response reset timeout again
-            startTime = Supporter.getTimeStamp()
-
-            self.logger.debug(self.name, f"loop {responses}, received [{receivedBytes.hex()}], length {len(receivedBytes)}")
+            self.logger.debug(self.name, f"loop {responses}, received [{receivedBytes.hex()}], length {len(receivedBytes)}, cmd = {command}, received so far: {response_data} ({responses}/{max_responses})")
 
             # validate checksum
             response_checksum = self._calc_checksum(receivedBytes[:-1])
             if response_checksum != receivedBytes[-1:]:
                 deltaSleep = timeout - Supporter.getSecondsSince(startTime)
-                self.logger.debug(self.name, f"response checksum mismatch: {response_checksum.hex()} != {receivedBytes[-1:].hex()} / sleep: {deltaSleep}")
+                message = f"response checksum mismatch: {response_checksum.hex()} != {receivedBytes[-1:].hex()}, last package = [{receivedBytes}], cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
+                #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
+                self.logger.debug(self.name, message)
                 response_data = []
                 # error wait for timeout then leave
                 time.sleep(deltaSleep)
@@ -233,15 +232,20 @@ class DalyBmsUartInterface(BasicUartInterface):
             header = receivedBytes[0:4].hex()
             if header[4:6] != command:
                 deltaSleep = timeout - Supporter.getSecondsSince(startTime)
-                self.logger.debug(self.name, f"invalid header {header}: wrong command ({header[4:6]} != {command}) / sleep: {deltaSleep}")
+                message = f"invalid header {header}: wrong command ({header[4:6]} != {command}), last package = [{receivedBytes}], cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
+                #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
+                self.logger.debug(self.name, message)
                 response_data = []
                 # error wait for timeout then leave
                 time.sleep(deltaSleep)
                 break
 
-            if receivedBytes == RESPONSE_LENGTH:
+            # to much data received?
+            if len(receivedBytes) != RESPONSE_LENGTH:
                 deltaSleep = timeout - Supporter.getSecondsSince(startTime)
-                self.logger.debug(self.name, f"invalid message length {len(receivedBytes)} / sleep: {deltaSleep}")
+                message = f"invalid message length {len(receivedBytes)}, last package = [{receivedBytes}], cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
+                #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
+                self.logger.debug(self.name, message)
                 response_data = []
                 # error wait for timeout then leave
                 time.sleep(deltaSleep)
@@ -253,6 +257,9 @@ class DalyBmsUartInterface(BasicUartInterface):
 
             # increment response counter since another valid response has been received
             responses += 1
+
+            # timeout is for each response, so if we expect more than one response reset timeout time again
+            startTime = Supporter.getTimeStamp()
 
         if return_list or len(response_data) > 1:
             return response_data
@@ -645,6 +652,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             self.logger.debug(self.name, f"check: {key}")
             for repeat in range(self._ERROR_REPEATS):
                 result = methods[key]()
+                time.sleep(.2)      # give BMS a bit more time between the reads to lower errros
                 self.logger.debug(self.name, f"repeat: {repeat}, cmd: {key}, result: {result}")
 
                 # since result can be empty as well what means OK we have explicitly to check for False!!!

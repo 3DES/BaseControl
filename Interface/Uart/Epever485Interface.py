@@ -7,8 +7,6 @@ class Epever485Interface(InterfaceBase):
     classdocs
     '''
     
-    maxInitTries = 10
-
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -67,18 +65,18 @@ class Epever485Interface(InterfaceBase):
         else:
             self.logger.info(self, "No Voltage Parameters given!")
 
-    def initEpeverWithRetry(self, retries = maxInitTries):
+    def initEpeverWithRetry(self, retries = InterfaceBase.MAX_INIT_TRIES):
         tries = 0
-        while tries <= retries:
-            tries += 1
+        while tries < retries:
             try:
                 self.controller = EpeverChargeController(self.configuration["interface"], self.configuration["address"])
                 break
             except:
                 time.sleep(10)
-                self.logger.info(self, f"Device --{self.name}-- {tries} from {self.maxInitTries} inits failed.")
-                if self.tries >= self.maxInitTries:
-                    raise Exception(f'{self.name} connection could not established! Check interface and address')
+                self.logger.info(self, f"Device --{self.name}-- {tries + 1} from {self.retries} inits failed.")
+            tries += 1
+        if tries >= self.retries:
+            raise Exception(f'{self.name} connection could not established! Check interface and address')
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface"])

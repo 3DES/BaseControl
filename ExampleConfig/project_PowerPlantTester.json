@@ -5,8 +5,8 @@
         "class": "_UnitTests.PowerPlantTester.PowerPlantTester",
         "inverterName":   "WrEffektaWest",
         "socMonitorName": "SocMonitor",
-        "bmsName": "BMS",
-        "powePlantName": "PowerPlant"
+        "bmsName": "Bms",
+        "powerPlantName": "PowerPlant"
     },
 
     "PowerPlant":

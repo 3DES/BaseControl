@@ -269,27 +269,27 @@ class BasicBms(ThreadObject):
                             del self.bmsWerte[self.configuration["socMonitor"]]
                         self.homeAutomation.mqttDiscoverySensor(self.bmsWerte, subTopic = self.allBmsDataTopicExtension)
                         self.homeAutomation.mqttDiscoverySensor(self.globalBmsWerte)
-    
+
                     # At first we check required bit toggleIfMsgSeen. We remember it and add this info at least to bms data of this topic 
                     toggleSeen = (newMqttMessageDict["content"]["toggleIfMsgSeen"] != self.bmsWerte[interfaceName]["toggleIfMsgSeen"])
-    
+
                     # Check optional data, sanity check is done in mergeBmsData()
                     if "Vmin" in newMqttMessageDict["content"]:
-                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Vmin"], self.bmsWerte[interfaceName]["Vmin"], -1, 10):
+                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Vmin"], self.bmsWerte[interfaceName]["Vmin"], -1, 10, percent = 1, dynamic = True):
                             takeDataAndSendGlobal(interfaceName)
                     if "Vmax" in newMqttMessageDict["content"]:
-                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Vmax"], self.bmsWerte[interfaceName]["Vmax"], -1, 10):
+                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Vmax"], self.bmsWerte[interfaceName]["Vmax"], -1, 10, percent = 1, dynamic = True):
                             takeDataAndSendGlobal(interfaceName)
                     if "BmsEntladeFreigabe" in newMqttMessageDict["content"]:
                         if newMqttMessageDict["content"]["BmsEntladeFreigabe"] != self.bmsWerte[interfaceName]["BmsEntladeFreigabe"]:
                             takeDataAndSendGlobal(interfaceName)
-    
+
                 # Now we check the optional values on its range and hysteresis and publish global
                 if "Current" in newMqttMessageDict["content"]:
-                    if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Current"], self.bmsWerte[interfaceName]["Current"], -200, 200):
+                    if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Current"], self.bmsWerte[interfaceName]["Current"], -200, 200, percent = 20, dynamic = True, minIgnoreDelta = 5):
                         takeDataAndSendGlobal(interfaceName)
                 if "Prozent" in newMqttMessageDict["content"]:
-                    if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Prozent"], self.bmsWerte[interfaceName]["Prozent"], -1, 101):
+                    if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Prozent"], self.bmsWerte[interfaceName]["Prozent"], -1, 101, percent = 1, dynamic = True):
                         takeDataAndSendGlobal(interfaceName)
 
                 # if a toggle of toggleIfMsgSeen was seen we remember new value

@@ -19,8 +19,8 @@ class BaseHomeAutomation(Base.MqttBase.MqttBase):
         pass
 
     @classmethod
-    def getDiscoverySensorCmd(cls,  deviceName, sensorName, niceName = "", unit = "", topic : str = "") -> str:
-        return topic
+    def getDiscoverySensorCmd(cls,  deviceName, sensorName, niceName = "", unit = "", topic : str = "") -> dict:
+        return None
 
     @classmethod
     def getDiscoverySelectorTopic(cls, deviceName, sensorName):

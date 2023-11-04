@@ -11,7 +11,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     '''
 
     @classmethod
-    def _getFrindlyName(cls, deviceName, valueName):
+    def _getFrindlyName(cls, deviceName, valueName) -> str:
         """
         devicename: normally objectname
         valuename: normally keyname from a dict. "PvPower" will be converted to "Pv Power"
@@ -23,34 +23,34 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         return sensorName.replace(".", "")
 
     @classmethod
-    def _getValueTemplateInt(cls, name):
+    def _getValueTemplateInt(cls, name) -> str:
         return r"{{ value_json.%s | float|round(2) }}" %name
 
     @classmethod
-    def _getValueTemplateNonInt(cls, name):
+    def _getValueTemplateNonInt(cls, name) -> str:
         return r"{{ value_json.%s }}" %name
 
     @classmethod
-    def _getCmdTemplate(cls, name):
+    def _getCmdTemplate(cls, name) -> str:
         return r'{"%s": {{ value }} }' %name
 
     @classmethod
-    def _getPayloadOn(cls, name):
+    def _getPayloadOn(cls, name) -> str:
         return r'{"%s" : true}' %name
 
     @classmethod
-    def _getPayloadOff(cls, name):
+    def _getPayloadOff(cls, name) -> str:
         return r'{"%s" : false}' %name
 
     @classmethod
-    def prepareNameForTopicUse(cls, name):
+    def prepareNameForTopicUse(cls, name) -> str:
         forbiddenChar = [".","/"]
         for char in forbiddenChar:
             name = name.replace(char, "_")
         return name
 
     @classmethod
-    def _getUnitOfMeasurement(cls, valueName):
+    def _getUnitOfMeasurement(cls, valueName) -> str:
         units = {"W":["power"], "A":["curr", "battdischarge", "battcharge"], "KWh":["daily", "produ"], "V":["spannung", "voltage", "vmin", "vmax"], "%":["prozent"]}
         for unit in units:
             for segment in units[unit]:
@@ -60,7 +60,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
 
     @classmethod
-    def getDiscoverySensorTopic(cls, deviceName, sensorName):
+    def getDiscoverySensorTopic(cls, deviceName : str, sensorName : str) -> str:
         return f'homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config'
 
     @classmethod
@@ -109,11 +109,11 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
 
     @classmethod
-    def getDiscoverySelectorTopic(cls, deviceName : str, sensorName : str):
+    def getDiscoverySelectorTopic(cls, deviceName : str, sensorName : str) -> str:
         return f"homeassistant/select/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
-    def getDiscoverySelectorCmd(cls,  deviceName, optionList, niceName = ""):
+    def getDiscoverySelectorCmd(cls,  deviceName : str, optionList : str, niceName : str = "") -> dict:
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/switch/garden/config"
@@ -142,11 +142,11 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
 
     @classmethod
-    def getDiscoveryInputNumberSliderTopic(cls, deviceName, sensorName):
+    def getDiscoveryInputNumberSliderTopic(cls, deviceName : str, sensorName : str) -> str:
         return f"homeassistant/number/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
-    def getDiscoveryInputNumberSliderCmd(cls,  deviceName, sensorName, niceName = "", minVal = 0, maxVal = 100):
+    def getDiscoveryInputNumberSliderCmd(cls,  deviceName : str, sensorName : str, niceName : str = "", minVal = 0, maxVal = 100) -> dict:
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/number/garden/config"
@@ -178,11 +178,11 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
 
     @classmethod
-    def getDiscoverySwitchTopic(cls, deviceName, sensorName):
+    def getDiscoverySwitchTopic(cls, deviceName : str, sensorName : str) -> str:
         return f"homeassistant/switch/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
-    def getDiscoverySwitchCmd(cls,  deviceName, sensorName, niceName = ""):
+    def getDiscoverySwitchCmd(cls,  deviceName : str, sensorName : str, niceName : str = "") -> dict:
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/switch/garden/config"
@@ -211,7 +211,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
 
     @classmethod
-    def getDiscoverySwitchOptimisticStringCmd(cls,  deviceName, sensorName, onCmd, offCmd, niceName = ""):
+    def getDiscoverySwitchOptimisticStringCmd(cls,  deviceName : str, sensorName : str, onCmd : str, offCmd : str, niceName : str = "") -> dict:
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/switch/garden/config"
