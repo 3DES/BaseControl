@@ -393,11 +393,10 @@ class Supporter(object):
         if type(messageStringOrList) == str:
             messageStringOrList = [messageStringOrList]
         
+        printText += f"    # {datetime.now()} [{callerName}]\n"
+        
         for index, string in enumerate(messageStringOrList):
-            if index == 0:
-                printText += f"    [{callerName}]: {string}\n"
-            else:
-                printText += f"    {string}\n"
+                printText += f"      {string}\n"
                 
         for _ in range(borderSize):
             printText += f"    {marker * (printLength - 5)}"

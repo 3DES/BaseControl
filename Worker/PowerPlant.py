@@ -77,12 +77,12 @@ class PowerPlant(Worker):
     _MIN_GOOD_WEATHER_HOURS = 6     # it's good weather if forecasted sun hours are more than this value
     _HUNDRED_PERCENT = 100          # just to make magic numbers more readable
 
-    def setSkriptValues(self, keyOrDict, valueInCaseOfKey = None):
+    def setScriptValues(self, keyOrDict, valueInCaseOfKey = None):
         '''
         Every time a "self.scriptValues[]" is changed an mqtt message has to be sent out, so a centralized set method can also set the self.sendeMqtt flag
 
         @param keyOrDict            single key or dictionary containing several key/value pairs
-        @param valueInCaseOfDict    in case of keyOrDict is not as dictionary a value has to be given
+        @param valueInCaseOfDict    if keyOrDict is not a dictionary an extra value has to be given
         '''
         def setScriptValue(key, value):
             '''
@@ -128,15 +128,15 @@ class PowerPlant(Worker):
             if gridThreshold < accuThreshold:
                 # given thresholds different from already set ones?
                 if (self.scriptValues["schaltschwelleNetz"] != gridThreshold) or (self.scriptValues["schaltschwelleAkku"] != accuThreshold):
-                    self.setSkriptValues({"schaltschwelleNetz" : gridThreshold, "schaltschwelleAkku" : accuThreshold})
+                    self.setScriptValues({"schaltschwelleNetz" : gridThreshold, "schaltschwelleAkku" : accuThreshold})
 
         #SOC Schaltschwellen in Prozent
-        self.setSkriptValues({"schaltschwelleNetzLadenAus" : 12.0, "schaltschwelleNetzLadenEin" : 6.0, "MinSoc" : 10.0})
+        self.setScriptValues({"schaltschwelleNetzLadenAus" : 12.0, "schaltschwelleNetzLadenEin" : 6.0, "MinSoc" : 10.0})
         # todo Automatisch ermitteln
-        self.setSkriptValues({"verbrauchNachtAkku" : 25.0, "verbrauchNachtNetz" : 3.0, "AkkuschutzAbschalten" : self.scriptValues["schaltschwelleAkkuSchlechtesWetter"] + 15.0})
+        self.setScriptValues({"verbrauchNachtAkku" : 25.0, "verbrauchNachtNetz" : 3.0, "AkkuschutzAbschalten" : self.scriptValues["schaltschwelleAkkuSchlechtesWetter"] + 15.0})
 
         # self.scriptValues["AkkuschutzAbschalten"] must be between self.minAkkustandNacht() and 100%
-        self.setSkriptValues({
+        self.setScriptValues({
             "AkkuschutzAbschalten" : max(self.scriptValues["AkkuschutzAbschalten"], self.minAkkustandNacht()),   # ensure self.scriptValues["AkkuschutzAbschalten"] is not too small
             "AkkuschutzAbschalten" : min(self.scriptValues["AkkuschutzAbschalten"], self._HUNDRED_PERCENT)})     # ensure self.scriptValues["AkkuschutzAbschalten"] is not too large
 
@@ -149,15 +149,15 @@ class PowerPlant(Worker):
             setThresholds(self.scriptValues["MinSoc"], self.scriptValues["schaltschwelleAkkuTollesWetter"])
 
         if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == self._HUNDRED_PERCENT:
-            self.setSkriptValues("FullChargeRequired", False)
+            self.setScriptValues("FullChargeRequired", False)
         if self.scriptValues["FullChargeRequired"]:
-            self.setSkriptValues("schaltschwelleAkku", self._HUNDRED_PERCENT)
+            self.setScriptValues("schaltschwelleAkku", self._HUNDRED_PERCENT)
 
         # ensure "schaltschwelleNetz" is at least as large as "MinSoc"
-        self.setSkriptValues("schaltschwelleNetz", max(self.scriptValues["schaltschwelleNetz"], self.scriptValues["MinSoc"]))
+        self.setScriptValues("schaltschwelleNetz", max(self.scriptValues["schaltschwelleNetz"], self.scriptValues["MinSoc"]))
 
         # Wetter Sonnenstunden Schaltschwellen
-        self.setSkriptValues("wetterSchaltschwelleNetz", self._MIN_GOOD_WEATHER_HOURS)    # Einheit Sonnnenstunden
+        self.setScriptValues("wetterSchaltschwelleNetz", self._MIN_GOOD_WEATHER_HOURS)    # Einheit Sonnnenstunden
 
     def sendEffektaData(self, data, effektas):
         for inverter in effektas:
@@ -165,27 +165,27 @@ class PowerPlant(Worker):
 
     def schalteAlleWrAufAkku(self, effektas):
         self.sendEffektaData(EffektaController.getCmdSwitchToBattery(), effektas)
-        self.setSkriptValues({"WrMode" : self.AKKU_MODE, "WrNetzladen" : False})
+        self.setScriptValues({"WrMode" : self.AKKU_MODE, "WrNetzladen" : False})
 
     def schalteAlleWrAufNetzOhneNetzLaden(self, effektas):
         self.sendEffektaData(EffektaController.getCmdSwitchToUtility(), effektas)
-        self.setSkriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : False})
+        self.setScriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : False})
 
     def schalteAlleWrNetzLadenEin(self, effektas):
         self.sendEffektaData(EffektaController.getCmdSwitchUtilityChargeOn(), effektas)
-        self.setSkriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : True})
+        self.setScriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : True})
 
     def schalteAlleWrNetzLadenAus(self, effektas):
         self.sendEffektaData(EffektaController.getCmdSwitchUtilityChargeOff(), effektas)
-        self.setSkriptValues("WrNetzladen", False)
+        self.setScriptValues("WrNetzladen", False)
 
     def schalteAlleWrAufNetzMitNetzladen(self, effektas):
         self.sendEffektaData(EffektaController.getCmdSwitchToUtilityWithUvDetection(), effektas)
-        self.setSkriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : True})
+        self.setScriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : True})
 
     def schalteAlleWrNetzSchnellLadenEin(self, effektas):
         self.sendEffektaData(EffektaController.getCmdSwitchUtilityFastChargeOn(), effektas)
-        self.setSkriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : True})
+        self.setScriptValues({"WrMode" : self.NETZ_MODE, "WrNetzladen" : True})
 
     def resetSocMonitor(self):
         self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["socMonitorName"])), {"cmd":"resetSoc"}, globalPublish = False, enableEcho = False)
@@ -224,7 +224,7 @@ class PowerPlant(Worker):
             if not self.ResetSocSent:
                 self.resetSocMonitor()
                 # Wir setzen hier einen eventuellen Skript error zurück. Wenn der Inverter in Floatmode schaltet dann ist der Akku voll und der SOC Monitor auf 100% gesetzt
-                self.setSkriptValues("Error", False)
+                self.setScriptValues("Error", False)
             self.ResetSocSent = True
         else:
             self.ResetSocSent = False
@@ -287,7 +287,7 @@ class PowerPlant(Worker):
         )
         # @todo evtl überlegen ob es hier nicht sinnvoll ist, schalteRelaisAufNetz() aufzurufen. Dann schaltet die Anlage definiert um.
         self.currentMode = self.NETZ_MODE
-        self.setSkriptValues("NetzRelais", self.currentMode)
+        self.setScriptValues("NetzRelais", self.currentMode)
 
     def manageUtilityRelais(self):
         '''
@@ -316,7 +316,6 @@ class PowerPlant(Worker):
         STATE_1               || OFF          | ON         | OFF <<<  || switch inverter output voltages off now
         STATE_2               || OFF          | OFF <<<    | OFF      || back in "startup" state
         '''
-# REVIEW END
         # @TODO sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
         # Diese sollte aber bevor sie auf Netz schaltet in diesem Fall ca 1 min warten damit sich die Inverter synchronisieren können.
         def schalteRelaisAufNetz():
@@ -370,7 +369,7 @@ class PowerPlant(Worker):
                     if tmpglobalEffektaData["OutputVoltageHighOr"]:
                         # Durch das ruecksetzten von PowersaveMode schalten wir als nächstes wieder zurück auf PV.
                         # Wir wollen im Fehlerfall keinen inkonsistenten Schaltzustand der Anlage darum schalten wir die Umrichter nicht aus.
-                        self.setSkriptValues("PowerSaveMode", False)
+                        self.setScriptValues("PowerSaveMode", False)
                         self.aufNetzSchaltenErlaubt = False
                         # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zurück auf inverter geschaltet wenn kein Fehler am Inverter anliegt
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Wechselrichter konnte nicht abgeschaltet werden. Er hat nach Wartezeit immer noch Spannung am Ausgang! Die Automatische Netzumschaltung wurde deaktiviert.")
@@ -402,14 +401,11 @@ class PowerPlant(Worker):
                 # ensure that no inverter sees any output voltage, otherwise there is sth. wrong
                 if tmpglobalEffektaData["OutputVoltageHighOr"]:
                     self.modifyRelaisData(
-                        {
-                            # all these states are already expected but sth. is wrong and inverter output voltages are on, so try to switch off again
-                            self.REL_WR_1     : self.AUS,       # this should lead to a switch over to grid mode
-                        },
+                        # all these states are already expected but sth. is wrong and inverter output voltages are on, so try to switch off again
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
                             self.REL_PV_AUS   : self.AUS,
-                            self.REL_WR_1     : self.AUS,
+                            self.REL_WR_1     : self.AUS,       # this should lead to a switch over to grid mode
                         }
                     )
                     if self.timer(name = "timerToPv", timeout = 600, firstTimeTrue = True):
@@ -435,7 +431,7 @@ class PowerPlant(Worker):
                 if self.timer(name = "timeoutAcOut", timeout = 100, removeOnTimeout = True):                                # wait until inverter output voltages are ON and stable
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Wartezeit zu lange. Keine Ausgangsspannung am WR erkannt.")
                     # Wir schalten die Funktion aus
-                    self.setSkriptValues("PowerSaveMode", False)
+                    self.setScriptValues("PowerSaveMode", False)
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Die Automatische Netzumschaltung wurde deaktiviert.")
                     self.modifyRelaisData(
                         {
@@ -548,31 +544,30 @@ class PowerPlant(Worker):
                     self.errorTimerFinished = True
 
         # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
-        self.setSkriptValues("NetzRelais", self.currentMode)
+        self.setScriptValues("NetzRelais", self.currentMode)
 
 
-    def wetterPrognoseSchlecht(self, day : str) -> bool:
+    def wetterPrognoseSchlecht(self, day : str, switchingThreshold : int) -> bool:
         result = False
         if day in self.localDeviceData[self.configuration["weatherName"]]:
             if self.localDeviceData[self.configuration["weatherName"]][day] != None:
-                if self.localDeviceData[self.configuration["weatherName"]][day]["Sonnenstunden"] <= self.scriptValues["wetterSchaltschwelleNetz"]:
+                if self.localDeviceData[self.configuration["weatherName"]][day]["Sonnenstunden"] <= switchingThreshold:
                     result = True
-            else:
-                # todo macht hier keinen Sinn, error zyklisch mit timer schicken wenn dict leer ist
+            elif self.timer(name = "timerErrorPrint", timeout = 600, firstTimeTrue = True):
                 self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Keine Wetterdaten!")
         return result
 
 
-    def wetterPrognoseMorgenSchlecht(self):
+    def wetterPrognoseMorgenSchlecht(self, switchingThreshold : int):
         # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
         # Dazu wird geprüft wie das Wetter (Sonnenstunden) am nächsten Tag ist und dementsprechend früher oder später umgeschaltet.
         # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.
         # Die Prüfung ist nur Abends aktiv da man unter Tags eine andere Logik haben möchte.
         # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
-        return self.wetterPrognoseSchlecht("Tag_1")
+        return self.wetterPrognoseSchlecht("Tag_1", switchingThreshold)
 
-    def wetterPrognoseHeuteSchlecht(self):
-        return self.wetterPrognoseSchlecht("Tag_0")
+    def wetterPrognoseHeuteSchlecht(self, switchingThreshold : int):
+        return self.wetterPrognoseSchlecht("Tag_0", switchingThreshold)
 
 
     def minAkkustandNacht(self):
@@ -588,11 +583,11 @@ class PowerPlant(Worker):
         elif self.configuration["initModeEffekta"] == self.AKKU_MODE:
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
-            self.setSkriptValues("AutoMode", False)
+            self.setScriptValues("AutoMode", False)
         elif self.configuration["initModeEffekta"] == self.NETZ_MODE:
             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
             # we disable auto mode because user want to start up in special mode
-            self.setSkriptValues("AutoMode", False)
+            self.setScriptValues("AutoMode", False)
         else:
             raise Exception(f"Unknown initModeEffekta [{self.configuration['initModeEffekta']}] given! Check configurationFile!")
 
@@ -663,7 +658,7 @@ class PowerPlant(Worker):
                         message["content"][key] = int(message["content"][key])
                     try:
                         if type(message["content"][key]) == type(self.scriptValues[key]):
-                            self.setSkriptValues(key, message["content"][key])
+                            self.setScriptValues(key, message["content"][key])
                         else:
                             self.logger.error(self, "Wrong datatype globally received.")
                     except Exception as ex:
@@ -672,7 +667,7 @@ class PowerPlant(Worker):
             if message["content"] in self.manualCommands:
                 # if it is a dummy command. we do nothing
                 if message["content"] != self.dummyCommand:
-                    self.setSkriptValues("AutoMode", False)
+                    self.setScriptValues("AutoMode", False)
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf Manuell gestellt")
                     if message["content"] == "NetzSchnellLadenEin":
                         self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
@@ -691,7 +686,7 @@ class PowerPlant(Worker):
                     if key in self.localDeviceData: # Filter first run
                         # check FullChargeRequired from BMS for rising edge
                         if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]], message["content"], "FullChargeRequired"):
-                            self.setSkriptValues("FullChargeRequired", True)
+                            self.setScriptValues("FullChargeRequired", True)
                     else:
                         self.localDeviceData[key] = {}
                     # if a device sends partial data we have a problem if we copy the msg, so we update our dict instead
@@ -716,7 +711,7 @@ class PowerPlant(Worker):
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Starte PowerPlant!")
 
     def threadInitMethod(self):
-        self.publishAndLog(Logger.LOG_LEVEL.INFO, "---", logMessage = False)      # set initial value, don't log it!
+        self.publishAndLog(Logger.LOG_LEVEL.INFO,  "---", logMessage = False)     # set initial value, don't log it!
         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "---", logMessage = False)     # set initial value, don't log it!
 
         self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName"])
@@ -764,7 +759,7 @@ class PowerPlant(Worker):
         self.AKKU_MODE = "Akku"
         self.NETZ_MODE = "Netz"
         self.AUTO_MODE = "Auto"
-        self.PV_MODE = "Inverter"
+        self.PV_MODE   = "Inverter"
         self.OUTPUT_VOLTAGE_ERROR = "OutputVoltageError"
         self.TRANSFER_TO_INVERTER = "transferToInverter"
         self.TRANSFER_TO_NETZ     = "transferToNetz"
@@ -824,7 +819,7 @@ class PowerPlant(Worker):
 
             self.passeSchaltschwellenAn()
 
-            # do some initialization if this code position is reached for the first time during startup
+            # do some initialization during startup
             if not self.startupInitialization:
                 self.startupInitialization = True        # do startup initialization only once
                 self.addLinkedEffektaDataToHomeautomation()
@@ -836,17 +831,17 @@ class PowerPlant(Worker):
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] and not self.scriptValues["Error"]:
                 # Wir wollen erst prüfen ob das skript automatisch schalten soll.
                 if self.scriptValues["AutoMode"]:
-                    # todo self.setSkriptValues("Akkuschutz", False) Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
+                    # todo self.setScriptValues("Akkuschutz", False) Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
                     if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] > self.scriptValues["AkkuschutzAbschalten"]:
                         # above self.scriptValues["AkkuschutzAbschalten"] threshold then "Akkuschutz" is disabled
-                        self.setSkriptValues("Akkuschutz", False)
+                        self.setScriptValues("Akkuschutz", False)
 
                     # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag den Akkuschutz einschalten müssen. Der Akkuschutz schaltet auf einen höheren (einstellbar) SOC Bereich um.
                     if not self.scriptValues["Akkuschutz"]:
-                        if self.wetterPrognoseMorgenSchlecht() and (not self.akkuStandAusreichend()):
-                            if (17 <= now.hour < 23) or ((12 <= now.hour < 23) and self.wetterPrognoseHeuteSchlecht()):
+                        if self.wetterPrognoseMorgenSchlecht(self.scriptValues["wetterSchaltschwelleNetz"]) and (not self.akkuStandAusreichend()):
+                            if (17 <= now.hour < 23) or ((12 <= now.hour < 23) and self.wetterPrognoseHeuteSchlecht(self.scriptValues["wetterSchaltschwelleNetz"])):
                                 #self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                                self.setSkriptValues("Akkuschutz", True)
+                                self.setScriptValues("Akkuschutz", True)
                                 self.publishAndLog(Logger.LOG_LEVEL.INFO, "Sonnen Stunden < %ih -> schalte Akkuschutz ein." %self.scriptValues["wetterSchaltschwelleNetz"])
 
                     self.passeSchaltschwellenAn()
@@ -896,12 +891,12 @@ class PowerPlant(Worker):
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleNetzLadenAus"]:
                     # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenAus ausgelöst wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
                     self.NetzLadenAusGesperrt = True
-                    self.setSkriptValues("Akkuschutz", True)
+                    self.setScriptValues("Akkuschutz", True)
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, f'Ladestand fehlerhaft')
                 # wir setzen einen error weil das nicht plausibel ist und wir hin und her schalten sollte die freigabe wieder kommen
                 # wir wollen den Akku erst bis 100 P aufladen
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkkuTollesWetter"]:
-                    self.setSkriptValues("Error", True)
+                    self.setScriptValues("Error", True)
                     # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
                     if self.localDeviceData["linkedEffektaData"]["FloatingModeOr"] == True:
                         raise Exception(f'SOC: {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}, EntladeFreigabe: {self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]}, und FloatMode von Inverter aktiv! Unplausibel!') 

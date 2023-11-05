@@ -4,13 +4,34 @@
 ############################################
 # NOTES
 ######################
-# 1) for debugging ues "NOMAIL=1 ./pp.sh" to prevent mail sending!
-# 2) additional parameters can be given, e.g. "./pp.sh -f UsbRelaisInterfaceWd"
+# pp.sh parameters:
+#       NOMAIL ........ to prevent sending an email, e.g. for debugging
+#       MAX_BACKUPS ... default is 5 but can be changed if necessary
+#
+#       additional script parameters can be given after ./pp.sh
+#
+# examples:
+#       NOMAIL=1 ./pp.sh
+#       NOMAIL=1 ./pp.sh -f UsbRelaisInterfaceWd
+#       MAX_BACKUPS=10 NOMAIL=1 ./pp.sh -f UsbRelaisInterfaceWd
+#       MAX_BACKUPS=10 NOMAIL=1 ./pp.sh -f UsbRelaisInterfaceWd -s 20
+#       TURN=0; for TURN in {1..100}; do MAX_BACKUPS=100 NOMAIL=1 ./pp.sh -s 20; echo "turns so far $TURN"; sleep 100; done
+#
+# pp.sh variables (see SETTINGS section):
+#       SECRETS_FILE    file where secret values can be found, e.g. json/secure.sh
+#       MAX_BACKUPS     amount of backup copies of the error log until they will be deleted (a smaller value will not make remove backups with higher numbers!)
+#       EXECUTE         the powerplant script execution command with necessary parameters
+#
+# content of the SECRETS_FILE:
+#       ZIP_PASSWORD        ensure mail password doesn't contain a # sign
+#       SENDER_EMAIL        sender's mail address
+#       RECIPIENT_EMAIL     mail address of the recipient
+#       PROJECT_NAME        project name that will be used in the email subject and body
 ######################
 
 
 ############################################
-# ATTENTION!
+# ATTENTION
 ######################
 # mutt and some other necessary packages are needed
 #       sudo apt-get install ssmtp mailutils mutt
@@ -25,12 +46,6 @@
 #       UseSTARTTLS=YES
 #       UseTLS=YES
 #       AuthMethod=DIGEST-MD5
-# ensure mail password doesn't contain a # sign
-# ensure the secrets file contains
-#       ZIP_PASSWORD
-#       SENDER_EMAIL
-#       RECIPIENT_EMAIL
-#       PROJECT_NAME
 ######################
 
 
@@ -38,15 +53,18 @@
 # SETTINGS
 ######################
 SECRETS_FILE=json/secure.sh
-MAX_BACKUPS=5
+
+if [ -z $MAX_BACKUPS ]; then
+    MAX_BACKUPS=5
+fi
 
 # start parameters
 EXECUTE="__main__.py -w -l=5 -p=3 --json-dump"
 #EXECUTE="__main__.py -w -l=5 -p=3"
 #EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu #--json-dump"
 #EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu --json-dump"
-
 ############################################
+
 
 clear
 
@@ -69,7 +87,7 @@ echo "#####################################"
 python3 $EXECUTE
 
 # move all backup files to next index (MAX_BACKUP-1 overwrites MAX_BACKUP, there will be not more backup files than MAX_BACKUP)
-let newIndex=$MAX_BACKUPS-1
+let newIndex=${MAX_BACKUPS}-1
 while [ $newIndex -gt 1 ]; do
     let oldIndex=$newIndex-1
     if [ -e logger_${oldIndex}.7z ]; then
@@ -91,3 +109,4 @@ if [ -z "$NOMAIL" ]; then
 else
     echo sending mail DISABLED
 fi
+

@@ -175,7 +175,8 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             wdCommand = self.getCommand(cmd)
             self.serialWrite(wdCommand)
             response = self.serialReadLine()
-            #Supporter.debugPrint([f"{self.name}:", f"write {wdCommand}", f"read  {response}"], color = "GREEN")
+            self.lastCommunication = { "command" : wdCommand, "response" : response }
+            #Supporter.debugPrint(f"watch dog communication {self.lastCommunication}", color = "GREEN" if cmd[:1] != 'W' else "LIGHTBLUE_EX")
             procMsg = self.processMsg(Supporter.decode(response))
             if not "Error" in procMsg:
                 self.frameCounter +=1
@@ -321,8 +322,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         self.wdEverTriggered = True
         retval = self.sendRequest("W", "1")
         if not retval == "1":
+            watchDogCommunication = self.lastCommunication.copy()       # copy "W" communication, otherwise it will get lost with following "D" communication
             self.getAndLogDiagnosis()
-            raise Exception("Watchdog was not running after trigger, PowerPlant will be stopped! Watchdog seems to be in any error state and blocks reset pin for 1 minute, e.g. because PowerPlant has been stopped and Watchdog hasn't been retriggered, or self test failed, or there is any other reason why the watchdog cannot be reset.")
+            raise Exception(f"Watchdog was not running after trigger, PowerPlant will be stopped! Watchdog seems to be in any error state and blocks reset pin for 1 minute, e.g. because PowerPlant has been stopped and Watchdog hasn't been retriggered, or self test failed, or there is any other reason why the watchdog cannot be reset. {watchDogCommunication} / {self.lastCommunication}")
         return retval
 
     def clearWdRelay(self):
