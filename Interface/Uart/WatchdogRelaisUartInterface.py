@@ -166,7 +166,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 return {"Error":"E"}
 
     def processSerialCmd(self, cmd):
-        maxTries = 10
+        # In some cases it takes about 1 minute to reinit serial. Trying reinit longer than 1 minute is useless because the wd resets after this time automatically.
+        delayBetweenReinit = 5
+        maxTries = 20
         for tries in range(maxTries):
             if tries > 3:
                 self.logger.error(self, f"We try to reinit serial because there are many errors.")
@@ -203,7 +205,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.logger.error(self, f"We sent CMD: {wdCommand}, real framenumber would have been {self.frameCounter}")
                     self.getAndLogDiagnosis()
                 if delayNextRead:
-                    time.sleep(2)
+                    time.sleep(delayBetweenReinit)
         raise Exception("After few communication errors we stop Basecontrol")
 
     def sendCommand(self, command):

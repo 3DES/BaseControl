@@ -24,8 +24,9 @@ class Jbd485Interface(InterfaceBase):
 
         # detect falling edge
         if not chgFetState and self.old_dsg_fet_en:
-            self.old_dsg_fet_en = chgFetState
             self.chg_fet_disable_count += 1
+
+        self.old_dsg_fet_en = chgFetState
 
         # if 4 falling edges were detected we start a timer and deactivate chg fet
         if self.chg_fet_disable_count >= 4:
