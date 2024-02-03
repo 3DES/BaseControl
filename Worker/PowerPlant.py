@@ -59,6 +59,7 @@ class PowerPlant(Worker):
                     sends {"cmd":"resetSoc"} to SocMonitor if floatMode from inverter is set (rising edge)
             OutTopic:
                     {"BasicUsbRelais.gpioCmd":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}}
+                    {"BasicUsbRelais.gpioCmd":{"RelNichtHeizen": "0", "RelStufe1": "1", "RelStufe2": "0", "RelStufe3": "0"}}
     '''
 
 
@@ -547,6 +548,89 @@ class PowerPlant(Worker):
         self.setScriptValues("NetzRelais", self.currentMode)
 
 
+    def modifyExcessRelaisData(self, relais, value, sendValue = False):
+        self.localPowerRelaisData[BasicUsbRelais.gpioCmd].update({relais:value})
+        if sendValue:
+            self.sendRelaisData(self.localPowerRelaisData)
+
+    def initExcessPower(self):
+        self.relStufe = "RelStufe"
+        self.stufe1 = self.relStufe + "1"     # be carefull with renaming see L.437
+        self.stufe2 = self.relStufe + "2"
+        self.stufe3 = self.relStufe + "3"
+        self.relNichtHeizen = "RelNichtHeizen"
+        self.localPowerRelaisData = {BasicUsbRelais.gpioCmd:{self.stufe1: "unknown", self.stufe2: "unknown", self.stufe3: "unknown", self.relNichtHeizen: "unknown"}}
+        self.modifyExcessRelaisData(self.stufe1, self.aus)
+        self.modifyExcessRelaisData(self.stufe2, self.aus)
+        self.modifyExcessRelaisData(self.stufe3, self.aus)
+        self.modifyExcessRelaisData(self.relNichtHeizen, self.aus, True)
+        self.SkriptWerte["Load"] = 0
+        self.localLoad = 0
+        self.nichtHeizen = self.aus
+        self.sendeMqtt = True
+
+    def manageExcessPower(self):
+        # if we have excess power we manage in this funktion a 3 stage regulation appending on soc. If the power is to high we switch off individual load RelStufe 1..3 for L1..3. Wiring have to be correctly!
+        # we also manage a output which can block a heater if we calculate enougth power for this day (weather)
+        
+        #  'WrEffektaWest': {'Netzspannung': 231, 'AcOutSpannung': 231.6, 'AcOutPower': 0, 'PvPower': 0, 'BattCharge': 0, 'BattDischarge': 0, 'ActualMode': 'B', 'DailyProduction': 0.0, 'CompleteProduction': 0, 'BattCapacity': 30, 'De 
+        
+        updateRelaisTimerChanged = False
+        if self.SkriptWerte["AutoLoadControl"]:
+            now = datetime.datetime.now()
+            # If a overload Timer exists we delete it and remember that we have to send relaisData because they are eventually updated in following code
+            for loadIndex in range(1,4):
+                if self.timerExists(f"loadContolStage{loadIndex}"):
+                    self.timer(f"loadContolStage{loadIndex}", remove=True)
+                    updateRelaisTimerChanged = True
+
+            # calculate heater disable relais
+            if now.hour < self.configuration["HeaterWeatherControlledTime"] and not self.wetterPrognoseHeuteSchlecht(self.SkriptWerte["wetterSchaltschwelleHeizung"]):
+                self.nichtHeizen = self.ein
+            else:
+                self.nichtHeizen = self.aus
+
+            # calculate power stage appending on soc
+            if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 100:
+                self.localLoad = 3
+                for loadIndex in range(1,4):
+                    if not self.timerExists(f"loadContolStage{loadIndex}"):
+                        self.modifyExcessRelaisData(self.relStufe + str(loadIndex), self.ein)
+            # only switch off a higher load (falling soc)
+            elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 98 and self.localLoad == 3:
+                self.localLoad = 2
+                self.modifyExcessRelaisData(self.stufe3, self.aus)
+            elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 97 and self.localLoad == 2:
+                self.localLoad = 1
+                self.modifyExcessRelaisData(self.stufe2, self.aus)
+            elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= 96 and self.localLoad == 1:
+                self.localLoad = 0
+                self.modifyExcessRelaisData(self.stufe3, self.aus)
+                self.modifyExcessRelaisData(self.stufe2, self.aus)
+                self.modifyExcessRelaisData(self.stufe1, self.aus)
+        else:
+            self.localLoad = 0
+            self.modifyExcessRelaisData(self.stufe1, self.aus)
+            self.modifyExcessRelaisData(self.stufe2, self.aus)
+            self.modifyExcessRelaisData(self.stufe3, self.aus)
+            self.nichtHeizen = self.aus
+
+        # set timers and switch off load if power of a inverter is too high
+        for inverter in self.configuration["managedEffektas"]:
+            if self.localDeviceData[inverter]["AcOutPower"] > 2500 or self.localDeviceData[inverter]["ActualMode"] != "B":
+                loadIndex = str(self.configuration["managedEffektas"].index(inverter) + 1)        # loadIndex = (listIndex of controlled effektas from project.json) + 1
+                self.modifyExcessRelaisData(self.relStufe + loadIndex, self.aus)
+                self.timer(f"loadContolStage{loadIndex}", 5*60, setup=True)
+
+        # send new relais values and update skriptwerte
+        if self.SkriptWerte["Load"] != self.localLoad or updateRelaisTimerChanged:
+            self.SkriptWerte["Load"] = self.localLoad
+            self.sendRelaisData(self.localPowerRelaisData)
+            self.sendeMqtt = True
+        if self.nichtHeizen != self.localPowerRelaisData[BasicUsbRelais.gpioCmd][self.relNichtHeizen]:
+            self.modifyExcessRelaisData(self.relNichtHeizen, self.nichtHeizen, True)
+
+
     def wetterPrognoseSchlecht(self, day : str, switchingThreshold : int) -> bool:
         result = False
         if day in self.localDeviceData[self.configuration["weatherName"]]:
@@ -716,6 +800,7 @@ class PowerPlant(Worker):
 
         self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName"])
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
+        self.tagsIncluded(["HeaterWeatherControlledTime"], optional = True, default = 7)
         self.tagsIncluded(["inputs"], optional = True, default = [])
 
         # if there was only one module given for inputs convert it to a list
@@ -736,10 +821,10 @@ class PowerPlant(Worker):
         # init some variables
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "linkedEffektaData":{}, self.configuration["weatherName"]:{}}
         # init lists of direct setable values, sensors or commands
-        self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0}
-        self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter"}
-        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False}
-        self.sensors = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
+        self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0, "wetterSchaltschwelleHeizung":9}
+        self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
+        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True}
+        self.sensors = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": "", "Load":0}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
         self.dummyCommand = "NoCommand"
         self.manualCommands.append(self.dummyCommand)
@@ -771,6 +856,8 @@ class PowerPlant(Worker):
 
         # init TransferRelais to switch all Relais to initial position
         self.initTransferRelais()
+
+        self.initExcessPower()
 
 
         # subscribe global to own out topic to get old data and set timeout
@@ -818,6 +905,8 @@ class PowerPlant(Worker):
             now = datetime.datetime.now()
 
             self.passeSchaltschwellenAn()
+
+            self.manageExcessPower()
 
             # do some initialization during startup
             if not self.startupInitialization:
