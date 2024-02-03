@@ -230,6 +230,9 @@ class PowerPlant(Worker):
         else:
             self.ResetSocSent = False
 
+    def sendRelaisData(self, relaisData):
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), relaisData, globalPublish = False, enableEcho = False)
+
     def modifyRelaisData(self, relayStates = None, expectedStates = None) -> bool:
         '''
         Sets relay output values and publishes new states
@@ -260,7 +263,7 @@ class PowerPlant(Worker):
 
         # if any value has been changed publish an update message 
         if contentChanged:
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.localRelaisData, globalPublish = False, enableEcho = False)
+            self.sendRelaisData(self.localRelaisData)
 
         return checkResult
 
@@ -546,7 +549,6 @@ class PowerPlant(Worker):
 
         # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
         self.setScriptValues("NetzRelais", self.currentMode)
-
 
     def modifyExcessRelaisData(self, relais, value, sendValue = False):
         self.localPowerRelaisData[BasicUsbRelais.gpioCmd].update({relais:value})
