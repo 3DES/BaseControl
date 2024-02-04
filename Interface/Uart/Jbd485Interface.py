@@ -114,9 +114,8 @@ class Jbd485Interface(InterfaceBase):
             if self.timerExists("timeoutJbdRead"):
                 self.timer("timeoutJbdRead", remove=True)
             self.handleChargeFet(basicInfo["chg_fet_en"])
-        except Exception as e:
+        except:
             self.logger.error(self, f"Error reading {self.name} inteface.")
-            self.logger.error(self, e)
             if self.timer(name = "timeoutJbdRead", timeout = 60):
                 raise Exception(f'{self.name} connection to bms: {self.bmsName} is broken since 60s!')
 
