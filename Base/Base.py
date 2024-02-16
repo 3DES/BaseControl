@@ -1,8 +1,5 @@
 from Base.Supporter import Supporter
-import sys
 import Logger.Logger
-from nt import times
-from test.test_importlib.import_.test_fromlist import ReturnValue
 
 
 class Base(object):
@@ -164,7 +161,7 @@ class Base(object):
                 raise Exception("timer " + timerName + " cannot be deleted since it doesn't exist")
             else:
                 return None
-        
+
         # time exists and hasn't been deleted already, so delete it now
         if nameSpace[timerName] != None:
             nameSpace[timerName] = None   # "delete" timer

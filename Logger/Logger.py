@@ -368,10 +368,10 @@ class Logger(ThreadBase):
         }
 
         if type(method) == type(cls.LOG_LEVEL.DEBUG) and (method.value in LOG_LEVELS):
-            Supporter.debugPrint(f"1:redirect to {LOG_LEVELS[method.value]}")
+            #Supporter.debugPrint(f"redirect to {LOG_LEVELS[method.value]}")
             LOG_LEVELS[method.value].__get__(cls, cls)(sender, message, skip = 1)
         elif type(method) == str and (method in LOG_METHODS):
-            Supporter.debugPrint(f"2:redirect to {LOG_METHODS[method]}")
+            #Supporter.debugPrint(f"redirect to {LOG_METHODS[method]}")
             LOG_METHODS[method].__get__(cls, cls)(sender, message, skip = 1)
         else:
             raise Exception(f"given log level or method name is unknown {method}")

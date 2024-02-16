@@ -134,7 +134,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
     def threadLoop(self, event):
         '''
-        Thread loop started when thread is set up, it will run until self.killed 
+        Thread loop started when thread is set up, it will run until self.killed becomes True
         the method threadMethod() should not contain an endless loop since in that case overall monitoring and error handling will not work!
 
         Finally threadTearDownMethod() will be called to give the thread the possibility to clean up

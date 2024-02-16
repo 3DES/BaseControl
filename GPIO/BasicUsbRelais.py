@@ -177,7 +177,7 @@ class BasicUsbRelais(ThreadObject):
         '''
         Necessary since this thread supports SIMULATE flag
         '''
-        pass
+        pass    # nth. else to do here
 
 
     def threadMethod(self):

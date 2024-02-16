@@ -277,7 +277,7 @@ class PowerPlant(Worker):
 
         # if any value has been changed publish an update message 
         if contentChanged:
-            self.sendRelaisData(self.localRelaisData)
+            self.publishRelaisData(self.localRelaisData)
 
         return checkResult
 
@@ -585,17 +585,31 @@ class PowerPlant(Worker):
         # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
         self.setScriptValues("NetzRelais", self.currentMode)
 
-    def sendRelaisData(self, relaisData):
+    def publishRelaisData(self, relaisData : dict):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), relaisData, globalPublish = False, enableEcho = False)
 
-    def modifyExcessRelaisData(self, relais, value, sendValue = False):
-        self.localPowerRelaisData[BasicUsbRelais.gpioCmd].update({relais:value})
+    def modifyExcessRelaisData(self, relais : str, value : str, sendValue = False):
+        '''
+        Sets power relay state to given value, publish new values and gives information back if value has been changed or not
+        @param relais        relay it's value has to be changed
+        @param value         new value for given relay
+        @param sendValue     if True the relay values will be published
+        
+        @return        True if old value was different form given one, otherwise False
+        '''
+        oldValue = None
+        if relais in self.localPowerRelaisData[BasicUsbRelais.gpioCmd]:
+            oldValue = self.localPowerRelaisData[BasicUsbRelais.gpioCmd][relais]
+        self.localPowerRelaisData[BasicUsbRelais.gpioCmd][relais] = value
+
         if sendValue:
-            self.sendRelaisData(self.localPowerRelaisData)
+            self.publishRelaisData(self.localPowerRelaisData)
+
+        return oldValue != value
 
     def initExcessPower(self):
         self.relStufe = "RelStufe"
-        self.stufe1 = self.relStufe + "1"     # be carefull with renaming see L.437
+        self.stufe1 = self.relStufe + "1"
         self.stufe2 = self.relStufe + "2"
         self.stufe3 = self.relStufe + "3"
         self.relNichtHeizen = "RelNichtHeizen"
@@ -604,71 +618,78 @@ class PowerPlant(Worker):
         self.modifyExcessRelaisData(self.stufe2, self.AUS)
         self.modifyExcessRelaisData(self.stufe3, self.AUS)
         self.modifyExcessRelaisData(self.relNichtHeizen, self.AUS, True)
-        self.SkriptWerte["Load"] = 0
+        self.setScriptValues("Load", 0)
         self.localLoad = 0
         self.nichtHeizen = self.AUS
-        self.sendeMqtt = True
 
     def manageExcessPower(self):
         # if we have excess power we manage in this funktion a 3 stage regulation appending on soc. If the power is to high we switch off individual load RelStufe 1..3 for L1..3. Wiring have to be correctly!
         # we also manage a output which can block a heater if we calculate enougth power for this day (weather)
-        
+
         #  'WrEffektaWest': {'Netzspannung': 231, 'AcOutSpannung': 231.6, 'AcOutPower': 0, 'PvPower': 0, 'BattCharge': 0, 'BattDischarge': 0, 'ActualMode': 'B', 'DailyProduction': 0.0, 'CompleteProduction': 0, 'BattCapacity': 30, 'De 
 
-        updateRelaisTimerChanged = False
-        if self.SkriptWerte["AutoLoadControl"]:
-            now = datetime.datetime.now()
-            # If a overload Timer exists we delete it and remember that we have to send relaisData because they are eventually updated in following code
-            for loadIndex in range(1,4):
-                if self.timerExists(f"loadControlStage{loadIndex}"):
-                    self.timer(f"loadControlStage{loadIndex}", remove=True)
-                    updateRelaisTimerChanged = True
+        relayThresholds = sorted([96, 97, 98])                          # three thresholds means three supported relays, sorted because they are needed in ascending order!!!
+        relayNames      = (self.stufe1, self.stufe2, self.stufe3)       # names of the relays to be switched off at the given thresholds
+        inverters       = len(self.configuration["managedEffektas"])
+        rangeMaximum    = min(len(relayThresholds), len(relayNames))    # not more relays are supported than thresholds or relay names have been given
 
-            # calculate heater disable relais
-            if now.hour < self.configuration["HeaterWeatherControlledTime"] and not self.wetterPrognoseHeuteSchlecht(self.SkriptWerte["wetterSchaltschwelleHeizung"]):
+        # remember all inverters that are locked because of overload
+        inverterLocked = []
+
+        # set timers and switch off load if power of a inverter is too high
+        for inverterIndex, inverter in enumerate(self.configuration["managedEffektas"]):
+            if (self.localDeviceData[inverter]["AcOutPower"] > 2500) or (self.localDeviceData[inverter]["ActualMode"] != "B"):
+                self.timer(f"overloadedInverter{inverterIndex}", 5 * 60, reSetup = True)    # currently power delivery of this inverter is too high
+            inverterLocked.append((self.timerExists(f"overloadedInverter{inverterIndex}") is not None) and (not self.timer(f"overloadedInverter{inverterIndex}", removeOnTimeout = True)))
+
+        # auto control enabled?
+        if self.scriptValues["AutoLoadControl"]:
+            now = datetime.datetime.now()
+
+            # calculate heater disable relay
+            if now.hour < self.configuration["HeaterWeatherControlledTime"] and not self.wetterPrognoseHeuteSchlecht(self.scriptValues["wetterSchaltschwelleHeizung"]):
                 self.nichtHeizen = self.EIN
             else:
                 self.nichtHeizen = self.AUS
 
-            # calculate power stage appending on soc
+            # calculate power stage appending on SOC
             if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 100:
-                self.localLoad = 3
-                for loadIndex in range(1,4):
-                    if not self.timerExists(f"loadControlStage{loadIndex}"):
-                        self.modifyExcessRelaisData(self.relStufe + str(loadIndex), self.EIN)
-            # only switch off a higher load (falling soc)
-            elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 98 and self.localLoad == 3:
-                self.localLoad = 2
-                self.modifyExcessRelaisData(self.stufe3, self.AUS)
-            elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 97 and self.localLoad == 2:
-                self.localLoad = 1
-                self.modifyExcessRelaisData(self.stufe2, self.AUS)
-            elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= 96 and self.localLoad == 1:
-                self.localLoad = 0
-                self.modifyExcessRelaisData(self.stufe3, self.AUS)
-                self.modifyExcessRelaisData(self.stufe2, self.AUS)
-                self.modifyExcessRelaisData(self.stufe1, self.AUS)
+                # all available/supported relays should be switched ON if 100% has been reached
+                self.localLoad = rangeMaximum
+            else:
+                # switch to lower levels only, never switch up here!
+                for loadIndex in range(0, rangeMaximum):
+                    if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= relayThresholds[loadIndex]:
+                        self.localLoad = loadIndex
+                        break   # correct load index found so leave for-loop
         else:
+            # auto load control disabled, switch all heaters OFF
             self.localLoad = 0
-            self.modifyExcessRelaisData(self.stufe1, self.AUS)
-            self.modifyExcessRelaisData(self.stufe2, self.AUS)
-            self.modifyExcessRelaisData(self.stufe3, self.AUS)
             self.nichtHeizen = self.AUS
 
-        # set timers and switch off load if power of a inverter is too high
-        for inverter in self.configuration["managedEffektas"]:
-            if self.localDeviceData[inverter]["AcOutPower"] > 2500 or self.localDeviceData[inverter]["ActualMode"] != "B":
-                loadIndex = str(self.configuration["managedEffektas"].index(inverter) + 1)        # loadIndex = (listIndex of controlled effektas from project.json) + 1
-                self.modifyExcessRelaisData(self.relStufe + loadIndex, self.AUS)
-                self.timer(f"loadControlStage{loadIndex}", 5*60, setup=True)
+        updateRelaisTimerChanged = False
 
-        # send new relais values and update skriptwerte
-        if self.SkriptWerte["Load"] != self.localLoad or updateRelaisTimerChanged:
-            self.SkriptWerte["Load"] = self.localLoad
-            self.sendRelaisData(self.localPowerRelaisData)
-            self.sendeMqtt = True
-        if self.nichtHeizen != self.localPowerRelaisData[BasicUsbRelais.gpioCmd][self.relNichtHeizen]:
-            self.modifyExcessRelaisData(self.relNichtHeizen, self.nichtHeizen, True)
+        # iterate over all relays and switch OFF not needed and not supported ones
+        activeLoads = 0   # count activated loads
+        for loadIndex in range(0, len(relayNames)):
+            if (activeLoads < self.localLoad) and (loadIndex < rangeMaximum) and (loadIndex < len(inverterLocked)) and (not inverterLocked[loadIndex]):
+                # more relays need to be switched ON
+                # more relays available to be switched ON
+                # more inverters are available so their referring relays can be switched ON
+                # current inverter is not locked because of overload
+                # -> then switch the referring relay ON
+                updateRelaisTimerChanged = updateRelaisTimerChanged or self.modifyExcessRelaisData(relayNames[loadIndex], self.EIN)
+                activeLoads += 1  # one more load activated
+            else:
+                # in all other cases switch referring relay OFF (relay must exist since we iterate over given relay names)
+                updateRelaisTimerChanged = updateRelaisTimerChanged or self.modifyExcessRelaisData(relayNames[loadIndex], self.AUS)
+
+        updateRelaisTimerChanged = updateRelaisTimerChanged or self.modifyExcessRelaisData(self.relNichtHeizen, self.nichtHeizen)
+
+        # send new relay values and update scriptValues
+        if updateRelaisTimerChanged:
+            self.setScriptValues("Load", self.localLoad)
+            self.publishRelaisData(self.localPowerRelaisData)
 
 
     def wetterPrognoseSchlecht(self, day : str, switchingThreshold : int) -> bool:
@@ -840,7 +861,7 @@ class PowerPlant(Worker):
 
         self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName"])
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
-        self.tagsIncluded(["HeaterWeatherControlledTime"], optional = True, default = 7)
+        self.tagsIncluded(["HeaterWeatherControlledTime"], optional = True, default = 7)        # never heat before 7 o'clock in the morning
         self.tagsIncluded(["inputs"], optional = True, default = [])
 
         # if there was only one module given for inputs convert it to a list

@@ -94,7 +94,7 @@ class MeanWellNPBUartInterface(SLCanUartInterface):
             raise Exception(f"no Meanwell chargers found")
         if len(self.foundDevices) > 1:
             raise Exception(f"more than one Meanwell charger found, that's currently not supported")
-        Supporter.debugPrint(f"found device addresses: {self.foundDevices}")
+        self.logger.info(self, f"found Meanwell charger at addresses: {self.foundDevices}")
 
 
 #    def threadBreak(self):

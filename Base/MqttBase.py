@@ -589,6 +589,7 @@ class MqttBase(Base):
         if nameDict is None:
             nameDict = {}
 
+        # default is is the name variable in the caller object if nth. else has been given
         if senderName is None:
             senderName = senderObj.name
 
@@ -611,7 +612,7 @@ class MqttBase(Base):
         else:
             nameList = sensors
 
-        Supporter.debugPrint(f"discover sensor called: [{senderName}] [{topic}] [{nameList}]", color = "blue")
+        #Supporter.debugPrint(f"discover sensor called: [{senderName}] [{topic}] [{nameList}]", color = "blue")
 
         for key in nameList:
             niceName = ""

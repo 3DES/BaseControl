@@ -400,12 +400,16 @@ class MeanWellNPB(ThreadObject):
         for stateName in self.STATUS_ELEMENTS.keys():
             valueName = self.CAN_COMMANDS[stateName]["valueName"]
             if valueName in chargingData:
-                if (previousData is None) or (valueName not in previousData):
-                    # element not contained in previous data so the whole entry is new
-                    handleStateBits(self.STATUS_ELEMENTS[stateName], int(chargingData[valueName], 16))
-                elif chargingData[valueName] != previousData[valueName]:
-                    # element in previous and current data but content has changed
-                    handleStateBits(self.STATUS_ELEMENTS[stateName], int(chargingData[valueName], 16), int(previousData[valueName], 16))
+                if len(chargingData[valueName]):
+                    if (previousData is None) or (valueName not in previousData):
+                        # element not contained in previous data so the whole entry is new
+                        Supporter.debugPrint(f"{self.STATUS_ELEMENTS[stateName]}, {chargingData[valueName]}", color = "RED", borderSize = 0)
+                        handleStateBits(self.STATUS_ELEMENTS[stateName], int(chargingData[valueName], 16))
+                    elif chargingData[valueName] != previousData[valueName]:
+                        # element in previous and current data but content has changed
+                        handleStateBits(self.STATUS_ELEMENTS[stateName], int(chargingData[valueName], 16), int(previousData[valueName], 16))
+                else:
+                    raise Exception(f"got invalid chargingData, it contains key valueName but value is empty")
             else:
                 #raise Exception(f"got invalid charging data dictionary, missing {valueName} entry")
                 pass

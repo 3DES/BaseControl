@@ -83,11 +83,6 @@ class EasyMeterUartInterface(BasicUartInterface):
                 # in case of communication problems show the formatted SML data
                 #EasyMeter.processBuffer(message)
 
-                break
-
-            if published:
-                break
-
         return published
 
 
@@ -108,8 +103,10 @@ class EasyMeterUartInterface(BasicUartInterface):
 
     def threadMethod(self):
         #Supporter.debugPrint(f"search data")
+
         # get real values from easy meter
         published = self.readAndPublishData()
+
         #if published:
         #    Supporter.debugPrint(f"published [{published}] messages")
 

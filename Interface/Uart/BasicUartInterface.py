@@ -110,8 +110,8 @@ class BasicUartInterface(InterfaceBase):
     
             if dump:
                 Supporter.debugPrint(f"serial dump [{Supporter.hexCharDump(self.receivedData, ' ')}]")
-        except Exception as ex:
-            self.logger.warning(self, f"Exception caught in flush method: {ex}")
+        except Exception as exception:
+            self.logger.warning(self, f"Exception caught in flush method: {exception}")
 
         self.receivedData = b""
 
@@ -169,8 +169,8 @@ class BasicUartInterface(InterfaceBase):
                     # if timeout has been given check if time is over (this works also if timeout was 0 and self.configuration["timeout"] was also 0)
                     self.logger.debug(self, f"timeout {len(self.receivedData)} {timeout} {self.receivedData}")
                     break       # leave loop because of timeout
-        except Exception as ex:
-            self.logger.warning(self, f"Exception caught in serialRead method: {ex}, re-init serial")
+        except Exception as exception:
+            self.logger.warning(self, f"Exception caught in serialRead method: {exception}, re-init serial")
             self.reInitSerial()
 
         if dump:
@@ -182,15 +182,15 @@ class BasicUartInterface(InterfaceBase):
     def serialReset_input_buffer(self):
         try: 
             self.serialConn.reset_input_buffer()
-        except Exception as e:
-            self.logger.error(self, f"Could not reset_input_buffer from serial {self.name}, Error: {e}")
+        except Exception as exception:
+            self.logger.error(self, f"Could not reset_input_buffer from serial {self.name}, Error: {exception}")
 
 
     def serialReset_output_buffer(self):
         try:
             self.serialConn.reset_output_buffer()
-        except:
-            self.logger.error(self, f"Could not reset_output_buffer from serial {self.name}, Error: {e}")
+        except Exception as exception:
+            self.logger.error(self, f"Could not reset_output_buffer from serial {self.name}, Error: {exception}")
 
 
     def threadInitMethod(self):
@@ -199,9 +199,9 @@ class BasicUartInterface(InterfaceBase):
             try:
                 self.serialInit()
                 break
-            except Exception as e:
+            except Exception as exception:
                 time.sleep(2)
-                self.logger.error(self, f'Serial connection --{self.configuration["interface"]}-- init. {tries + 1} of {self.MAX_INIT_TRIES} failed. Error:{e}')
+                self.logger.error(self, f'Serial connection --{self.configuration["interface"]}-- init. {tries + 1} of {self.MAX_INIT_TRIES} failed. Error:{exception}')
             tries += 1
         if tries >= self.MAX_INIT_TRIES:
             raise Exception(f'Serial connection --{self.configuration["interface"]}-- could not established')
