@@ -49,6 +49,7 @@ class BasicBms(ThreadObject):
         '''
         super().__init__(threadName, configuration)
         self.tagsIncluded(["parameters"], optional = True, default = {})
+        self.tagsIncluded(["balancingHysteresisTime"], optional = True, default = 600)
 
     def getSocMonitorTopic(self):
         return self.createOutTopic(self.getObjectTopic(self.configuration["socMonitor"]))
@@ -56,8 +57,9 @@ class BasicBms(ThreadObject):
     def allDevicesPresent(self):
         return self.numOfDevices == len(list(self.bmsWerte))
 
-    def clearWatchdog(self):
+    def clearWatchdog(self, exceptionMessage : str):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), {"cmd":"clearWdRelay"}, globalPublish = False, enableEcho = False)
+        raise Exception(exceptionMessage)
 
     def mergeBmsData(self):
         # this funktion merges all data from all bms interfaces to self.globalBmsWerte["merged"]
@@ -127,7 +129,6 @@ class BasicBms(ThreadObject):
         if len(fullChargeReqList):
             self.globalBmsWerte["merged"]["FullChargeRequired"] = any(fullChargeReqList)
 
-
     def triggerWatchdog(self):
         # this function checks all bms toggleSeen bits, this bit was set from threadMethod if interface toggled the bit toggleIfMsgSeen.
         # if toggleSeen bits from all interfaces are set,  we send a trigger msg to given watchdog usb relay and we toggle the output bit toggleIfMsgSeen in self.globalBmsWerte["merged"]
@@ -150,13 +151,58 @@ class BasicBms(ThreadObject):
             for interfaceName in list(self.bmsWerte):
                 self.bmsWerte[interfaceName]["toggleSeen"] = False
 
-    def updateBalancerRelais(self, value):
-        # this function remembers the old relay value and set a new one
-        if not "relBalance" in self.globalBmsWerte["calc"]:
-            self.globalBmsWerte["calc"]["relBalance"] = "0"
-        if value != self.globalBmsWerte["calc"]["relBalance"] and self.allDevicesPresent():
-            self.globalBmsWerte["calc"]["relBalance"] = value
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance":str(value)}}, globalPublish = False, enableEcho = False)
+    def setBalancerState(self, balancing : bool):
+        '''
+        Gets balancing state and checks if it has to be taken over (since state changed) and if it can be taken over (since hysteresis timer timed out)
+        Hysteresis timer is handled what means it is triggered as long as the state doesn't change or if the method has been called for the first time (= no hysteresis timer exists)
+        A new state must be seen for the whole time until hysteresis time times out to be taken over, short state switches will be ignored completely. 
+
+        @param balancing    new balancing state
+
+                      ^
+                      |A    _______ C      _ E __ G
+                vBal -|____/B      \______/D\_/F \__vMax_
+                      |                                  
+                      |  _______  ______  _______________
+          hysteresis -|*/TTT    \/TT    \/T  TT   TTTTTTT
+                      |                                  
+                      |           _______                
+            balancer -|*\________/       \_______________
+                      |                                  
+                     -+-----------------------------------> t
+                      |         12      34        5
+        
+               * = unclear state
+               T = hysteresis timer is retriggered (that's the case when balancer state is already in correct state what means ON for vMax > vBal and OFF for vMax < vBal)
+        
+               A: wihtout any restrictions it's assumed that vMax < vBal, since before any value has been read the initialization will cause a switch from 1 to 0
+                  this will cause the hystersis timer to be started
+               B: vMax becomes larger than vBal but hysteresis timer is still active so no state switch
+               1: hysteresis timer timed out
+               2: vMax > vBal, balancing is started, hysteresis timer is re-started
+               C: vMax < vBal ignored while hysteresis timer is running
+               3: hysteresis timer timed out
+               4: vMax < vBal, balancing is stopped, hysteresis timer is re-started
+               D: vMax > vBal ignored while hysteresis timer is running
+               E: vMax < vBal, hysteresis timer is re-triggered
+               F: vMax > vBal ignored while hysteresis timer is running
+               G: vMax < vBal, hysteresis timer is re-triggered        
+        '''
+        if (balancing != self.globalBmsWerte["calc"]["relBalance"]) and self.allDevicesPresent():
+            # if there is no timer running or last started timer timed out already, take the new balancing state, otherwise ignore it
+            if not self.timerExists("balancingHysteresis") or self.timer(name = "balancingHysteresis"):
+                # take over new balancing state and send broadcast message out
+                self.globalBmsWerte["calc"]["relBalance"] = balancing
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "1" if balancing else "0"}}, globalPublish = False, enableEcho = False)
+
+                # (re-)setup hysteresis timer since new balancing state has been taken over and hasn't to be changed for a minimum time of 10 minutes 
+                self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
+            else:
+                # waiting for hysteresis timer timed out until change will be taken over
+                pass
+        else:
+            # (re-)setup hysteresis timer since current balancing state has been confirmed again
+            self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
 
     def checkAllBmsData(self):
         # this funktion checks all merged data with given vmin, vmax and timerVmin and writes result to self.globalBmsWerte["calc"]
@@ -190,11 +236,12 @@ class BasicBms(ThreadObject):
                 raise Exception("Parameter vMax given but not vMin!")
             if "Vmax" in self.globalBmsWerte["merged"]:
                 if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vMax"]:
-                    self.globalBmsWerte["calc"]["VmaxOk"] = False 
+                    self.globalBmsWerte["calc"]["VmaxOk"] = False
+
+                    # there is a hard coded timeout value for vMax of 10 seconds!
                     if self.timer(name = "timerVmax", timeout = 10):
                         self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = False
-                        self.clearWatchdog()
-                        raise Exception(f"CellVoltage exceeds given voltage: {self.configuration['parameters']['vMax']}V for 10s.")
+                        self.clearWatchdog(f"CellVoltage exceeds given voltage: {self.configuration['parameters']['vMax']}V for 10s.")
                 else:
                     self.globalBmsWerte["calc"]["VmaxOk"] = True
                     self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
@@ -206,21 +253,21 @@ class BasicBms(ThreadObject):
 
         # now calculate Balancer Relais
         if "vBal" in self.configuration["parameters"] and "Vmax" in self.globalBmsWerte["merged"]:
-            if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vBal"]:
-                self.updateBalancerRelais("1")
-            else:
-                self.updateBalancerRelais("0")
+            self.setBalancerState(self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vBal"])
 
         self.triggerWatchdog()      # At least if we called mergeBmsData(), checkAllBmsData() we will call triggerWatchdog() to ensure that all merge code was called
 
     def threadInitMethod(self):
         self.tagsIncluded(["socMonitor"], optional = True)
-        self.globalBmsWerte = {"merged":{"toggleIfMsgSeen":False}, "calc":{"BmsEntladeFreigabe":False, "BmsLadeFreigabe":False}}
         self.bmsWerte = {}                                  # local Bms interface data from each interface stored in its interface key
         self.numOfDevices = len(self.interfaceInTopics)
         if self.configuration["socMonitor"] is not None:
             self.mqttSubscribeTopic(self.getSocMonitorTopic(), globalSubscription = False)
             self.numOfDevices += 1
+
+        # initialize global BMS values
+        self.globalBmsWerte = {"merged":{"toggleIfMsgSeen":False}, "calc":{"BmsEntladeFreigabe":False, "BmsLadeFreigabe":False, "relBalance":True}}
+        self.setBalancerState(False)      # initially switch balancing OFF (was initialized with True and is now set to False to ensure a mqtt message will be sent and hysteresis timer is started)
 
     def threadMethod(self):
         def takeDataAndSendGlobal(interfaceName):

@@ -112,9 +112,20 @@ class Crc(object):
 
     @classmethod
     def twoBytesToWord(cls, string : bytes, bigEndian : bool = False):
+        '''
+        Converts 2-characters byte string into a 16 bit value
+        
+        @param string     byte string containing the data to be converted
+        @param bigEndian  endianess to be used
+        @return           converted 16 bit value
+        '''
+        # usually it's expected that string is a byte string and, therefore, doesn't need to be converted with ord()
+        # if type(string) == str:
+        #     string[0] = ord(string[0])
+        #     string[1] = ord(string[1])
         if bigEndian:
-            return (ord(string[0:1]) << 8) | ord(string[1:2])
+            return ((string[0] << 8) | string[1])
         else:
-            return (ord(string[1:2]) << 8) | ord(string[0:1])
+            return ((string[1] << 8) | string[0])
 
 

@@ -4,8 +4,8 @@ import time
 
 
 import Base
-import Base.MqttBase   # prevent circular import!
 import Logger.Logger        # prevent circular import!
+import Base.MqttBase        # prevent circular import!
 from Base.Supporter import Supporter 
 
 
@@ -99,7 +99,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
     def installMqttRxQueueEmptyMonitor(self):
         self.mqttRxQueue.empty = self.mqttRxQueueEmptyDecorator(self.mqttRxQueue.empty)
-        self.logger.debug(self.name, f"installed self.mqttRxQueue.empty monitor")
+        self.logger.debug(self, f"installed self.mqttRxQueue.empty monitor")
 
 
     def removeMqttRxQueue(self):
@@ -127,23 +127,23 @@ class ThreadBase(Base.MqttBase.MqttBase):
             # thread doesn't read its mqttRxQueue, so let's check if anybody sends stuff to it
             if not self.mqttRxQueue.empty():
                 while not self.mqttRxQueue.empty():
-                    self.logger.debug(self.name, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
-            self.logger.debug(self.name, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
+                    self.logger.debug(self, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
+            self.logger.debug(self, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
             raise Exception(f"{self.name}({self.__class__.__name__}) hasn't called self.mqttRxQueue.get() or self.mqttRxQueue.empty() and got True, what is not allowed! Either delete self.mqttRxQueue or set self._mqttRxQueueGetIgnoreOnce to True each time it cannot be read")
 
 
     def threadLoop(self, event):
         '''
-        Thread loop started when thread is set up
-        it will wait until xxx has been called and it will end when xxx has been called
+        Thread loop started when thread is set up, it will run until self.killed 
         the method threadMethod() should not contain an endless loop since in that case overall monitoring and error handling will not work!
 
-        Finally threadMethod() will be called to give the thread the possibility to clean up
+        Finally threadTearDownMethod() will be called to give the thread the possibility to clean up
         '''
         self.logger.trace(self, "thread loop started")
         # first of all execute thread init method once
         try:
             self.threadInitMethod()             # call init method for the case the thread has sth. to set up
+            self.threadSummulationSupport()     # checks if simulation mode is supported in case "SIMULATE" flag has been set in init file, has to be overwritten by every thread and interface that supports simulation mode since otherwise SIMULATE flag cause an exception!
         except Exception as exception:
             # beside explicitly exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -157,7 +157,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         if hasattr(self, "mqttRxQueue"):
             self.installMqttRxQueueEmptyMonitor()
         else:
-            self.logger.debug(self.name, f"didn't install self.mqttRxQueue.empty monitor since self.mqttRxQueue has already been removed")
+            self.logger.debug(self, f"didn't install self.mqttRxQueue.empty monitor since self.mqttRxQueue has already been removed")
 
 
         # execute thread loop until thread gets killed
@@ -232,6 +232,15 @@ class ThreadBase(Base.MqttBase.MqttBase):
         self.logger.info(self, "thread init method called")
 
 
+    def threadSummulationSupport(self):
+        '''
+        To be overwritten in case thread or interface supports SIMULATE flag
+        otherwise SIMULATE flag is not allowed to be set!
+        '''
+        if self.toSimulate():
+            raise Exception(f"{self.name}: SIMULATE not yet implemented") 
+
+
     def threadTraceMethod(self):
         self.logger.trace(self, self.name + " : loop turn")
 
@@ -294,6 +303,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         # join all stopped workers
         for thread,threadObject in sorted(threadsToJoin.items()):
+            # @todo eigentlich sollte nicht Logger.Logger.Logger.message verwendet werden sondern Logger.Logger.Logger.get_logger().message!!! Das gilt systemweit!!!
             Logger.Logger.Logger.message(Logger.Logger.Logger.LOG_LEVEL.INFO, cls, f"joining {thread}")
             threadObject.join(Base.Base.Base.JOIN_TIME)     # join all stopped threads
             time.sleep(0)                                   # give the logger task the chance to clear its queue content

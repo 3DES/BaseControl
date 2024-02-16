@@ -137,7 +137,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         message = message.ljust(24, "0")
         message_bytes = bytearray.fromhex(message)
         message_bytes += self._calc_checksum(message_bytes)
-        self.logger.debug(self.name, f"sent cmd:[{command}] message:[{message_bytes.hex()}]")
+        self.logger.debug(self, f"sent cmd:[{command}] message:[{message_bytes.hex()}]")
         return message_bytes
 
 
@@ -165,20 +165,20 @@ class DalyBmsUartInterface(BasicUartInterface):
             
             # there are a lot of failed communications so only show a warning if three or more in a row failed, otherwise show an info message
             if self.readRequestFailed[command] >= self.WARNING_THRESHOLD:
-                self.logger.warning(self.name, f'command [{command}] failed {self.readRequestFailed[command]} times')
+                self.logger.warning(self, f'command [{command}] failed {self.readRequestFailed[command]} times')
             else:
-                self.logger.debug(self.name, f'command [{command}] failed {self.readRequestFailed[command]} time(s)')
+                self.logger.debug(self, f'command [{command}] failed {self.readRequestFailed[command]} time(s)')
 
             return False
         else:
             if command in self.readRequestFailed and self.readRequestFailed[command]:
                 if self.readRequestFailed[command] >= self.WARNING_THRESHOLD:
-                    self.logger.warning(self.name, f'command [{command}] passed again after {self.readRequestFailed[command]} fails')
+                    self.logger.warning(self, f'command [{command}] passed again after {self.readRequestFailed[command]} fails')
                 else:
-                    self.logger.debug(self.name, f'command [{command}] passed again after {self.readRequestFailed[command]} fail(s)')
+                    self.logger.debug(self, f'command [{command}] passed again after {self.readRequestFailed[command]} fail(s)')
             self.readRequestFailed[command] = 0
 
-        self.logger.debug(self.name, f'command [{command}], request [{response_data}]')
+        self.logger.debug(self, f'command [{command}], request [{response_data}]')
         return response_data
 
 
@@ -191,11 +191,11 @@ class DalyBmsUartInterface(BasicUartInterface):
         # prepare message
         message_bytes = self._format_message(command, extra=extra)
 
-        self.logger.debug(self.name, f"serial write [{message_bytes}]")
+        self.logger.debug(self, f"serial write [{message_bytes}]")
 
         # send message
         if not self.serialWrite(message_bytes):
-            self.logger.error(self.name, f"serial write failed for command [{command}]")
+            self.logger.error(self, f"serial write failed for command [{command}]")
             return False
 
         response_data = []
@@ -206,7 +206,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             if Supporter.getSecondsSince(startTime) > timeout:
                 message = f"response timeout ({timeout}s), cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
                 #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
-                self.logger.debug(self.name, message)
+                self.logger.debug(self, message)
                 response_data = []
                 break
 
@@ -214,7 +214,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             if not (receivedBytes := self.serialRead(length = RESPONSE_LENGTH, timeout = timeout)):
                 continue
 
-            self.logger.debug(self.name, f"loop {responses}, received [{receivedBytes.hex()}], length {len(receivedBytes)}, cmd = {command}, received so far: {response_data} ({responses}/{max_responses})")
+            self.logger.debug(self, f"loop {responses}, received [{receivedBytes.hex()}], length {len(receivedBytes)}, cmd = {command}, received so far: {response_data} ({responses}/{max_responses})")
 
             # validate checksum
             response_checksum = self._calc_checksum(receivedBytes[:-1])
@@ -222,7 +222,7 @@ class DalyBmsUartInterface(BasicUartInterface):
                 deltaSleep = timeout - Supporter.getSecondsSince(startTime)
                 message = f"response checksum mismatch: {response_checksum.hex()} != {receivedBytes[-1:].hex()}, last package = [{receivedBytes}], cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
                 #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
-                self.logger.debug(self.name, message)
+                self.logger.debug(self, message)
                 response_data = []
                 # error wait for timeout then leave
                 time.sleep(deltaSleep)
@@ -234,7 +234,7 @@ class DalyBmsUartInterface(BasicUartInterface):
                 deltaSleep = timeout - Supporter.getSecondsSince(startTime)
                 message = f"invalid header {header}: wrong command ({header[4:6]} != {command}), last package = [{receivedBytes}], cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
                 #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
-                self.logger.debug(self.name, message)
+                self.logger.debug(self, message)
                 response_data = []
                 # error wait for timeout then leave
                 time.sleep(deltaSleep)
@@ -245,7 +245,7 @@ class DalyBmsUartInterface(BasicUartInterface):
                 deltaSleep = timeout - Supporter.getSecondsSince(startTime)
                 message = f"invalid message length {len(receivedBytes)}, last package = [{receivedBytes}], cmd = {command}, received so far: {response_data} ({responses}/{max_responses})"
                 #Supporter.debugPrint(message, color = "LIGHTBLUE_EX")
-                self.logger.debug(self.name, message)
+                self.logger.debug(self, message)
                 response_data = []
                 # error wait for timeout then leave
                 time.sleep(deltaSleep)
@@ -366,7 +366,7 @@ class DalyBmsUartInterface(BasicUartInterface):
 
     def _calc_num_responses(self, status_field, num_per_frame):
         if not self.status:
-            self.logger.error(self.name, "get_status has to be called at least once before calling get_cell_voltages")
+            self.logger.error(self, "get_status has to be called at least once before calling get_cell_voltages")
             return False
 
         # each response message includes 3 cell voltages
@@ -377,7 +377,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             elif status_field == 'temperatures':
                 max_responses = 1   # 16S BMS sends only one frame, originally this was 3!?
             else:
-                self.logger.error(self.name, "unkonwn status_field %s" % status_field)
+                self.logger.error(self, "unkonwn status_field %s" % status_field)
                 return False
         else:
             # via UART/USB the BMS returns only frames that have data
@@ -391,7 +391,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         for response_bytes in response_data:
             parts = struct.unpack(structure, response_bytes)
             if parts[0] != x:
-                self.logger.warning(self.name, "frame out of order, expected %i, got %i" % (x, response_bytes[0]))
+                self.logger.warning(self, "frame out of order, expected %i, got %i" % (x, response_bytes[0]))
                 continue
             for value in parts[1:]:
                 values[len(values) + 1] = value
@@ -430,23 +430,23 @@ class DalyBmsUartInterface(BasicUartInterface):
         if not (response_data := self._read_request("97")):
             return False
 
-        self.logger.debug(self.name, response_data.hex())
+        self.logger.debug(self, response_data.hex())
         bits = bin(int(response_data.hex(), base=16))[2:].zfill(48)
-        self.logger.debug(self.name, bits)
+        self.logger.debug(self, bits)
         cells = {}
         for cell in range(1, self.status["cells"] + 1):
             cells[cell] = bool(int(bits[cell * -1]))
-        self.logger.debug(self.name, str(cells))
+        self.logger.debug(self, str(cells))
         return cells
 
 
     def _disableCharging(self, values : dict, error : str, errorByte : int, errorBit : int, additionalMessage : str):
-        self.logger.error(self.name, f"disable charging because of '{error}', (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
+        self.logger.error(self, f"disable charging because of '{error}', (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
         values["mosfet_status"]["charging_mosfet"] = False
 
 
     def _disableDisCharging(self, values : dict, error : str, errorByte : int, errorBit : int, additionalMessage : str):
-        self.logger.error(self.name, f"disable dis-charging because of '{error}', (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
+        self.logger.error(self, f"disable dis-charging because of '{error}', (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
         values["mosfet_status"]["discharging_mosfet"] = False
 
 
@@ -456,7 +456,7 @@ class DalyBmsUartInterface(BasicUartInterface):
 
 
     def _notHandledError(self, values : dict, error : str, errorByte : int, errorBit : int, additionalMessage : str):
-        self.logger.error(self.name, f"Not supported error '{error}' found, deactivate it or add error handler for it, (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
+        self.logger.error(self, f"Not supported error '{error}' found, deactivate it or add error handler for it, (info={additionalMessage}, ErrorBit={errorByte}.{errorBit})")
         raise Exception(f"Not supported error '{error}' found, deactivate it or add error handler for it")
 
 
@@ -506,7 +506,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             #    byteContent = 0x12
             if "errorFilter" in self.configuration:
                 if len(filterMask) > (byte_index * 2):
-                    filter = int(filterMask[byte_index * 2:(byte_index * 2 + 1) + 1], 16)       # additional +1 since the sub string contains all characters EXCLUSIVE the one at the second index!
+                    filter = int(filterMask[byte_index * 2:(byte_index * 2 + 1) + 1], base = 16)       # additional +1 since the sub string contains all characters EXCLUSIVE the one at the second index!
                     if (byteContent & filter) != byteContent:
                         inverseFilter = (~filter) & 0xFF    # inverse filter and ignored stuff is for logging only!
                         ignoredErrors = byteContent & inverseFilter
@@ -516,7 +516,7 @@ class DalyBmsUartInterface(BasicUartInterface):
                         ignoredErrorTexts = getErrorTextsFromByteBitList(ignoredErrorsList)
                         message = f"error byte {byte_index} ignored some errors: 0x{byteContent:02X} & 0x{filter:02X} = 0x{remainingErrors:02X}, ignored error bits = 0x{ignoredErrors:02X} -> {ignoredErrorTexts}"
                         #Supporter.debugPrint(message)
-                        self.logger.debug(self.name, message)
+                        self.logger.debug(self, message)
 
                         byteContent = remainingErrors    # set filtered value for further processing
 
@@ -528,7 +528,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             errors += getErrorByteBitList(bits, byte_index)   # concatenate new errors to errors list
             #Supporter.debugPrint(f"bits {bits}, reversed {list(reversed(bits))}, type {type(bits)}, errors {errors}", color = "BLUE")
 
-            self.logger.debug(self.name, f"byteIndex:{byte_index} byteContent:{byteContent} bits:{bits} errors:{errors}")
+            self.logger.debug(self, f"byteIndex:{byte_index} byteContent:{byteContent} bits:{bits} errors:{errors}")
         return errors
 
 
@@ -538,7 +538,7 @@ class DalyBmsUartInterface(BasicUartInterface):
         if not (response_data := self._read_request("d9", extra = extra)):
             return False
         
-        self.logger.debug(self.name, response_data.hex())
+        self.logger.debug(self, response_data.hex())
         # on response
         # 0101000002006cbe
         # off response
@@ -649,15 +649,15 @@ class DalyBmsUartInterface(BasicUartInterface):
 
         for key in keys:
             success = False
-            self.logger.debug(self.name, f"check: {key}")
+            self.logger.debug(self, f"check: {key}")
             for repeat in range(self._ERROR_REPEATS):
                 result = methods[key]()
                 time.sleep(.2)      # give BMS a bit more time between the reads to lower errros
-                self.logger.debug(self.name, f"repeat: {repeat}, cmd: {key}, result: {result}")
+                self.logger.debug(self, f"repeat: {repeat}, cmd: {key}, result: {result}")
 
                 # since result can be empty as well what means OK we have explicitly to check for False!!!
                 if (result == False):       # YES, compare explicitly with False here, since it could also be an empty list what has to be handled differently!!!
-                    self.logger.debug(self.name, f"request failed once: {result} == False")
+                    self.logger.debug(self, f"request failed once: {result} == False")
                 else:
                     values[key] = result
                     success = True
@@ -666,12 +666,12 @@ class DalyBmsUartInterface(BasicUartInterface):
                 raise Exception(f"too many errors for command [{key}] in [{self.name}]")
 
         # status should be the first one to get number of cells and temp sensors
-        #self.logger.debug(self.name, f"status:       " + str(values["status"]))
-        #self.logger.debug(self.name, f"voltages:     " + str(values["cell_voltages"]))
-        #self.logger.debug(self.name, f"mosfet:       " + str(values["mosfet_status"]))
-        #self.logger.debug(self.name, f"temperatures: " + str(values["temperature_range"]))
-        #self.logger.debug(self.name, f"balancing:    " + str(values["balancing_status"]))
-        #self.logger.debug(self.name, f"errors:       " + str(values["errors"]))
+        #self.logger.debug(self, f"status:       " + str(values["status"]))
+        #self.logger.debug(self, f"voltages:     " + str(values["cell_voltages"]))
+        #self.logger.debug(self, f"mosfet:       " + str(values["mosfet_status"]))
+        #self.logger.debug(self, f"temperatures: " + str(values["temperature_range"]))
+        #self.logger.debug(self, f"balancing:    " + str(values["balancing_status"]))
+        #self.logger.debug(self, f"errors:       " + str(values["errors"]))
 
         # take min and max values from BMS
         vMin = values["cell_voltage_range"]["lowest_voltage"]
@@ -691,17 +691,17 @@ class DalyBmsUartInterface(BasicUartInterface):
         if (not "cell_voltages" in values):
             message = f"values = {values}, type is {type(values)}"
             Supporter.debugPrint(message, color = "BLUE")
-            self.logger.error(self.name, message)
+            self.logger.error(self, message)
 
         if (not "cell_voltages" in values) or not len(values["cell_voltages"]):
-            self.logger.error(self.name, f"received invalid values without \"cell_voltages\" element: {values}")
+            self.logger.error(self, f"received invalid values without \"cell_voltages\" element: {values}")
         for cellNumber, cellVoltage in values["cell_voltages"].items():
             # that a single cell voltage is lower/higher than the overall min/max voltage value is common and happens because of different voltage read times!
             if cellVoltage < vMin:
-                #self.logger.info(self.name, f"cell {cellNumber} has lower voltage {cellVoltage} as vMin mentioned by daly bms {vMin}")
+                #self.logger.info(self, f"cell {cellNumber} has lower voltage {cellVoltage} as vMin mentioned by daly bms {vMin}")
                 vMin = cellVoltage
             elif cellVoltage > vMax:
-                #self.logger.info(self.name, f"cell {cellNumber} has higher voltage {cellVoltage} as vMax mentioned by daly bms {vMax}")
+                #self.logger.info(self, f"cell {cellNumber} has higher voltage {cellVoltage} as vMax mentioned by daly bms {vMax}")
                 vMax = cellVoltage
             voltageList.append(cellVoltage)
 
@@ -748,7 +748,7 @@ class DalyBmsUartInterface(BasicUartInterface):
 
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False)
 
-        self.logger.debug(self.name, str(message))
+        self.logger.debug(self, str(message))
 
 
     def threadBreak(self):

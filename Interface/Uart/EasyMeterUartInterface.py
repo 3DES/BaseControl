@@ -95,17 +95,21 @@ class EasyMeterUartInterface(BasicUartInterface):
         time.sleep(self.configuration["pollingPeriod"])
 
 
-    #def threadTearDownMethod(self):
-    #    pass
+#    def threadTearDownMethod(self):
+#        pass
+
+
+#    def threadSummulationSupport(self):
+#        '''
+#        Necessary since this thread supports SIMULATE flag
+#        '''
+#        pass
 
 
     def threadMethod(self):
-        if not self.toSimulate():
-            #Supporter.debugPrint(f"search data")
-            # get real values from easy meter
-            published = self.readAndPublishData()
-            #if published:
-            #    Supporter.debugPrint(f"published [{published}] messages")
-        else:
-            raise Exception("{self.name}: SIMULATE not yet implemented") 
+        #Supporter.debugPrint(f"search data")
+        # get real values from easy meter
+        published = self.readAndPublishData()
+        #if published:
+        #    Supporter.debugPrint(f"published [{published}] messages")
 

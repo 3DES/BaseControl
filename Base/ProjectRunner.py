@@ -14,6 +14,7 @@ import Worker.Worker
 import Logger.Logger
 import MqttBridge.MqttBridge
 import WatchDog.WatchDog
+import Base.Base
 import Base.ThreadBase
 from Base.Supporter import Supporter
 import Logger
@@ -177,7 +178,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, additionalLeadIn : str = ""):
+    def executeProject(cls, initFileName : str, logFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, additionalLeadIn : str = "", simulationAllowed : bool = False):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -197,6 +198,7 @@ class ProjectRunner(object):
         Logger.Logger.Logger.set_logLevel(logLevel)
         Logger.Logger.Logger.set_printLogLevel(printLogLevel)
         Logger.Logger.Logger.set_logFilter(logFilter)
+        Base.Base.Base.setSimulationModeAllowed(simulationAllowed)
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
         readableJsonConfiguration = json.dumps(configuration, indent = 4)
@@ -233,7 +235,7 @@ class ProjectRunner(object):
             uptimeMessage = f"{os.path.basename(__file__)}: overall uptime ... {Supporter.formattedTime(deltaTime, addCurrentTime = True)}"
             Supporter.debugPrint(uptimeMessage, color = f"{colorama.Fore.RED}")
 
-            cls.projectLogger.writeLogBufferToDisk(leadIn = additionalLeadIn + (("\n" + readableJsonConfiguration) if jsonDump else ""), leadOut = uptimeMessage)
+            cls.projectLogger.writeLogBufferToDisk(logFileName = logFileName, leadIn = additionalLeadIn + (("\n" + readableJsonConfiguration) if jsonDump else ""), leadOut = uptimeMessage)
         return stopReason
 
 

@@ -112,6 +112,13 @@ class Supporter(object):
 
 
     @classmethod
+    def getDeltaTime(cls, startTime : float, endTime : float = None):
+        if endTime is None:
+            endTime = cls.getTimeStamp()
+        return endTime - startTime
+
+
+    @classmethod
     def getSecondsSince(cls, timeStamp : int):
         return cls.getTimeStamp() - timeStamp
 
@@ -228,8 +235,10 @@ class Supporter(object):
         '''
         hexCharString = ""
         for index, char in enumerate(string):
-            if char <= 32 or char >= 127:    # replace non-readable ASCII values by its hex equivalent
-                hexCharString += '{:02X}'.format(char)
+            if type(char) == str:
+                char = ord(char)
+            if char < 32 or char >= 127:    # replace non-readable ASCII values by its hex equivalent
+                hexCharString += '\\x{:02X}'.format(char)
             else:
                 hexCharString += chr(char)
             if separator and index < (len(string) - 1):
@@ -276,6 +285,104 @@ class Supporter(object):
                 hexString   += "   " * (width - len(asciiString))
             overallString += f"{hexString}    {asciiString}\n"
         return overallString
+
+
+    @classmethod
+    def hexStrToAscii(cls, data):
+        '''
+        Converts given hex string to ASCII, e.g. "414243" will become "ABC"
+        '''
+        if type(data) not in [bytearray, bytes, str]:
+            raise Exception(f"given data is of unsupported type {type(data)}")
+
+        if type(data) == bytearray or type(data) == bytes:
+            data = data.decode('utf-8')
+        return bytearray.fromhex(data).decode('utf-8')
+
+
+    @classmethod
+    def asciiToHexStr(cls, data):
+        '''
+        Converts given ASCII to hex string, e.g. "ABC" will become "414243"
+        '''
+        if type(data) not in [bytearray, bytes, str]:
+            raise Exception(f"given data is of unsupported type {type(data)}")
+
+        if type(data) == bytearray or type(data) == bytes:
+            data = data.decode('utf-8')
+        return bytearray.fromhex(data).decode('utf-8')
+
+
+    @classmethod
+    def bytesToStr(cls, data : bytes) -> str:
+        '''
+        Converts given bytes string to normal string, i.e. b"abc" -> "abc"
+        '''
+        return data.decode('utf-8')
+
+
+    @classmethod
+    def changeByteOrderOfHexString(cls, hexString : bytes, ignoredCharacters = None, stopCharacters = None) -> bytes:
+        '''
+        Converts byte hex string to byte-swapped hex string, i.e. b"ABCDEF" -> b"EFCDAB"
+        '''
+        if len(hexString) % 2:
+            raise Exception(f"given hex string [{hexString}] must have an even length but {len(hexString)} is odd")
+        newHexString = b""
+        for byte in re.findall(b"..", hexString):
+            # stop characters found?
+            if stopCharacters and byte in stopCharacters:
+                break
+            # characters to be handled found?
+            if not ignoredCharacters or byte not in ignoredCharacters:
+                newHexString = byte + newHexString
+        return newHexString
+
+
+    @classmethod
+    def countSetBits(cls, value : int) -> int:
+        '''
+        Counts bits that are 1 in given value
+        
+        @param value    the value where the one-bits should be counted
+        @resut          amount of one-bits found
+        '''
+        bitsNotZero = 0
+        while value:
+            if value & 0x01:
+                bitsNotZero += 1
+            value >>= 1
+        return bitsNotZero
+
+
+    @classmethod
+    def shiftToLeastNotZeroBit(cls, value : int) -> int:
+        '''
+        Shifts the given value until the least significant bit becomes one, e.g. 0x030 -> 0x003, 0x102 -> 0x81, 0x01 -> 0x01, ...
+        
+        @param value    the value that has to be right shifted
+        @resut          right shifted value
+        '''
+        while value and not (value & 0x01):
+            value >>= 1
+        return value
+
+
+    @classmethod
+    def leastNotZeroBit(cls, value : int) -> int:
+        '''
+        Searches the least significant one-bit in the given value, e.g. 0x030 -> 4, 0x01 -> 0, 0x00 -> None, ...
+        
+        @param value    the value where the least significant one-bit has to be searched
+        @resut          position of the least significant one-bit
+        '''
+        position = None
+        if value:
+            position = 0
+            while not (value & 0x01):
+                value >>= 1
+                position += 1
+        return position
 
 
     @classmethod
@@ -334,6 +441,71 @@ class Supporter(object):
 
 
     @classmethod
+    def convertColor(cls, color : str) -> str:
+        '''
+        @param color        color should be either one of the supported colors, e.g. RED, GREEN, YELLOW or BLUE or a colorama.Fore.<color> string
+                            The following keys are known by colorama.Fore and can be used:
+                                BLACK
+                                BLUE
+                                CYAN
+                                GREEN
+                                MAGENTA
+                                RED
+                                RESET
+                                WHITE
+                                YELLOW
+                                LIGHTBLACK   / LIGHTBLACK_EX
+                                LIGHTBLUE    / LIGHTBLUE_EX
+                                LIGHTCYAN    / LIGHTCYAN_EX
+                                LIGHTGREEN   / LIGHTGREEN_EX
+                                LIGHTMAGENTA / LIGHTMAGENTA_EX
+                                LIGHTRED     / LIGHTRED_EX
+                                LIGHTWHITE   / LIGHTWHITE_EX
+                                LIGHTYELLOW  / LIGHTYELLOW_EX
+        '''
+        colors = dict(colorama.Fore.__dict__.items())
+        if color in ["LIGHTBLACK", "LIGHTBLUE", "LIGHTCYAN", "LIGHTGREEN", "LIGHTMAGENTA", "LIGHTRED", "LIGHTWHITE", "LIGHTYELLOW"]:
+            color += "_EX"
+        if color in colors.keys():
+            color = colors[color]
+        return color
+
+
+    @classmethod
+    def printTimeStamp(cls, message : str = None, startTime : float = None, color : str = None):
+        '''
+        Prints time stamp to STDOUT with an optional message and an optional delta time
+
+        So it can be used for timing measurement, e.g.
+            startTime = Supporter.printTimeStamp(message = "position xy")
+            for ...:
+                ... 
+                startTime = Supporter.printTimeStamp(message = "position xy", startTime = startTime)
+
+        @param message      optional message to be printed together with time stamp
+        @param startTime    if start time has been given a delta time will be calculated and printed
+        @param color        default color is YELLOW but any other color can be given here
+        @return             current time stamp
+        '''
+        timeStamp = cls.getTimeStamp()
+
+        DEFAULT_COLOR = "YELLOW"
+        if color is None:
+            color = DEFAULT_COLOR
+        color = cls.convertColor(color.upper())
+        
+        printText = color
+        printText += f"time: {timeStamp}"
+        if startTime is not None:
+            printText += f", delta: {timeStamp - startTime}"
+        if message:
+            printText += f", message:\"{message}\""
+        printText += f" at [{cls.getCallerPosition()}]"
+        print(printText, flush=True)
+        return timeStamp
+
+
+    @classmethod
     def debugPrint(cls, messageStringOrList, marker : str = None, color : str = None, borderSize : int = 1):
         '''
         Print given stuff in eye-catching manner
@@ -349,20 +521,20 @@ class Supporter(object):
                                 BLUE
                                 CYAN
                                 GREEN
-                                LIGHTBLACK_EX
-                                LIGHTBLUE_EX
-                                LIGHTCYAN_EX
-                                LIGHTGREEN_EX
-                                LIGHTMAGENTA_EX
-                                LIGHTRED_EX
-                                LIGHTWHITE_EX
-                                LIGHTYELLOW_EX
                                 MAGENTA
                                 RED
                                 RESET
                                 WHITE
                                 YELLOW
-        @param borderSize   amount of leading and trailing border lines to be printed
+                                LIGHTBLACK   / LIGHTBLACK_EX
+                                LIGHTBLUE    / LIGHTBLUE_EX
+                                LIGHTCYAN    / LIGHTCYAN_EX
+                                LIGHTGREEN   / LIGHTGREEN_EX
+                                LIGHTMAGENTA / LIGHTMAGENTA_EX
+                                LIGHTRED     / LIGHTRED_EX
+                                LIGHTWHITE   / LIGHTWHITE_EX
+                                LIGHTYELLOW  / LIGHTYELLOW_EX
+        @param borderSize   amount of leading and trailing border lines to be printed, if it's set to 0 only a single line with the message will be printed
         '''
         MAX_LENGTH = 60
         DEFAULT_COLOR = "YELLOW"
@@ -376,9 +548,7 @@ class Supporter(object):
 
         if color is None:
             color = DEFAULT_COLOR
-        colors = dict(colorama.Fore.__dict__.items())        
-        if color in colors.keys():
-            color = colors[color]
+        color = cls.convertColor(color.upper())
 
         # try to get object name but if not possible get class name instead
         if not (callerName := cls.getCallerName()):
@@ -386,20 +556,27 @@ class Supporter(object):
         else:
             callerName += "(module)"
 
-        printText = color
-        for _ in range(borderSize):
-            printText += f"    {marker * printLength}\n"
-        printText += f"    # printed at {cls.getCallerPosition()}\n"
         if type(messageStringOrList) == str:
             messageStringOrList = [messageStringOrList]
-        
-        printText += f"    # {datetime.now()} [{callerName}]\n"
-        
-        for index, string in enumerate(messageStringOrList):
+
+        printText = color
+
+        if borderSize:
+            for _ in range(borderSize):
+                printText += f"    {marker * printLength}\n"
+            printText += f"    # printed at {cls.getCallerPosition()}\n"
+            
+            printText += f"    # {datetime.now()} [{callerName}]\n"
+            
+            for index, string in enumerate(messageStringOrList):
                 printText += f"      {string}\n"
-                
-        for _ in range(borderSize):
-            printText += f"    {marker * (printLength - 5)}"
+                    
+            for _ in range(borderSize):
+                printText += f"    {marker * (printLength - 5)}"
+        else:
+            printText += "    " + (marker * 4) + " "
+            printText += f"{datetime.now()} [{callerName}] \"" + " ".join(messageStringOrList) + "\" "
+            printText += f"# at {cls.getCallerPosition()}"
         printText += f"{colorama.Style.RESET_ALL}"
         print(printText, flush=True)
 
@@ -503,7 +680,7 @@ class Supporter(object):
         @param skip       default is 2 since caller of getCaller() would be one but caller of getCaller() wants to know its caller so there are two
         @param getSelf    returns object.self if True, otherwise the whole frame is returned
         
-        @result    object of getCaller() callers caller or None if that doesn't exist
+        @return    object of getCaller() callers caller or None if that doesn't exist
         '''
         callStack = inspect.stack()
         stackIndex = skip
@@ -521,7 +698,7 @@ class Supporter(object):
         
         @param skip    default is 2 since caller of getCaller() would be one but caller of getCaller() wants to know its caller so there are two
         
-        @result    self.name of getCaller() callers caller or "" if that one has no self.name value
+        @return    self.name of getCaller() callers caller or "" if that one has no self.name value
         '''
         caller = cls.getCaller(skip = skip + 1)        # skip one more since this method getCallerName() has also be skipped
         if hasattr(caller, 'name'):
@@ -536,7 +713,7 @@ class Supporter(object):
         
         @param skip    default is 2 since caller of getCaller() would be one but caller of getCaller() wants to know its caller so there are two
         
-        @result    file name and line number of getCaller() callers caller
+        @return    file name and line number of getCaller() callers caller
         '''
         caller = cls.getCaller(skip = skip + 1, getSelf = False)        # skip one more since this method getCallerName() has also be skipped
         return f"{caller.filename}:{caller.lineno}"
@@ -553,7 +730,7 @@ class Supporter(object):
         @param elementValue     value the element in the dictionary should be compared to
         @param compareValue     for easier check if sth. has changed a boolean can be given that will be "OR"-ed with previous checks simply
                                 by giving back True if sth. has been changed or the given boolean in case nth. has been changed
-        @param force            if force is True the elementValue will be set the compare will return True
+        @param force            if force is True the elementValue will be set and the compare will return True
         @return        False/compareValue in case nth. has been changed, True in case sth. has been changed or force was True
         '''
         toBeSet = force

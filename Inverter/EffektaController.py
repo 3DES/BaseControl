@@ -104,16 +104,18 @@ class EffektaController(ThreadObject):
         return {"setValue":parList}
 
     @classmethod
-    def getLinkedEffektaData(cls, EffektaData):
+    def getCombinedEffektaData(cls, EffektaData):
         """
         returns given Effekta data with logical link
         given data is a dict with one or more Effektas {"effekta_A":{Data}, "effekta_B":{Data}}
         """
         globalEffektaData = {"FloatingModeOr" : False, "OutputVoltageHighOr" : False, "InputVoltageAnd" : True, "OutputVoltageHighAnd" : True, "OutputVoltageLowAnd" : True, "ErrorPresentOr" : False}
         for name in list(EffektaData.keys()):
+            # from "DeviceStatus2" string take first character because it contains the state of the float mode
             floatmode = list(EffektaData[name]["DeviceStatus2"])
             if floatmode[0] == "1":
                 globalEffektaData["FloatingModeOr"] = True
+            # process all other values from the inverters and combine them
             if float(EffektaData[name]["Netzspannung"]) < 210.0:
                 globalEffektaData["InputVoltageAnd"] = False
             if float(EffektaData[name]["AcOutSpannung"]) < 210.0:

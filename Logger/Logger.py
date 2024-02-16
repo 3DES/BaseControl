@@ -187,7 +187,7 @@ class Logger(ThreadBase):
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None, logger = None):
         '''
         Logger constructor
-        
+
         the optional logger parameter is for the case that we have a sub class that inherited from us and is, therefore, the real logger!
         '''
         # check and prepare mandatory parameters
@@ -287,56 +287,94 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def _caller(cls):
-        return f" ({os.path.basename(inspect.stack()[2].filename)}:{inspect.stack()[2].lineno})"
+    def _caller(cls, skipExtra : int = 0):
+        #return f" ({os.path.basename(inspect.stack()[2].filename)}:{inspect.stack()[2].lineno})"
+        return f" ({Supporter.getCallerPosition(skip = 3 + skipExtra)})"    # skip some more levels to get real caller
 
 
     @classmethod
-    def debug(cls, sender, message):
+    def debug(cls, sender, message, skip : int = 0):
         '''
         To log a debug message
         '''
-        cls.message(Logger.LOG_LEVEL.DEBUG, sender, message + cls._caller())
+        cls._logMessage(Logger.LOG_LEVEL.DEBUG, sender, message + cls._caller(skipExtra = skip))
 
 
     @classmethod
-    def trace(cls, sender, message):
+    def trace(cls, sender, message, skip : int = 0):
         '''
         To log a trace message, usually to be used to see the steps through setup and tear down process as well as to see the threads working
         '''
-        cls.message(Logger.LOG_LEVEL.TRACE, sender, message + cls._caller())
+        cls._logMessage(Logger.LOG_LEVEL.TRACE, sender, message + cls._caller(skipExtra = skip))
 
 
     @classmethod
-    def info(cls, sender, message):
+    def info(cls, sender, message, skip : int = 0):
         '''
         To log any information that could be from interest
         '''
-        cls.message(Logger.LOG_LEVEL.INFO, sender, message + cls._caller())
+        cls._logMessage(Logger.LOG_LEVEL.INFO, sender, message + cls._caller(skipExtra = skip))
 
 
     @classmethod
-    def warning(cls, sender, message):
+    def warning(cls, sender, message, skip : int = 0):
         '''
         To log any warnings
         '''
-        cls.message(Logger.LOG_LEVEL.WARN, sender, message + cls._caller())
+        cls._logMessage(Logger.LOG_LEVEL.WARN, sender, message + cls._caller(skipExtra = skip))
 
 
     @classmethod
-    def error(cls, sender, message):
+    def error(cls, sender, message, skip : int = 0):
         '''
         To log an error, usually in case of exceptions, that's usually the highest error level for any problems in the script
         '''
-        cls.message(Logger.LOG_LEVEL.ERROR, sender, message + cls._caller())
+        #cls.message(Logger.LOG_LEVEL.ERROR, sender, message + cls._caller() + "\n" + Supporter.getCallStack())
+        cls._logMessage(Logger.LOG_LEVEL.ERROR, sender, message + cls._caller(skipExtra = skip))
 
 
     @classmethod
-    def fatal(cls, sender, message):
+    def fatal(cls, sender, message, skip : int = 0):
         '''
         To log an fatal errors, usually by detecting real critical hardware problems
         '''
-        cls.message(Logger.LOG_LEVEL.FATAL, sender, message + cls._caller())
+        #cls.message(Logger.LOG_LEVEL.FATAL, sender, message + cls._caller() + "\n" + Supporter.getCallStack())
+        cls._logMessage(Logger.LOG_LEVEL.FATAL, sender, message + cls._caller(skipExtra = skip))
+
+
+    @classmethod
+    def message(cls, method, sender, message):
+        '''
+        Call log method by name or by log level
+        
+        @param method    method name of the method or log level that should be handled
+        '''
+        LOG_METHODS = {
+            "debug"   : cls.debug,
+            "trace"   : cls.trace,
+            "info"    : cls.info,
+            "warning" : cls.warning,
+            "error"   : cls.error,
+            "fatal"   : cls.fatal
+        }
+
+        LOG_LEVELS = {
+            Logger.LOG_LEVEL.DEBUG.value : cls.debug,  
+            Logger.LOG_LEVEL.TRACE.value : cls.trace,  
+            Logger.LOG_LEVEL.INFO.value  : cls.info,   
+            Logger.LOG_LEVEL.WARN.value  : cls.warning,
+            Logger.LOG_LEVEL.ERROR.value : cls.error,  
+            Logger.LOG_LEVEL.FATAL.value : cls.fatal   
+        }
+
+        if type(method) == type(cls.LOG_LEVEL.DEBUG) and (method.value in LOG_LEVELS):
+            Supporter.debugPrint(f"1:redirect to {LOG_LEVELS[method.value]}")
+            LOG_LEVELS[method.value].__get__(cls, cls)(sender, message, skip = 1)
+        elif type(method) == str and (method in LOG_METHODS):
+            Supporter.debugPrint(f"2:redirect to {LOG_METHODS[method]}")
+            LOG_METHODS[method].__get__(cls, cls)(sender, message, skip = 1)
+        else:
+            raise Exception(f"given log level or method name is unknown {method}")
 
 
     @classmethod
@@ -352,7 +390,7 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def message(cls, level : LOG_LEVEL, sender, message):
+    def _logMessage(cls, level : LOG_LEVEL, sender, message):
         '''
         Overall log method, all log methods have to end up here
         '''
@@ -397,11 +435,11 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def writeLogBufferToDisk(cls, logFileName = None, leadIn : str = "", leadOut : str = ""):
+    def writeLogBufferToDisk(cls, logFileName : str, leadIn : str = "", leadOut : str = ""):
         '''
         Without regard to losses the current buffer content is written to disk
         
-        @param logFileName     logfile name to be used, default is logger.txt
+        @param logFileName     logfile name to be used
         @param leadIn          string that will be inserted at the beginning of the logfile because, at times when this method is called, the logger queue usually doesn't work anymore
         @param leadOut         string that will be inserted at the end       of the logfile because, at times when this method is called, the logger queue usually doesn't work anymore
         '''
@@ -414,10 +452,6 @@ class Logger(ThreadBase):
 
 
         bufferCopy = []
-
-        # handle log file name        
-        if logFileName is None:
-            logFileName = "logger.txt"
 
         # insert lead in
         if len(leadIn):

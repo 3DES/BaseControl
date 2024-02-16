@@ -4,48 +4,30 @@ from Base.ThreadObject import ThreadObject
 from Base.Supporter import Supporter
 
 
-class SocMeter(ThreadObject):
+class ExampleThread(ThreadObject):
     '''
-    This class checks values from its interface and publishes globally if sensible range/jump is high enough
-    
-    Initially this class subscribes to its own out topic to get old SOC value back from mqtt. It will be forwarded to interface with e.g. this msg {"cmd":["setSocToValue", "90"]}, where the 90 here is the received percentage value
-    If a msg is received from own out topic the class unsubscribes it from its own out topic.
-    
-    A msg received at the in topic like {"cmd":...} will be forwarded to the interface
-     
+    classdocs
     '''
-    InitAkkuProz = -1
 
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
-
-        set SOC Value:    mosquitto_pub -h localhost -p 1883  -u xxx -P xxx -t "HomeAccu/SocMonitor/in" -m "{\"Prozent\":79}"
         '''
         super().__init__(threadName, configuration)
 
     def threadInitMethod(self):
-        self.SocMonitorWerte = { "Ah" : -1, "Current" : 0, "Prozent" : self.InitAkkuProz}
-
-        # send Values to a homeAutomation to get there sliders sensors selectors and switches
-        self.homeAutomation.mqttDiscoverySensor(self.SocMonitorWerte)
+        # subscribe to own in topic if external values are expected
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()), globalSubscription = True)
 
-        # subscribe global to own out topic to get old data and set timeout
+        # discover home automation stuff here!
+        #self.exampleThreadValues = { "Ah" : -1, "Current" : 0, "Percent" : 99}
+        #homeAutomationUnits = { "Ah" : "Ah"}
+        #self.homeAutomation.mqttDiscoverySensor(self.exampleThreadValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
+
+        # subscribe globally to own out topic to get old data and set timeout
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
 
     def threadMethod(self):
-
-        def takeDataAndSend():
-            self.SocMonitorWerte.update(newMqttMessageDict["content"])
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SocMonitorWerte, globalPublish = True, enableEcho = False)
-            # @todo remove!! Workaround damit der Strom auf der PV Anzeige richtig angezeigt wird
-            temp = {}
-            temp["AkkuStrom"] = self.SocMonitorWerte["Current"]
-            temp["AkkuProz"] = self.SocMonitorWerte["Prozent"]
-            # todo initial timeout
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()) + "/PvAnzeige", temp, globalPublish = True, enableEcho = False)
-
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.readMqttQueue(error = False)

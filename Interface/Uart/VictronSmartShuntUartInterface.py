@@ -2,6 +2,7 @@ import time
 import json
 import re
 from Base.Supporter import Supporter
+import functools
 
 from GridLoad.SocMeter import SocMeter
 from Interface.Uart.BasicUartInterface import BasicUartInterface
@@ -11,6 +12,19 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
     classdocs
     '''
     MATCHED_KEYS = sorted(["I", "SOC", "V", "Alarm", "AR", "H4", "H5", "H6", "H7", "H8"])     # "T"
+    
+    
+    CURRENT_TEXT         = "Current"        # "I"
+    PERCENT_TEXT         = "Prozent"        # "SOC"
+    VOLTAGE_TEXT         = "Voltage"        # "V"
+    ALARM_TEXT           = "Alarm"          # "Alarm"
+    ALARM_REASON_TEXT    = "AlarmReason"    # "AR"
+    CHARGE_CYCLES_TEXT   = "ChargeCycles"   # "H4"
+    FULL_DISCHARGES_TEXT = "FullDischarges" # "H5"
+    AH_DRAWN_TEXT        = "Ah"             # "H6"
+    MIN_VOLTAGE_TEXT     = "VminAccu"       # "H7"
+    MAX_VOLTAGE_TEXT     = "VmaxAccu"       # "H8"
+    
     
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -44,6 +58,53 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
                         self.matchedValues[key] = matches.group("value")
 
 
+    def prepareHomeAutomation(self, force : bool = False):
+        # ensure all needed keys have already been prepared, otherwise return with False
+        keys = [self.CURRENT_TEXT, self.PERCENT_TEXT, self.VOLTAGE_TEXT, self.ALARM_TEXT, self.ALARM_REASON_TEXT, self.CHARGE_CYCLES_TEXT, self.FULL_DISCHARGES_TEXT, self.AH_DRAWN_TEXT, self.MIN_VOLTAGE_TEXT, self.MAX_VOLTAGE_TEXT]
+
+        for key in keys:
+            if key not in self.SocMonitorWerte:
+                #Supporter.debugPrint(f"{key} is still missed in self.energyData!", color = "RED")
+                return False
+
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_TEXT,         self.SocMonitorWerte[self.CURRENT_TEXT],                                 compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5),  force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.PERCENT_TEXT,         self.SocMonitorWerte[self.PERCENT_TEXT],         compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1),  force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.VOLTAGE_TEXT,         self.SocMonitorWerte[self.VOLTAGE_TEXT],         compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = .2), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.ALARM_TEXT,           self.SocMonitorWerte[self.ALARM_TEXT],           compareValue = changed, compareMethod = lambda a, b: a != b,                                          force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.ALARM_REASON_TEXT,    self.SocMonitorWerte[self.ALARM_REASON_TEXT],    compareValue = changed, compareMethod = lambda a, b: a != b,                                          force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CHARGE_CYCLES_TEXT,   self.SocMonitorWerte[self.CHARGE_CYCLES_TEXT],   compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2),  force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.FULL_DISCHARGES_TEXT, self.SocMonitorWerte[self.FULL_DISCHARGES_TEXT], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5),  force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.AH_DRAWN_TEXT,        self.SocMonitorWerte[self.AH_DRAWN_TEXT],        compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5),  force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.MIN_VOLTAGE_TEXT,     self.SocMonitorWerte[self.MIN_VOLTAGE_TEXT],     compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1),  force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.MAX_VOLTAGE_TEXT,     self.SocMonitorWerte[self.MAX_VOLTAGE_TEXT],     compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1),  force = force)
+
+        return changed
+
+
+    def publishHomeAutomation(self):
+        self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
+
+
+    def threadSummulationSupport(self):
+        '''
+        Necessary since this thread supports SIMULATE flag
+        '''
+        pass
+
+
+    def threadInitMethod(self):
+        self.homeAutomationValues = { self.CURRENT_TEXT : 0,   self.PERCENT_TEXT : 0,   self.VOLTAGE_TEXT : 0,   self.ALARM_TEXT : 0,      self.ALARM_REASON_TEXT : "---",  self.CHARGE_CYCLES_TEXT : 0,      self.FULL_DISCHARGES_TEXT : 0,      self.AH_DRAWN_TEXT : 0,    self.MIN_VOLTAGE_TEXT : 0,   self.MAX_VOLTAGE_TEXT : 0 }
+        homeAutomationUnits       = { self.CURRENT_TEXT : "A", self.PERCENT_TEXT : "%", self.VOLTAGE_TEXT : "V", self.ALARM_TEXT : "none", self.ALARM_REASON_TEXT : "none", self.CHARGE_CYCLES_TEXT : "none", self.FULL_DISCHARGES_TEXT : "none", self.AH_DRAWN_TEXT : "Ah", self.MIN_VOLTAGE_TEXT : "V", self.MAX_VOLTAGE_TEXT : "V" }
+        # send Values to a homeAutomation to get there sliders sensors selectors and switches
+        self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
+
+        # no initial publish in that case since old values are OK if there are some already
+        #self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
+
+        # call super method to get serial interface initialized
+        super().threadInitMethod()
+
+
     def threadMethod(self):
         DEFAULT_READ_LENGTH = 20
         timeout = 1
@@ -58,7 +119,7 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
                 if newMqttMessageDict["content"]["cmd"] == "resetSoc":
                     # @todo Victron resetten, falls das über die Kommunikationsschnittstelle irgendwie möglich ist, ggf. ist das auch garnicht nötig, wenn sich der Victron Shunt selbst beim Erreichen der Max.Spg. selbst resettet
                     pass
-        
+
         self.serialReset_input_buffer()
 
         if not self.toSimulate():
@@ -78,23 +139,27 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
                 "V":     52000,             # 52000 mV
                 "Alarm": "",                # no alarm
                 "AR":    0,                 # no alarm reason
-                "H4":    217,               # charge cyclces
+                "H4":    217,               # charge cycles
                 "H5":    5,                 # full discharges
                 "H6":    37000,             # 37 Ah
                 "H7":    51000,             # Vmin
                 "H8":    53000              # Vmax
             }
 
-        self.SocMonitorWerte["Current"]        = round(int(self.matchedValues["I"]) / 1000, 2)
-        self.SocMonitorWerte["Prozent"]        = int(self.matchedValues["SOC"]) / 10
-        self.SocMonitorWerte["Voltage"]        = round(int(self.matchedValues["V"]) / 1000, 2)
-        self.SocMonitorWerte["Alarm"]          = str(self.matchedValues["Alarm"])
-        self.SocMonitorWerte["AlarmReason"]    = str(self.matchedValues["AR"])
-        self.SocMonitorWerte["ChargeCycles"]   = str(self.matchedValues["H4"])
-        self.SocMonitorWerte["FullDischarges"] = str(self.matchedValues["H5"])
-        self.SocMonitorWerte["Ah"]             = round(int(self.matchedValues["H6"]) / 1000, 2)
-        self.SocMonitorWerte["VminAccu"]       = round(int(self.matchedValues["H7"]) / 1000, 2)
-        self.SocMonitorWerte["VmaxAccu"]       = round(int(self.matchedValues["H8"]) / 1000, 2)
+        self.SocMonitorWerte[self.CURRENT_TEXT]         = round(int(self.matchedValues["I"]) / 1000, 2)
+        self.SocMonitorWerte[self.PERCENT_TEXT]         = int(self.matchedValues["SOC"]) / 10
+        self.SocMonitorWerte[self.VOLTAGE_TEXT]         = round(int(self.matchedValues["V"]) / 1000, 2)
+        self.SocMonitorWerte[self.ALARM_TEXT]           = str(self.matchedValues["Alarm"])
+        self.SocMonitorWerte[self.ALARM_REASON_TEXT]    = str(self.matchedValues["AR"])
+        self.SocMonitorWerte[self.CHARGE_CYCLES_TEXT]   = int(self.matchedValues["H4"])
+        self.SocMonitorWerte[self.FULL_DISCHARGES_TEXT] = int(self.matchedValues["H5"])
+        self.SocMonitorWerte[self.AH_DRAWN_TEXT]        = round(int(self.matchedValues["H6"]) / 1000, 2)
+        self.SocMonitorWerte[self.MIN_VOLTAGE_TEXT]     = round(int(self.matchedValues["H7"]) / 1000, 2)
+        self.SocMonitorWerte[self.MAX_VOLTAGE_TEXT]     = round(int(self.matchedValues["H8"]) / 1000, 2)
 
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SocMonitorWerte, globalPublish = False, enableEcho = False)
-    
+
+        if self.prepareHomeAutomation():
+            #Supporter.debugPrint(f"{self.homeAutomationValues}", color = "LIGHTRED")
+            self.publishHomeAutomation()
+

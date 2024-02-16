@@ -51,7 +51,30 @@ class PowerPlantTester(ThreadObject):
         self.mqttPublish(self.createOutTopic(ThreadObject.createProjectTopic(self.configuration["bmsName"])), data, globalPublish = False, enableEcho = False)
 
     def initPowerplant(self):
-        data = {"WrNetzladen": False, "Akkuschutz": False, "RussiaMode": False, "Error": False, "PowerSaveMode": False, "WrMode": "Akku", "AutoMode": True, "schaltschwelleAkku": 20.0, "schaltschwelleNetz": 10.0, "schaltschwelleAkkuTollesWetter": 20.0, "schaltschwelleAkkuRussia": 100.0, "schaltschwelleNetzRussia": 80.0, "schaltschwelleAkkuSchlechtesWetter": 45.0, "schaltschwelleNetzSchlechtesWetter": 30.0, "schaltschwelleNetzLadenAus": 12.0, "schaltschwelleNetzLadenEin": 6.0, "MinSoc": 10.0, "SchaltschwelleAkkuTollesWetter": 20.0, "AkkuschutzAbschalten": 60.0, "verbrauchNachtAkku": 25.0, "verbrauchNachtNetz": 3.0, "wetterSchaltschwelleNetz": 6}
+        data = {
+            "WrNetzladen"                        : False,
+            "Akkuschutz"                         : False,
+            "RussiaMode"                         : False,
+            "Error"                              : False,
+            "PowerSaveMode"                      : False,
+            "WrMode"                             : "Akku",
+            "AutoMode"                           : True,
+            "schaltschwelleAkku"                 : 20.0,
+            "schaltschwelleNetz"                 : 10.0,
+            "schaltschwelleAkkuTollesWetter"     : 20.0,
+            "schaltschwelleAkkuRussia"           : 100.0,
+            "schaltschwelleNetzRussia"           : 80.0,
+            "schaltschwelleAkkuSchlechtesWetter" : 45.0,
+            "schaltschwelleNetzSchlechtesWetter" : 30.0,
+            "schaltschwelleNetzLadenAus"         : 12.0,
+            "schaltschwelleNetzLadenEin"         : 6.0,
+            "MinSoc"                             : 10.0,
+            "SchaltschwelleAkkuTollesWetter"     : 20.0,
+            "AkkuschutzAbschalten"               : 60.0,
+            "verbrauchNachtAkku"                 : 25.0,
+            "verbrauchNachtNetz"                 : 3.0,
+            "wetterSchaltschwelleNetz"           : 6
+        }
         self.mqttPublish(self.createOutTopic(ThreadObject.createProjectTopic(self.configuration["powerPlantName"])), data, globalPublish = True, enableEcho = False)
 
     def setAkkuSoc(self, prozent):
@@ -61,8 +84,10 @@ class PowerPlantTester(ThreadObject):
     def testBoolAndLog(self, value, name):
         if value:
             self.logger.info(self, f"Passed! {name}")
+            Supporter.debugPrint(f"Passed! {name}", color = "GREEN")
         else:
             self.logger.error(self, f"Error! {name}")
+            Supporter.debugPrint(f"Error! {name}", color = "RED")
 
     def assertBoolFromProwerPlant(self, key, value, checkMsg = True, name = ""):
         if checkMsg:

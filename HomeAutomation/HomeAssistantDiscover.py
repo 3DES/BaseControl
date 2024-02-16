@@ -51,7 +51,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def _getUnitOfMeasurement(cls, valueName) -> str:
-        units = {"W":["power"], "A":["curr", "battdischarge", "battcharge"], "KWh":["daily", "produ"], "V":["spannung", "voltage", "vmin", "vmax"], "%":["prozent"]}
+        units = {"W":["power"], "A":["curr", "battdischarge", "battcharge"], "KWh":["daily", "produ"], "V":["spannung", "voltage", "vmin", "vmax"], "%":["prozent"], "°C":["temperature"]}
         for unit in units:
             for segment in units[unit]:
                 if segment in valueName.lower():

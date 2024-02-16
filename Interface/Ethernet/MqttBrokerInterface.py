@@ -47,7 +47,7 @@ class MqttBrokerInterface(InterfaceBase):
             timeout = 0.1
 
         # (re-)setup one-shot-timer with timeout of 2 seconds
-        self.timer(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, setup = True, timeout = timeout)
+        self.timer(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, reSetup = True, timeout = timeout)
 
     def on_message(self, client, userdata, msg):
         tempTopic = str(msg.topic)

@@ -204,7 +204,7 @@ class MqttBase(Base):
         return MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters
 
 
-    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None, default = None):
+    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None, default = None) -> bool:
         '''
         Checks if given parameters are contained in task configuration
         
@@ -574,14 +574,14 @@ class MqttBase(Base):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
-    def mqttDiscoverySensor(self, sensors, ignoreKeys : list = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = "") -> str:
+    def mqttDiscoverySensor(self, sensors, ignoreKeys : list = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = "", senderName : str = None) -> str:
         """
         sensors: dict, nestedDict oder List der Sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
         nameDict: dict. Hier koennen einzelne keys mit einzelnen frindlyNames drin stehen
         unitDict: dict. Hier koennen einzelne keys mit einzelnen Einheiten drin stehen
         
-        @result        created topic to which the sensor values have to be published to
+        @return        created topic to which the sensor values have to be published to
         """
         senderObj = Supporter.getCaller()      # get caller object
 
@@ -589,8 +589,11 @@ class MqttBase(Base):
         if nameDict is None:
             nameDict = {}
 
+        if senderName is None:
+            senderName = senderObj.name
+
         # create sensors out topic
-        topic = self.createOutTopic(self.createProjectTopic(senderObj.name), subTopic = subTopic)
+        topic = self.createOutTopic(self.createProjectTopic(senderName), subTopic = subTopic)
 
         if type(sensors) == dict:
             nameList = []
@@ -608,7 +611,7 @@ class MqttBase(Base):
         else:
             nameList = sensors
 
-        #Supporter.debugPrint(f"discover sensor called: [{senderObj.name}] [{topic}] [{nameList}]")
+        Supporter.debugPrint(f"discover sensor called: [{senderName}] [{topic}] [{nameList}]", color = "blue")
 
         for key in nameList:
             niceName = ""
@@ -618,8 +621,8 @@ class MqttBase(Base):
                     niceName = nameDict[key]
                 if (unitDict is not None) and (key in unitDict):
                     unit = unitDict[key]
-                preparedMsg = self.homeAutomation.getDiscoverySensorCmd(senderObj.name, key, niceName, unit, topic)
-                sensorTopic = self.homeAutomation.getDiscoverySensorTopic(senderObj.name, key)
+                preparedMsg = self.homeAutomation.getDiscoverySensorCmd(senderName, key, niceName, unit, topic)
+                sensorTopic = self.homeAutomation.getDiscoverySensorTopic(senderName, key)
                 senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
         return topic
 
@@ -746,12 +749,12 @@ class MqttBase(Base):
                             in case of False the exception will be suppressed
         @param contentTag   Tag in message dict that contains json string that has to be converted
                             This is also the tag of the element that will be printed in debug case
-                            
+
         @return             received and maybe converted message will be given back to caller
         '''
         if mqttQueue is None:
             mqttQueue = self.mqttRxQueue
-            
+
         if contentTag is None:
             contentTag = self._CONTENT_TAG
 

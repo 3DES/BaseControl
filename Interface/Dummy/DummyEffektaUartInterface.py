@@ -1,4 +1,3 @@
-
 import json
 from Base.InterfaceBase import InterfaceBase
 from Base.Supporter import Supporter

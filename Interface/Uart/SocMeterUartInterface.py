@@ -19,7 +19,6 @@ class SocMeterUartInterface(BasicUartInterface):
 
 
     def threadMethod(self):
-
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.readMqttQueue(error = False)
@@ -80,4 +79,4 @@ class SocMeterUartInterface(BasicUartInterface):
 
         if lastLine:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SocMonitorWerte, globalPublish = False, enableEcho = False)
-    
+

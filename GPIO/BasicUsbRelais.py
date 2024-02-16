@@ -173,6 +173,13 @@ class BasicUsbRelais(ThreadObject):
             self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(gpioHandler)), globalSubscription = False)
 
 
+    def threadSummulationSupport(self):
+        '''
+        Necessary since this thread supports SIMULATE flag
+        '''
+        pass
+
+
     def threadMethod(self):
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
