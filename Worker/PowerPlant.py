@@ -772,12 +772,12 @@ class PowerPlant(Worker):
         set setable values wich are received global
         """
 
-        if message["topic"].find("UsbRelaisWd") != -1:
-            Supporter.debugPrint(f"{self.name} got message {message}", color = "GREEN")
-            #{'topic': 'AccuControl/UsbRelaisWd1/out', 'global': False, 'content': {'inputs': {'Input3': '0', 'readbackGrid': '0', 'readbackInverter': '0', 'readbackSolarContactor': '0'}}}
-            #{'topic': 'AccuControl/UsbRelaisWd2/out', 'global': False, 'content': {'inputs': {'Input0': '0', 'Input1': '0', 'Input2': '0', 'Input3': '0'}}}
-            #"gridActive"
-            #"inverterActive"
+        #if message["topic"].find("UsbRelaisWd") != -1:
+        #    Supporter.debugPrint(f"{self.name} got message {message}", color = "GREEN")
+        #    #{'topic': 'AccuControl/UsbRelaisWd1/out', 'global': False, 'content': {'inputs': {'Input3': '0', 'readbackGrid': '0', 'readbackInverter': '0', 'readbackSolarContactor': '0'}}}
+        #    #{'topic': 'AccuControl/UsbRelaisWd2/out', 'global': False, 'content': {'inputs': {'Input0': '0', 'Input1': '0', 'Input2': '0', 'Input3': '0'}}}
+        #    #"gridActive"
+        #    #"inverterActive"
 
         # check if its our own topic
         if self.createOutTopic(self.getObjectTopic()) in message["topic"]:

@@ -74,7 +74,7 @@ class KacoUartInterface(BasicUartInterface):
         serialInput = b""
         serialInput += self.serialRead(timeout = 2, length = 15, dump = self.configuration["dumpSerial"])
         regex = f"\x0A(?P<telegram>\*{address:02d}9 (?P<id>[^ ]+) )(?P<checksum>.)\x0D".encode('iso-8859-15')
-        Supporter.debugPrint([f"slave {slave} at address {address}", f"sent [{Supporter.hexCharDump(cmd)}]", f"received [{Supporter.hexCharDump(serialInput)}]", f"search regex [{regex}]"], color = "LIGHTRED" if not len(serialInput) else "LIGHTBLUE")
+        #Supporter.debugPrint([f"slave {slave} at address {address}", f"sent [{Supporter.hexCharDump(cmd)}]", f"received [{Supporter.hexCharDump(serialInput)}]", f"search regex [{regex}]"], color = "LIGHTRED" if not len(serialInput) else "LIGHTBLUE")
         if match := re.search(regex, serialInput):
             calculatedChecksum = sum(match.group('telegram')) & 0xFF
             if ord(match.group('checksum')) == calculatedChecksum:
