@@ -85,7 +85,7 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
         self.mqttPublish(self.homeAutomationTopic, self.homeAutomationValues, globalPublish = True, enableEcho = False)
 
 
-    def threadSummulationSupport(self):
+    def threadSimmulationSupport(self):
         '''
         Necessary since this thread supports SIMULATE flag
         '''

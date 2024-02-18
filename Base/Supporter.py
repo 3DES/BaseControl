@@ -13,6 +13,7 @@ from gc import get_referents
 import os
 import colorama
 import inspect
+from Base import ExtendedJsonParser 
 
 
 class Supporter(object):
@@ -43,6 +44,7 @@ class Supporter(object):
                     targetDict[sourceElement] = sourceDict[sourceElement]
 
 
+        extendedJsonParser = ExtendedJsonParser.ExtendedJsonParser()      # get a extended json parser        
         loadFileStack = []      # needed to prevent recursive import of json files
         def loadPseudoJsonFile(jsonDictionary : dict):
             if "@import" in jsonDictionary:
@@ -70,25 +72,17 @@ class Supporter(object):
                         # add file to loadFileStack for recursive import detection
                         loadFileStack.append(fileName)
                         if len(loadFileStack) != len(set(loadFileStack)):
+                            # the last added file name was already on the stack, that means a recursion has been detected!
                             raise Exception("recursive import of json file " + loadFileStack[-1] + " detected")
-        
-                        initFile = open(fileName)                               # open init file
-                        fileContent = ""                                        # for json validation, that's the only chance to get proper line numbers in case of error
-                        for line in initFile:                                   # read line by line and remove comments
-                            line = line.rstrip('\r\n')                          # remove trailing CRs and NLs
-                            line = re.sub(r'#[^"\']*$', r'', line)              # remove comments, comments havn't to contain any quotation marks or apostrophes 
-                            line = re.sub(r'^\s*#.*$', r'', line)               # remove line comments
-                            fileContent += line + "\n"
-                        initFile.close()
-    
+
                         # try to json-ize imported file to get error messages with correct line numbers                
                         try:
-                            dictMerge(jsonDictionary, json.loads(fileContent))
+                            dictMerge(jsonDictionary, extendedJsonParser.parseFile(fileName))
                         except Exception as exception:
                             raise Exception("error in json file " + fileName + " -> " + str(exception))
-    
+
                         jsonDictionary = loadPseudoJsonFile(jsonDictionary)
-    
+
                         # remove current file from loadFileStack
                         loadFileStack.pop()
             return jsonDictionary
@@ -569,10 +563,10 @@ class Supporter(object):
             printText += f"    # {datetime.now()} [{callerName}]\n"
             
             for index, string in enumerate(messageStringOrList):
-                printText += f"      {string}\n"
+                printText += f"    # {string}\n"
                     
             for _ in range(borderSize):
-                printText += f"    {marker * (printLength - 5)}"
+                printText += f"    {marker * (printLength - 5)}\n"
         else:
             printText += "    " + (marker * 4) + " "
             printText += f"{datetime.now()} [{callerName}] \"" + " ".join(messageStringOrList) + "\" "

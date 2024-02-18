@@ -1,4 +1,22 @@
 {
+    "Logger":
+    {
+        "startPriority" : -3,       # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+    },
+    "MqttBridge":
+    {
+        "startPriority" : -2,  # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+    },
+    #"WatchDog":
+    #{
+    #    "startPriority" : -1,  # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+    #},
+    "PowerPlant":
+    {
+        "startPriority" : 1,   # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+    },
+
+
 #    "PowerPlant":
 #    {
 #        "class": "Worker.PowerPlant.PowerPlant",
@@ -23,11 +41,11 @@
 
     "Logger":
     {
-        "class":         "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
-        #"messageFilter": "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
+        "class":          "Logger.Logger.Logger",    # optionally: Logger.LoggerOverwrite.LoggerOverwrite
+        #"messageFilter":  "subscribed",              # regular expression usually for debugging since all messages will be filtered and only matching ones will be shown
 
         # Logger is the secret leading thread since it's the first thread that is set up, it gets some parameters and has to make it public!
-        "projectName":   "AccuControl",              # project name for MQTT topics (<projectName>/<threadName>/...)
+        "projectName":    "AccuControl",              # project name for MQTT topics (<projectName>/<threadName>/...)
         "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover"
     },
 

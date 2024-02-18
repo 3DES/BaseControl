@@ -94,7 +94,7 @@ class EasyMeterUartInterface(BasicUartInterface):
 #        pass
 
 
-#    def threadSummulationSupport(self):
+#    def threadSimmulationSupport(self):
 #        '''
 #        Necessary since this thread supports SIMULATE flag
 #        '''

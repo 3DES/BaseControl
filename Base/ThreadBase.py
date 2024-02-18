@@ -17,6 +17,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
     __setupThreadObjects_always_use_getters_and_setters = []         # all threads set up so far (even already teared down ones)
     __numberOfThreads_always_use_getters_and_setters    = 0          # threads setup counter (will no be decremented if a thread is teared down again, it's only incremented, so its sth. like an internal thread PID), threads should increment it and than store its content into object variable "self.threadNumber" 
+    threadStarted = False  # thread not yet started (will be set to True in method that can be overwritten if some initialization has to be done before other threads are allowed to start)
 
 
     @classmethod
@@ -140,10 +141,13 @@ class ThreadBase(Base.MqttBase.MqttBase):
         Finally threadTearDownMethod() will be called to give the thread the possibility to clean up
         '''
         self.logger.trace(self, "thread loop started")
+
+        self.setThreadStarted()      # signalize that thread has been started
+
         # first of all execute thread init method once
         try:
             self.threadInitMethod()             # call init method for the case the thread has sth. to set up
-            self.threadSummulationSupport()     # checks if simulation mode is supported in case "SIMULATE" flag has been set in init file, has to be overwritten by every thread and interface that supports simulation mode since otherwise SIMULATE flag cause an exception!
+            self.threadSimmulationSupport()     # checks if simulation mode is supported in case "SIMULATE" flag has been set in init file, has to be overwritten by every thread and interface that supports simulation mode since otherwise SIMULATE flag cause an exception!
         except Exception as exception:
             # beside explicitly exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -223,6 +227,26 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.mqttSendWatchdogAliveMessage()
 
 
+    def setThreadStarted(self):
+        '''
+        Simply sets start flag so that project start up routine knows that the next thread can be started
+        
+        It's possible to overwrite this method and set just a pass in it so the variable self.threadStarted
+        can be set somewhere else if a thread needs some time for start up before others are allowed to start.
+        Usually that's necessary if some initialization cannot be done in __init__() but has to be done in
+        threadInitMethod() since __init__() is executed during setup but threadInitMethod() is not called
+        before the thread has been started
+        '''
+        self.threadStarted = True
+
+
+    def threadInitializationFinished(self):
+        '''
+        To check if setup has been done and e.g. next thread can be started
+        '''
+        return self.threadStarted
+
+
     def threadInitMethod(self):
         '''
         Will be called once when thread loop is started
@@ -232,7 +256,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         self.logger.info(self, "thread init method called")
 
 
-    def threadSummulationSupport(self):
+    def threadSimmulationSupport(self):
         '''
         To be overwritten in case thread or interface supports SIMULATE flag
         otherwise SIMULATE flag is not allowed to be set!
@@ -310,7 +334,9 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         # finally stop logger if available
         if tearDownLoggerObject is not None:
+            Supporter.debugPrint(f"tearing down {Supporter.encloseString(tearDownLoggerObject.name)}", borderSize = 0)
             cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down logger " + Supporter.encloseString(tearDownLoggerObject.name))
             loggerThread = tearDownLoggerObject.killThread()
+            Supporter.debugPrint(f"joining {Supporter.encloseString(tearDownLoggerObject.name)}", borderSize = 0)
             loggerThread.join(Base.Base.Base.JOIN_TIME)     # finally join the logger thread
 

@@ -59,35 +59,45 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def setupThreads(cls, threadDictionary : dict, loggerName : str, mqttBridgeName : str):
+    def setupThreads(cls, threadDictionary : dict, startupPriorities : dict, loggerName : str, mqttBridgeName : str):
         '''
-        Setups up all threads in necessary order
-          1) a Logger will be set up since all other threads need it
-          2) a MqttBridge will be set up  since all other threads need it, since logger was already created it gets the MqttBridge set afterwards
-          3) all other threads are setup and all except WatchDogs are started
-          4) all watchdogs will get started with a list of all the threads setup up so far
+        Setups up all threads in defined order, order has to be defined via init.json file, usually the following order is recommended:
+            1. Logger
+            2. MqttBridge
+            3. WatchDog
+            4. all not priorized tasks
+            5. Worker
         '''
-        # setup logger thread first to enable logging as soon as possible
-        cls.projectLogger     = threadDictionary[loggerName]["class"](
-            loggerName,
-            threadDictionary[loggerName]["configuration"])
-        cls.projectLogger.start()
-        threadDictionary.pop(loggerName)
+        threadStartOrder = []
+        for priority in sorted(startupPriorities.keys()):
+            for threadName in sorted(startupPriorities[priority]):
+                # create thread
+                thread = threadDictionary[threadName]["class"](
+                    threadName,
+                    threadDictionary[threadName]["configuration"])
 
-        # setup mqtt bridge thread
-        cls.projectMqttBridge = threadDictionary[mqttBridgeName]["class"](
-            mqttBridgeName,
-            threadDictionary[mqttBridgeName]["configuration"])
-        cls.projectMqttBridge.start()
-        threadDictionary.pop(mqttBridgeName)
+                # store important threads
+                if threadName == loggerName:
+                    cls.projectLogger = thread
+                elif threadName == mqttBridgeName:
+                    cls.projectMqttBridge = thread
 
-        for threadName in threadDictionary:
-            thread = threadDictionary[threadName]["class"](
-                threadName,
-                threadDictionary[threadName]["configuration"])
-            thread.start()
+                # finally start thread
+                threadStartOrder.append(threadName)
+                thread.start()
 
-        cls.projectLogger.info(cls, "all threads up and running")
+                # wait until thread has been finished initialization
+                POLLING_SLEEP_TIME = .1     # sleep of .1 seconds per poll
+                POLLING_TIME       = 20     # 20 seconds should be enough
+                timeOutCounter = POLLING_TIME // POLLING_SLEEP_TIME
+                while not thread.threadInitializationFinished() and timeOutCounter:
+                    time.sleep(.1)
+                    timeOutCounter -= 1
+                if not timeOutCounter:
+                    raise Exception(f"starting up thread {threadName} took longer than {POLLING_TIME} seconds, please fix this!")
+
+        cls.projectLogger.info(cls, f"all threads up and running, started in following order: {threadStartOrder}")
+        Supporter.debugPrint(f"all threads up and running, started in following order: {threadStartOrder}")
 
 
     @classmethod
@@ -125,14 +135,24 @@ class ProjectRunner(object):
         The worker thread is only searched to ensure it exists and there is only one of them, but there is no further special handling done with it
         '''
         threadDictionary = {}
-        loggerName = None
+        DEFAULT_PRIORITY = 0
+        startupPriority  = { DEFAULT_PRIORITY : [] }       # 0 is default startup priority, all tasks without a "startPriority" given will be put into this list
+        loggerName     = None
         mqttBridgeName = None
-        workerName = None
+        workerName     = None
 
         # search through all defined objects and find logger and mqtt bridge and ensure there is always only one of them
         for threadName in configuration:
             # definition contains "class" key?
             if "class" in configuration[threadName]:
+                # sort all tasks after startup priority
+                if "startPriority" in configuration[threadName]:
+                    if configuration[threadName]["startPriority"] not in startupPriority:
+                        startupPriority[configuration[threadName]["startPriority"]] = []    # add empty list to add tasks with this priority
+                    startupPriority[configuration[threadName]["startPriority"]].append(threadName)
+                else:
+                    startupPriority[DEFAULT_PRIORITY].append(threadName)
+
                 threadConfiguration = configuration[threadName]                             # take configuration from init file
                 fullClassName = threadConfiguration["class"]                                # get class type
 
@@ -174,7 +194,7 @@ class ProjectRunner(object):
         if workerName is None:
             raise Exception("missing any Worker in init file")
 
-        return (threadDictionary, loggerName, mqttBridgeName)
+        return (threadDictionary, startupPriority, loggerName, mqttBridgeName)
 
 
     @classmethod
@@ -209,13 +229,13 @@ class ProjectRunner(object):
 
         try:
             # validate init file content, load all classes and filter certain special classes (i.e. Logger, MqttBridge and Logger)
-            (threadDictionary, loggerName, mqttBridgeName) = cls.createThreadDictionary(configuration)
+            (threadDictionary, startupPriorities, loggerName, mqttBridgeName) = cls.createThreadDictionary(configuration)
 
             # now threads will be instantiated and stared, if any exception happens now we have to tear them down again!
             try:
                 # now really setup all the threads
                 #print(threadDictionary)
-                cls.setupThreads(threadDictionary, loggerName, mqttBridgeName)
+                cls.setupThreads(threadDictionary, startupPriorities, loggerName, mqttBridgeName)
                 stopReason = cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
             except Exception:
                 Logger.Logger.Logger.error(cls, "INSTANTIATE/RUNNING EXCEPTION " + traceback.format_exc())

@@ -6,3 +6,5 @@ secure.json
 project.json
 json/
 _temp/
+Base/parser.out
+nohup.out

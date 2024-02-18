@@ -84,6 +84,16 @@ class WatchDog(ThreadObject):
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
         self.publishHomeAutomation()
+        
+        #self.threadStarted = True
+
+
+#    def setThreadStarted(self):
+#        # overwritten since it take some milli seconds until watch dog has registered to its watchdog RX queue
+#        # self.threadStarted = True will be inserted somewhere else instead!
+#        pass
+
+
 
 
     def threadMethod(self):
@@ -143,7 +153,10 @@ class WatchDog(ThreadObject):
                                 Supporter.encloseString(str(len(self.watchDogLastInformedDict))) +
                                 " within timeout time (" +
                                 str(self.configuration["triggerTime"] + self.configuration["timeout"] + self.configuration["setupTime"]) + 
-                                "s), missing:\n" + "\n".join(missedThreads))
+                                "s), missing:\n" + "\n".join(missedThreads) + 
+                                "\n=[EXPECTED]============================\n" + "\n".join(sorted(self.configuration["expectThreads"])) +
+                                "\n=[INFORMED]============================\n" + "\n".join(sorted(self.watchDogLastInformedDict.keys()))
+                                )
 
         # now check all (already stored) timeout times
         for thread in self.watchDogLastInformedDict:

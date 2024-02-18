@@ -173,7 +173,7 @@ class BasicUsbRelais(ThreadObject):
             self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(gpioHandler)), globalSubscription = False)
 
 
-    def threadSummulationSupport(self):
+    def threadSimmulationSupport(self):
         '''
         Necessary since this thread supports SIMULATE flag
         '''
