@@ -6,15 +6,12 @@ class Base(object):
     '''
     classdocs
     '''
-
-
     QUEUE_SIZE = 300            # length of Logger and MqttBridge Queues
     QUEUE_SIZE_EXTRA = 100      # must be at least as large as the maximum number of expected threads and interfaces!
     JOIN_TIME  = 5
 
-
     # @todo ggf. _SIMULATE umbenennen zu __SIMULATE!
-    # @todo externen WD nicht triggern, wenn ein Objekt im Simulations-Moduls l�uft!
+    # @todo externen WD nicht triggern, wenn ein Objekt im Simulations-Modus laeuft!
     _SIMULATE = False            # to be set to True as soon as at least one of the objects are simulating values, this will prevent the external watchdog relay from being triggered
     _SIMULATION_ALLOWED = False  
 

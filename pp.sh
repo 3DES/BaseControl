@@ -59,7 +59,12 @@ if [ -z $MAX_BACKUPS ]; then
 fi
 
 # start parameters
-EXECUTE="__main__.py -w -l=5 -p=3 --json-dump"
+EXECUTE='__main__.py -w -l=5 -p=3 --json-dump'
+#EXECUTE="__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter user|password|\+49"
+    # from command line you have to execute:
+    #   python3 __main__.py -w -l=5 -p=3 --json-dump --json-dump-filter "user|password|\+49"
+    # but here the quotation marks are not allowed, otherwise they will become part of the regex!
+#EXECUTE='__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter-none'
 #EXECUTE="__main__.py -w -l=5 -p=3"
 #EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu #--json-dump"
 #EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu --json-dump"
@@ -75,7 +80,7 @@ fi
 
 # further command line arguments given -> add them to EXECUTE variable
 if [ "$#" -gt 0 ]; then
-    EXECUTE="$EXECUTE $@"
+    EXECUTE=$EXECUTE $@
 fi
 
 echo "#####################################"

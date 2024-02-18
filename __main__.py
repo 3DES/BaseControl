@@ -72,6 +72,7 @@ if __name__ == '__main__':
     writeLogToDiskWhenEnds = False
     missingImportMeansError = False
     jsonDump = False
+    jsonDumpFilter = "user|password|\+49"     # default filter
     logFileName = "logger.txt"
 
     commandLine = f"command line parameters: {sys.argv}" 
@@ -88,8 +89,11 @@ if __name__ == '__main__':
     argumentParser.add_argument("-w", "--write-when-ends",      default = writeLogToDiskWhenEnds,  dest = "writeLogToDiskWhenEnds",             action='store_true', help = "always write log buffer to disk when program comes to an end not only in error case")
     argumentParser.add_argument("-e", "--missing-import-error", default = missingImportMeansError, dest = "missingImportMeansError",            action='store_true', help = "an exception will be thrown if an @import file in init file doesn't exist, otherwise it's only printed to stdout")
     argumentParser.add_argument("-d", "--remote-debug",                                            dest = "remoteDebugging",                    action='store_true', help = "remote debugging is enabled and it's expected that the debug server is up and running")
-    argumentParser.add_argument("--SIMULATE",                   default = False           ,        dest = "simulate",                           action='store_true', help = "if this is not set all SIMULATE flags in json files will be ignored")
+    argumentParser.add_argument("--SIMULATE",                   default = False,                   dest = "simulate",                           action='store_true', help = "if this is not set all SIMULATE flags in json files will be ignored")
     argumentParser.add_argument("--json-dump",                  default = False,                   dest = "jsonDump",                           action='store_true', help = "dumps json configuration after read all files recursively")
+    argumentParser.add_argument("--json-dump-filter",           default = None,                    dest = "jsonDumpFilter",         type = str,                      help = "replaces values that match this regex or values whose keys match this regex with #####, default if not given is {jsonDumpFilter}")
+    argumentParser.add_argument("--json-dump-filter-none",      default = None,                    dest = "jsonDumpFilterNone",                 action='store_true', help = "to suppress default value for jsonDumpFilter")
+
     arguments = argumentParser.parse_args()
 
     if arguments.remoteDebugging:
@@ -105,6 +109,16 @@ if __name__ == '__main__':
     elif (arguments.printLogLevel is not None) and (arguments.printLogLevel > arguments.logLevel):
         arguments.printLogLevel = arguments.logLevel
 
+    if arguments.jsonDumpFilter is not None:
+        if len(arguments.jsonDumpFilter) == 0:
+            # empty parameter given so use None
+            arguments.jsonDumpFilter = None
+    elif not arguments.jsonDumpFilterNone:
+        # parameter not given, and --json-dump-filter-none also not given, so use default case
+        arguments.jsonDumpFilter = jsonDumpFilter
+
+    print(f"dump filter is {arguments.jsonDumpFilter}")
+
     stopReason = ProjectRunner.executeProject(
         initFileName            = arguments.initFileName,
         logFileName             = arguments.logFileName,
@@ -115,6 +129,7 @@ if __name__ == '__main__':
         writeLogToDiskWhenEnds  = arguments.writeLogToDiskWhenEnds,
         missingImportMeansError = arguments.missingImportMeansError,
         jsonDump                = arguments.jsonDump,
+        jsonDumpFilter          = arguments.jsonDumpFilter,
         additionalLeadIn        = commandLine,
         simulationAllowed       = arguments.simulate)
 

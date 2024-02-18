@@ -17,6 +17,7 @@ import WatchDog.WatchDog
 import Base.Base
 import Base.ThreadBase
 from Base.Supporter import Supporter
+from Base.ExtendedJsonParser import ExtendedJsonParser
 import Logger
 import os
 import colorama
@@ -198,7 +199,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, additionalLeadIn : str = "", simulationAllowed : bool = False):
+    def executeProject(cls, initFileName : str, logFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, jsonDumpFilter : str = None, additionalLeadIn : str = "", simulationAllowed : bool = False):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -222,6 +223,9 @@ class ProjectRunner(object):
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
         readableJsonConfiguration = json.dumps(configuration, indent = 4)
+        
+        extendedJsonParser = ExtendedJsonParser()
+        readableJsonConfiguration = json.dumps(extendedJsonParser.parse(readableJsonConfiguration, protectRegex = jsonDumpFilter), indent = 4)
         if jsonDump:
             print(readableJsonConfiguration)
 

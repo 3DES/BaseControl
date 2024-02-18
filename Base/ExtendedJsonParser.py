@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 from ply import lex
 import ply.yacc as yacc
+import re
 
 class ExtendedJsonParser(object):
+    HIDE_STRING = "##########"
+    protectRegex = None      # values their keys matching this regex or values that match it will be replaced by HIDE_STRING
+
     def errorHandler(self, lexer : lex):
         currentLine = lexer.lexer.lexdata[self._lastLineEnd:].split("\n")[0]
         self.errorMessages.append(
@@ -155,6 +159,12 @@ class ExtendedJsonParser(object):
         '''
         tuple : STRING COLON element
         '''
+        if self.protectRegex is not None:
+            if self.protectRegex.match(p[1]):
+                p[3] = self.HIDE_STRING
+            elif type(p[3]) is str:
+                if self.protectRegex.match(p[3]):
+                    p[3] = self.HIDE_STRING
         p[0] = { p[1] : p[3] }
 
     def p_list(self, p) :
@@ -171,6 +181,9 @@ class ExtendedJsonParser(object):
         '''
         commalist : element COMMA commalist
         '''
+        if (self.protectRegex is not None) and (type(p[1]) is str):
+            if self.protectRegex.match(p[1]):
+                p[1] = self.HIDE_STRING
         p[0] = p[3]
         p[0].insert(0, p[1])
 
@@ -179,6 +192,9 @@ class ExtendedJsonParser(object):
         commalist : element COMMA
                   | element
         '''
+        if (self.protectRegex is not None) and (type(p[1]) is str):
+            if self.protectRegex.match(p[1]):
+                p[1] = self.HIDE_STRING
         p[0] = [ p[1] ]
 
     #    element : object
@@ -248,16 +264,17 @@ class ExtendedJsonParser(object):
             fileContent = file.readlines()
         return fileContent
 
-    def parse(self, extendedJsonString : str, combineDicts : bool = True) -> dict:
+    def parse(self, extendedJsonString : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         self.combineDicts = combineDicts
+        self.protectRegex = re.compile("{0}".format(protectRegex))
         self.parseResult = self.parser.parse(extendedJsonString)
         if self.error():
             raise Exception()
         return self.parseResult
 
-    def parseFile(self, fileName : str, combineDicts : bool = True) -> dict:
+    def parseFile(self, fileName : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         fileContent = self._readExtendedJsonFile(fileName)
-        self.parseResult = self.parse("\n".join(fileContent), combineDicts = combineDicts)
+        self.parseResult = self.parse("\n".join(fileContent), combineDicts = combineDicts, protectRegex = protectRegex)
         return self.parseResult
 
     def error(self) -> list:

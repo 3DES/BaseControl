@@ -13,7 +13,7 @@ from gc import get_referents
 import os
 import colorama
 import inspect
-from Base import ExtendedJsonParser 
+from Base.ExtendedJsonParser import ExtendedJsonParser
 
 
 class Supporter(object):
@@ -44,7 +44,7 @@ class Supporter(object):
                     targetDict[sourceElement] = sourceDict[sourceElement]
 
 
-        extendedJsonParser = ExtendedJsonParser.ExtendedJsonParser()      # get a extended json parser        
+        extendedJsonParser = ExtendedJsonParser()      # get a extended json parser        
         loadFileStack = []      # needed to prevent recursive import of json files
         def loadPseudoJsonFile(jsonDictionary : dict):
             if "@import" in jsonDictionary:
