@@ -5,15 +5,31 @@ import re
 
 class ExtendedJsonParser(object):
     HIDE_STRING = "##########"
+    LEXER_STAGE = "SCANNER"
+    PARSER_STAGE = "PARSER"
     protectRegex = None      # values their keys matching this regex or values that match it will be replaced by HIDE_STRING
 
-    def errorHandler(self, lexer : lex):
+    def errorHandler(self, lexer : lex, stage : str = None):
         currentLine = lexer.lexer.lexdata[self._lastLineEnd:].split("\n")[0]
-        self.errorMessages.append(
-            f"Syntax error \"{lexer.value[0]}\" in line {lexer.lineno} at position {lexer.lexpos - self._lastLineEnd}\n" +
-            f"{currentLine}\n" +
-            f"{' ' * (lexer.lexpos - self._lastLineEnd) + '^'}\n"
-        )
+
+        if self.fileName:
+            errorPosition = f"{self.fileName}:{lexer.lineno}"
+        else:
+            errorPosition = f"{lexer.lineno}"
+
+        if stage is None:
+            stage = "Syntax"
+            token = ""
+        elif stage == self.PARSER_STAGE:
+            token = f", token \"{lexer.type}\", character \"{lexer.value[0]}\""
+        else:
+            token = f", character \"{lexer.value[0]}\""
+
+        # throw exception, further scanning/parsing usually doesn't make sense!
+        raise Exception(f"{stage} error at {errorPosition}, character position {lexer.lexpos - self._lastLineEnd}{token}\n" +
+                               f"{currentLine}\n" +
+                               f"{' ' * (lexer.lexpos - self._lastLineEnd) + '^'}")
+
 
     tokens = (
         'OBJECT_BEGIN',
@@ -97,7 +113,7 @@ class ExtendedJsonParser(object):
         self._lastLineEnd = t.lexpos + len(t.value)
 
     def t_error(self, t):
-        self.errorHandler(t)
+        self.errorHandler(t, stage = self.LEXER_STAGE)
         t.lexer.skip( 1 )
 
 
@@ -161,6 +177,7 @@ class ExtendedJsonParser(object):
         '''
         if self.protectRegex is not None:
             if self.protectRegex.match(p[1]):
+                # independent what type the right side is, replace it by self.HIDE_STRING
                 p[3] = self.HIDE_STRING
             elif type(p[3]) is str:
                 if self.protectRegex.match(p[3]):
@@ -251,13 +268,13 @@ class ExtendedJsonParser(object):
         p[0] = p[1]
 
     def p_error(self, p):
-        self.errorHandler(p)
+        self.errorHandler(p, stage = self.PARSER_STAGE)
 
     def __init__(self):
         self.lexer  = lex.lex(module = self)
         self.parser = yacc.yacc(module = self)
         self.parseResult = None
-        self.errorMessages = None
+        self.fileName = ""
 
     def _readExtendedJsonFile(self, fileName):
         with open(fileName) as file:
@@ -268,17 +285,13 @@ class ExtendedJsonParser(object):
         self.combineDicts = combineDicts
         self.protectRegex = re.compile("{0}".format(protectRegex))
         self.parseResult = self.parser.parse(extendedJsonString)
-        if self.error():
-            raise Exception()
         return self.parseResult
 
     def parseFile(self, fileName : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
+        self.fileName = fileName
         fileContent = self._readExtendedJsonFile(fileName)
         self.parseResult = self.parse("\n".join(fileContent), combineDicts = combineDicts, protectRegex = protectRegex)
         return self.parseResult
-
-    def error(self) -> list:
-        return self.errorMessages
 
     def lastParseResult(self):
         return self.parseResult
@@ -305,15 +318,13 @@ if __name__ == '__main__':
     '''
     parser = ExtendedJsonParser()
 
-    res = parser.parse(stuff) # the input
-    if errorMessage := parser.error():
-        print(errorMessage)
-    else:
-        print(res)
+    try:
+        print(parser.parse(stuff)) # the input
+    except Exception as exception:
+        print(str(exception))
 
-    res = parser.parseFile("init.json") # the input
-    if errorMessage := parser.error():
-        print(errorMessage)
-    else:
-        print(res)
+    try:
+        print(parser.parseFile("init.json")) # the input
+    except Exception as exception:
+        print(str(exception))
 
