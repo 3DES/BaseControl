@@ -204,6 +204,7 @@ class BasicUartInterface(InterfaceBase):
             raise Exception(f'Serial connection --{self.configuration["interface"]}-- could not established')
         self.logger.info(self, f'Serial connection --{self.configuration["interface"]}-- initialized.')
 
+
     #def threadMethod(self):
 
 

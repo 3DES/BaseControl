@@ -123,7 +123,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # check if threadMethod handled mqttRxQueue correctly, what means it has to do one of the following three options:
         #     - it read the queue until empty returned with True
         #     - it set self._mqttRxQueueGetIgnoreOnce
-        #     - it has deleted its queue completely via self.removeMqttRxQueue()
+        #     - it has deleted its queue completely (usually with the helper function self.removeMqttRxQueue())
         if not self._mqttRxQueueEmptyWasTrue and not self._mqttRxQueueGetIgnoreOnce and hasattr(self, "mqttRxQueue"):
             # thread doesn't read its mqttRxQueue, so let's check if anybody sends stuff to it
             if not self.mqttRxQueue.empty():

@@ -75,7 +75,7 @@ class SocMeterUartInterface(BasicUartInterface):
             try:
                 cmd = tempcmd.encode('utf-8')
             except:
-                self.logger.error(self, f"Only commands in a list are accepted! We got a {type(self.cmdList)} with contence of {str(self.cmdList)}")
+                self.logger.error(self, f"Only commands in a list are accepted! We got a {type(self.cmdList)} with following content: {str(self.cmdList)}")
                 self.cmdList = []
                 break
 

@@ -15,13 +15,13 @@ class Pylontech485Interface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
+        self.removeMqttRxQueue()
         self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount"])
         self.tagsIncluded(["baudrate"], optional = True, default = 115200)
         tries = 0
-        self.removeMqttRxQueue()
         while tries < self.MAX_INIT_TRIES:
             try:
                 self.p = PylontechStack(self.configuration["interface"], baud=self.configuration["baudrate"], manualBattcountLimit=self.configuration["battCount"])

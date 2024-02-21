@@ -1067,13 +1067,14 @@ class PowerPlant(Worker):
                 self.sendeMqtt = False
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.scriptValues, globalPublish = True, enableEcho = False)
         else:
-            if self.timer(name = "timeoutExpectedDevices", timeout = 3*60):
+            TIMEOUT = 3 * 60
+            if self.timer(name = "timeoutExpectedDevices", timeout = TIMEOUT):
                 self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Es haben sich nicht alle erwarteten Devices gemeldet!")
 
                 for device in self.expectedDevices:
                     if not device in self.localDeviceData:
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, f"Device: {device} fehlt!")
-                raise Exception("Some devices are missing after timeout!")
+                raise Exception(f"Some devices are missed after timeout of {TIMEOUT}s!")
 
 
     def threadBreak(self):

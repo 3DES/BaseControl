@@ -84,7 +84,7 @@ class WatchDog(ThreadObject):
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
         self.publishHomeAutomation()
-        
+
         #self.threadStarted = True
 
 
@@ -92,8 +92,6 @@ class WatchDog(ThreadObject):
 #        # overwritten since it take some milli seconds until watch dog has registered to its watchdog RX queue
 #        # self.threadStarted = True will be inserted somewhere else instead!
 #        pass
-
-
 
 
     def threadMethod(self):
