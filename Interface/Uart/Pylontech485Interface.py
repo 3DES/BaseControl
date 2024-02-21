@@ -21,6 +21,7 @@ class Pylontech485Interface(InterfaceBase):
         self.tagsIncluded(["interface", "battCount"])
         self.tagsIncluded(["baudrate"], optional = True, default = 115200)
         tries = 0
+        self.removeMqttRxQueue()
         while tries < self.MAX_INIT_TRIES:
             try:
                 self.p = PylontechStack(self.configuration["interface"], baud=self.configuration["baudrate"], manualBattcountLimit=self.configuration["battCount"])
