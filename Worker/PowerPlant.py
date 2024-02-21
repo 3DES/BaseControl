@@ -1067,7 +1067,7 @@ class PowerPlant(Worker):
                 self.sendeMqtt = False
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.scriptValues, globalPublish = True, enableEcho = False)
         else:
-            if self.timer(name = "timeoutExpectedDevices", timeout = 10*60):
+            if self.timer(name = "timeoutExpectedDevices", timeout = 3*60):
                 self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Es haben sich nicht alle erwarteten Devices gemeldet!")
 
                 for device in self.expectedDevices:

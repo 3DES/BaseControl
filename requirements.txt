@@ -5,4 +5,4 @@ pylontech==0.1.*
 epevermodbus==0.0.16
 requests==2.31.*
 colorama==0.4.*
-ply==3.11*
+ply==3.*

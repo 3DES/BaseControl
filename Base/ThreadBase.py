@@ -123,13 +123,12 @@ class ThreadBase(Base.MqttBase.MqttBase):
         # check if threadMethod handled mqttRxQueue correctly, what means it has to do one of the following three options:
         #     - it read the queue until empty returned with True
         #     - it set self._mqttRxQueueGetIgnoreOnce
-        #     - it has deleted its queue completely
+        #     - it has deleted its queue completely via self.removeMqttRxQueue()
         if not self._mqttRxQueueEmptyWasTrue and not self._mqttRxQueueGetIgnoreOnce and hasattr(self, "mqttRxQueue"):
             # thread doesn't read its mqttRxQueue, so let's check if anybody sends stuff to it
             if not self.mqttRxQueue.empty():
                 while not self.mqttRxQueue.empty():
                     self.logger.debug(self, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
-            self.logger.debug(self, f"is not reading its mqttRxQueue but anybody sends to it: {self.mqttRxQueue.get()}")
             raise Exception(f"{self.name}({self.__class__.__name__}) hasn't called self.mqttRxQueue.get() or self.mqttRxQueue.empty() and got True, what is not allowed! Either delete self.mqttRxQueue or set self._mqttRxQueueGetIgnoreOnce to True each time it cannot be read")
 
 

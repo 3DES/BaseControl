@@ -14,7 +14,7 @@ class WBmsUartInterface(BasicUartInterface):
         '''
         super().__init__(threadName, configuration)
         self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe":False}
-
+        self.removeMqttRxQueue()
 
     def threadMethod(self):
 

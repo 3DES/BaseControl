@@ -75,7 +75,7 @@ class Epever485Interface(InterfaceBase):
                 time.sleep(10)
                 self.logger.info(self, f"Device --{self.name}-- {tries + 1} from {self.retries} inits failed.")
             tries += 1
-        if tries >= self.retries:
+        if tries >= retries:
             raise Exception(f'{self.name} connection could not established! Check interface and address')
 
     def threadInitMethod(self):
