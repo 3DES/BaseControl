@@ -72,7 +72,13 @@ class SocMeterUartInterface(BasicUartInterface):
 
         while len(self.cmdList):
             tempcmd = self.cmdList[0]
-            cmd = tempcmd.encode('utf-8')
+            try:
+                cmd = tempcmd.encode('utf-8')
+            except:
+                self.logger.error(self, f"Only commands in a list are accepted! We got a {type(self.cmdList)} with contence of {str(self.cmdList)}")
+                self.cmdList = []
+                break
+
             cmd = cmd + b'\n'
             self.serialWrite(cmd)
             del self.cmdList[0]
