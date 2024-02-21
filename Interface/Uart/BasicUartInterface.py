@@ -49,20 +49,17 @@ class BasicUartInterface(InterfaceBase):
 
 
     def serialInit(self):
-        try:
-            self.serialConn = serial.Serial(
-                port         = self.configuration["interface"],
-                baudrate     = self.configuration["baudrate"],
-                bytesize     = self.configuration["bytesize"],
-                parity       = self.configuration["parity"],
-                stopbits     = self.configuration["stopbits"],
-                timeout      = self.configuration["timeout"],
-                xonxoff      = self.configuration["xonxoff"],
-                writeTimeout = self.configuration["writeTimeout"],
-                rtscts       = self.configuration["rtscts"]
-            )
-        except Exception as exception:
-            self.logger.error(self, f"Serial Port {self.name} init failed: {exception}")
+        self.serialConn = serial.Serial(
+            port         = self.configuration["interface"],
+            baudrate     = self.configuration["baudrate"],
+            bytesize     = self.configuration["bytesize"],
+            parity       = self.configuration["parity"],
+            stopbits     = self.configuration["stopbits"],
+            timeout      = self.configuration["timeout"],
+            xonxoff      = self.configuration["xonxoff"],
+            writeTimeout = self.configuration["writeTimeout"],
+            rtscts       = self.configuration["rtscts"]
+        )
 
 
     def serialClose(self):
