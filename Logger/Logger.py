@@ -195,7 +195,9 @@ class Logger(ThreadBase):
         self.set_projectName(configuration["projectName"])
         if not self.tagsIncluded(["homeAutomation"], optional = True, configuration = configuration):
             configuration["homeAutomation"] = "HomeAutomation.BaseHomeAutomation.BaseHomeAutomation"
-        self.set_homeAutomation(Supporter.loadClassFromFile(configuration["homeAutomation"])())
+        if not self.tagsIncluded(["homeAutomationPrefix"], optional = True, configuration = configuration):
+            configuration["homeAutomationPrefix"] = ""
+        self.set_homeAutomation(Supporter.loadClassFromFile(configuration["homeAutomation"])(configuration["homeAutomationPrefix"]))
 
         self.setup_logQueue()                                   # setup log queue
         self.logCounter = 0                                     # counts all logged messages

@@ -9,6 +9,15 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     '''
     classdocs
     '''
+    @classmethod
+    def _addPrefix(cls, niceName : str, prefix : str = ""):
+        """
+        When a homeAssistantPrefix has been defined in "Logger" configuration this prefix will be set and used whenever a sensor or actor is discovered
+        """
+        if len(BaseHomeAutomation.homeAutomationPrefix):
+            return f"{BaseHomeAutomation.homeAutomationPrefix} {niceName}"
+        else:
+            return niceName
 
     @classmethod
     def _getFrindlyName(cls, deviceName, valueName) -> str:
@@ -86,6 +95,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
             templateMsg["name"] = niceName
         else:
             templateMsg["name"] = cls._getFrindlyName(deviceName, sensorName)
+        templateMsg["name"] = cls._addPrefix(templateMsg["name"])
 
         if unit == "none":
             del templateMsg["unit_of_measurement"]
@@ -137,6 +147,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         else:
             templateMsg["name"] = deviceName
             #templateMsg["command_template"] = cls._getCmdTemplate(deviceName)
+        templateMsg["name"] = cls._addPrefix(templateMsg["name"])
         templateMsg["options"] = optionList
         return templateMsg
 
@@ -171,6 +182,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
             templateMsg["name"] = niceName
         else:
             templateMsg["name"] = cls._getFrindlyName(deviceName, sensorName)
+        templateMsg["name"] = cls._addPrefix(templateMsg["name"])
         templateMsg["min"] = minVal
         templateMsg["max"] = maxVal
             
@@ -204,6 +216,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
             templateMsg["name"] = niceName
         else:
             templateMsg["name"] = cls._getFrindlyName(deviceName, sensorName)
+        templateMsg["name"] = cls._addPrefix(templateMsg["name"])
         templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
         templateMsg["payload_on"] = cls._getPayloadOn(sensorName)
         templateMsg["payload_off"] = cls._getPayloadOff(sensorName)
@@ -232,6 +245,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
             templateMsg["name"] = niceName
         else:
             templateMsg["name"] = cls._getFrindlyName(deviceName, sensorName)
+        templateMsg["name"] = cls._addPrefix(templateMsg["name"])
         templateMsg["payload_on"] = onCmd
         templateMsg["payload_off"] = offCmd
         return templateMsg

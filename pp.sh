@@ -16,6 +16,9 @@
 #       MAX_BACKUPS=10 NOMAIL=1 ./pp.sh -f UsbRelaisInterfaceWd
 #       MAX_BACKUPS=10 NOMAIL=1 ./pp.sh -f UsbRelaisInterfaceWd -s 20
 #       TURN=0; for TURN in {1..100}; do MAX_BACKUPS=100 NOMAIL=1 ./pp.sh -s 20; echo "turns so far $TURN"; sleep 100; done
+#       NOMAIL=1 nohup ./pp.sh &
+#           #tail -f nohup.out
+#           #kill -s SIGINT %1
 #
 # pp.sh variables (see SETTINGS section):
 #       SECRETS_FILE    file where secret values can be found, e.g. json/secure.sh

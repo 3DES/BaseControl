@@ -98,7 +98,7 @@ class ProjectRunner(object):
                     raise Exception(f"starting up thread {threadName} took longer than {POLLING_TIME} seconds, please fix this!")
 
         cls.projectLogger.info(cls, f"all threads up and running, started in following order: {threadStartOrder}")
-        Supporter.debugPrint(f"all threads up and running, started in following order: {threadStartOrder}")
+        Supporter.debugPrint(f"all threads up and running, started in following order: {threadStartOrder}", color = "LIGHTGREEN")
 
 
     @classmethod

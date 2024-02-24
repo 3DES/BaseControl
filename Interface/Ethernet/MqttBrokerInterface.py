@@ -54,16 +54,16 @@ class MqttBrokerInterface(InterfaceBase):
         #print(Supporter.hexAsciiDump(msg.payload))
         #print(Supporter.hexAsciiDump(tempTopic))
         tempMsg = str(Supporter.decode(msg.payload))
+
         self.logger.debug(self, f"MQTT message received: {tempMsg} from {tempTopic}")
         # if topic and msg is in dontCareList we will ignore the msg
         # we have to check first if topic is in the list
-        if tempTopic in self.dontCareList:
-            if self.dontCareList[tempTopic] == tempMsg:
-                del self.dontCareList[tempTopic]
-            else:
-                self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
+        if (tempTopic in self.dontCareList) and (self.dontCareList[tempTopic] == tempMsg):
+            del self.dontCareList[tempTopic]
+            #Supporter.debugPrint(f"ON_MESSAGE ignored: {tempTopic}, {tempMsg}", color = "RED")
         else:
             self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
+            #Supporter.debugPrint(f"ON_MESSAGE: {tempTopic}, {tempMsg}", color = "RED")
 
     def threadInitMethod(self):
         # subscribe internally global to get all global msg
@@ -94,7 +94,7 @@ class MqttBrokerInterface(InterfaceBase):
         # if there was no on_connect so far and our mqttRxQueue is filled up at a level of 90% we will try to clear the loop at least even if messages get lost
         if self.mqttRxQueue.qsize() >= (self.QUEUE_SIZE * 0.9):
             self.InitialConnected = True
-            self.logger.error(self, "MQTT RX queue quiet full. Eventually we will lost messages.")
+            self.logger.error(self, "MQTT RX queue quiet full, we may lose messages.")
 
         if self.InitialConnected:
             while not self.mqttRxQueue.empty():
@@ -107,6 +107,7 @@ class MqttBrokerInterface(InterfaceBase):
                         self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = self.configuration["sendRetained"])
                         # we remember the msg to ignore incomming own msg
                         self.dontCareList[newMqttMessageDict["topic"]] = newMqttMessageDict["content"]
+                        #Supporter.debugPrint(f"PUBLISH: {newMqttMessageDict['topic']}, {newMqttMessageDict['content']}", color = "RED")
                     except:
                         self.logger.error(self, "Could not send MQTT msg to broker: "  + str(newMqttMessageDict))
                 elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):

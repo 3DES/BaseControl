@@ -4,13 +4,13 @@ from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
 from Worker.Worker import Worker
 from Base.Supporter import Supporter
+from Base.CEnum import CEnum
 import Base
 import subprocess
 import Base.Crc
 from queue import Queue
 import colorama
 import functools
-from enum import Enum
 
 
 import sys
@@ -70,7 +70,7 @@ class MeanWellNPB(ThreadObject):
         return dataString
 
 
-    class CAN_COMMAND_NAMES(Enum):
+    class CAN_COMMAND_NAMES(CEnum):
         OPERATION        = "OPERATION"
         VOUT_SET         = "VOUT_SET"
         IOUT_SET         = "IOUT_SET"
@@ -107,36 +107,36 @@ class MeanWellNPB(ThreadObject):
         # furthermore, commands with trailing digits, e.g. SERIAL1, MODEL1, ... are only supported as readable!
         # "resolution" is the exponent of 10^x, so 0 = 1, 1 = 10, 2 = 100, None = None
         # "type" can be str, int or a function expecting at least "command", "data" and "reverse" parameters
-        CAN_COMMAND_NAMES.OPERATION.value        : {"opcode" : 0x0000, "valueName" : "operationMode",          "readOnly" : False, "bytes" : 1, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.VOUT_SET.value         : {"opcode" : 0x0020, "valueName" : "vOut",                   "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.IOUT_SET.value         : {"opcode" : 0x0030, "valueName" : "cOut",                   "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.FAULT_STATUS.value     : {"opcode" : 0x0040, "valueName" : "faultState",             "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
-        CAN_COMMAND_NAMES.READ_VIN.value         : {"opcode" : 0x0050, "valueName" : "vIn",                    "readOnly" : True,  "bytes" : 2, "resolution" :    1, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.READ_VOUT.value        : {"opcode" : 0x0060, "valueName" : "vOutReadback",           "readOnly" : True,  "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.READ_IOUT.value        : {"opcode" : 0x0061, "valueName" : "cOutReadback",           "readOnly" : True,  "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.READ_TEMP.value        : {"opcode" : 0x0062, "valueName" : "temperature",            "readOnly" : True,  "bytes" : 2, "resolution" :    1, "unit" :  "°C", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.ID1.value              : {"opcode" : 0x0080, "valueName" : "manufacturer",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.ID2.value              : {"opcode" : 0x0081, "valueName" : "manufacturer",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.MODEL1.value           : {"opcode" : 0x0082, "valueName" : "chargerModel",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.MODEL2.value           : {"opcode" : 0x0083, "valueName" : "chargerModel",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.FW_VERSION.value       : {"opcode" : 0x0084, "valueName" : "firmware",               "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertFirmwareRevision},    # has to be handled in a special way since firmware revision contains 0xFFs as end tags
-        CAN_COMMAND_NAMES.LOCATION.value         : {"opcode" : 0x0085, "valueName" : "manufacturingLocation",  "readOnly" : True,  "bytes" : 3, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.DATE.value             : {"opcode" : 0x0086, "valueName" : "manufacturingDate",      "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.SERIAL1.value          : {"opcode" : 0x0087, "valueName" : "serialNumber",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.SERIAL2.value          : {"opcode" : 0x0088, "valueName" : "serialNumber",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
-        CAN_COMMAND_NAMES.CURVE_CC.value         : {"opcode" : 0x00B0, "valueName" : "constantCurrent",        "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.CURVE_CV.value         : {"opcode" : 0x00B1, "valueName" : "constantVoltage",        "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.CURVE_FV.value         : {"opcode" : 0x00B2, "valueName" : "floatVoltage",           "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.CURVE_TC.value         : {"opcode" : 0x00B3, "valueName" : "tapperCurrent",          "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.CURVE_CFG.value        : {"opcode" : 0x00B4, "valueName" : "curveConfig",            "readOnly" : False, "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
-        CAN_COMMAND_NAMES.CURVE_CC_TIMEOUT.value : {"opcode" : 0x00B5, "valueName" : "constantCurrentTimeout", "readOnly" : False, "bytes" : 2, "resolution" :    0, "unit" : "min", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.CURVE_CV_TIMEOUT.value : {"opcode" : 0x00B6, "valueName" : "constantVoltageTimeout", "readOnly" : False, "bytes" : 2, "resolution" :    0, "unit" : "min", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.CURVE_FV_TIMEOUT.value : {"opcode" : 0x00B7, "valueName" : "floatVoltageTimeout",    "readOnly" : False, "bytes" : 2, "resolution" :    0, "unit" : "min", "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.CHG_STATUS.value       : {"opcode" : 0x00B8, "valueName" : "chargingState",          "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
-        #CAN_COMMAND_NAMES.CHG_RST_VBAT.value     : {"opcode" : 0x00B9, "valueName" : "chargingRestartVoltage", "readOnly" : False, "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : int},       # get no answer!?
-        CAN_COMMAND_NAMES.SCALING_FACTOR.value   : {"opcode" : 0x00C0, "valueName" : "scalingRatio",           "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : int},
-        CAN_COMMAND_NAMES.SYSTEM_STATUS.value    : {"opcode" : 0x00C1, "valueName" : "systemState",            "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
-        CAN_COMMAND_NAMES.SYSTEM_CONFIG.value    : {"opcode" : 0x00C2, "valueName" : "systemConfig",           "readOnly" : False, "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
+        CAN_COMMAND_NAMES.OPERATION        : {"opcode" : 0x0000, "valueName" : "operationMode",          "readOnly" : False, "bytes" : 1, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.VOUT_SET         : {"opcode" : 0x0020, "valueName" : "vOut",                   "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.IOUT_SET         : {"opcode" : 0x0030, "valueName" : "cOut",                   "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.FAULT_STATUS     : {"opcode" : 0x0040, "valueName" : "faultState",             "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
+        CAN_COMMAND_NAMES.READ_VIN         : {"opcode" : 0x0050, "valueName" : "vIn",                    "readOnly" : True,  "bytes" : 2, "resolution" :    1, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.READ_VOUT        : {"opcode" : 0x0060, "valueName" : "vOutReadback",           "readOnly" : True,  "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.READ_IOUT        : {"opcode" : 0x0061, "valueName" : "cOutReadback",           "readOnly" : True,  "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.READ_TEMP        : {"opcode" : 0x0062, "valueName" : "temperature",            "readOnly" : True,  "bytes" : 2, "resolution" :    1, "unit" :  "°C", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.ID1              : {"opcode" : 0x0080, "valueName" : "manufacturer",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.ID2              : {"opcode" : 0x0081, "valueName" : "manufacturer",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.MODEL1           : {"opcode" : 0x0082, "valueName" : "chargerModel",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.MODEL2           : {"opcode" : 0x0083, "valueName" : "chargerModel",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.FW_VERSION       : {"opcode" : 0x0084, "valueName" : "firmware",               "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertFirmwareRevision},    # has to be handled in a special way since firmware revision contains 0xFFs as end tags
+        CAN_COMMAND_NAMES.LOCATION         : {"opcode" : 0x0085, "valueName" : "manufacturingLocation",  "readOnly" : True,  "bytes" : 3, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.DATE             : {"opcode" : 0x0086, "valueName" : "manufacturingDate",      "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.SERIAL1          : {"opcode" : 0x0087, "valueName" : "serialNumber",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.SERIAL2          : {"opcode" : 0x0088, "valueName" : "serialNumber",           "readOnly" : True,  "bytes" : 6, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : str},
+        CAN_COMMAND_NAMES.CURVE_CC         : {"opcode" : 0x00B0, "valueName" : "constantCurrent",        "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.CURVE_CV         : {"opcode" : 0x00B1, "valueName" : "constantVoltage",        "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.CURVE_FV         : {"opcode" : 0x00B2, "valueName" : "floatVoltage",           "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "V", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.CURVE_TC         : {"opcode" : 0x00B3, "valueName" : "tapperCurrent",          "readOnly" : False, "bytes" : 2, "resolution" :    2, "unit" :   "A", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.CURVE_CFG        : {"opcode" : 0x00B4, "valueName" : "curveConfig",            "readOnly" : False, "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
+        CAN_COMMAND_NAMES.CURVE_CC_TIMEOUT : {"opcode" : 0x00B5, "valueName" : "constantCurrentTimeout", "readOnly" : False, "bytes" : 2, "resolution" :    0, "unit" : "min", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.CURVE_CV_TIMEOUT : {"opcode" : 0x00B6, "valueName" : "constantVoltageTimeout", "readOnly" : False, "bytes" : 2, "resolution" :    0, "unit" : "min", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.CURVE_FV_TIMEOUT : {"opcode" : 0x00B7, "valueName" : "floatVoltageTimeout",    "readOnly" : False, "bytes" : 2, "resolution" :    0, "unit" : "min", "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.CHG_STATUS       : {"opcode" : 0x00B8, "valueName" : "chargingState",          "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
+        #CAN_COMMAND_NAMES.CHG_RST_VBAT     : {"opcode" : 0x00B9, "valueName" : "chargingRestartVoltage", "readOnly" : False, "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : int},       # get no answer!?
+        CAN_COMMAND_NAMES.SCALING_FACTOR   : {"opcode" : 0x00C0, "valueName" : "scalingRatio",           "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : int},
+        CAN_COMMAND_NAMES.SYSTEM_STATUS    : {"opcode" : 0x00C1, "valueName" : "systemState",            "readOnly" : True,  "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
+        CAN_COMMAND_NAMES.SYSTEM_CONFIG    : {"opcode" : 0x00C2, "valueName" : "systemConfig",           "readOnly" : False, "bytes" : 2, "resolution" : None, "unit" :  None, "errorOnNoResponse" : True, "type" : _convertHexValue},            # should be handled as hex string, so single bits are more readable!
     }
  
     # 0x0040 bits:
@@ -217,11 +217,11 @@ class MeanWellNPB(ThreadObject):
     }
 
     STATUS_ELEMENTS = {
-        CAN_COMMAND_NAMES.FAULT_STATUS.value  : FAULT_STATUS,
-        CAN_COMMAND_NAMES.CURVE_CFG.value     : CURVE_CONFIG,
-        CAN_COMMAND_NAMES.CHG_STATUS.value    : CHARGING_STATUS,
-        CAN_COMMAND_NAMES.SYSTEM_STATUS.value : SYSTEM_STATUS,
-        CAN_COMMAND_NAMES.SYSTEM_CONFIG.value : SYSTEM_CONFIG,
+        CAN_COMMAND_NAMES.FAULT_STATUS  : FAULT_STATUS,
+        CAN_COMMAND_NAMES.CURVE_CFG     : CURVE_CONFIG,
+        CAN_COMMAND_NAMES.CHG_STATUS    : CHARGING_STATUS,
+        CAN_COMMAND_NAMES.SYSTEM_STATUS : SYSTEM_STATUS,
+        CAN_COMMAND_NAMES.SYSTEM_CONFIG : SYSTEM_CONFIG,
     }
 
     CHARGER_ADDR_BASE    = 0x000C0000       # this is only the base address, the device address has to be added when the message is sent!
@@ -415,7 +415,7 @@ class MeanWellNPB(ThreadObject):
                 pass
 
         # handle some certain states
-        if int(chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.FAULT_STATUS.value]["valueName"]], 16) & (0x0001 <<  6):
+        if int(chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.FAULT_STATUS]["valueName"]], 16) & (0x0001 <<  6):
             chargingData["operation state"] = "ON"
         else:
             chargingData["operation state"] = "OFF"
@@ -428,7 +428,7 @@ class MeanWellNPB(ThreadObject):
         self.homeAutomationUnits = {}
         self.homeAutomationTopic = None     # discovery has still to be done
         self.SUPPORTED_COMMANDS = set()
-        commands = [member.value for member in self.CAN_COMMAND_NAMES]
+        commands = [member for member in self.CAN_COMMAND_NAMES]
         for command in commands:
             self.SUPPORTED_COMMANDS.add(MeanWellNPB._cutTrailingDigits(command))              # get all commands, cut trailing digits and add it to a set so that all commands are unique, i.e. there will be one SERIAL even if there is a SERIAL1 and SERIAL2
             if not self.CAN_COMMANDS[command]["valueName"] in self.homeAutomationValues:      # each parameter gets initialized once, i.e. only one out of e.g. SERIAL1 and SERIAL2 will be handled here! 
@@ -448,8 +448,8 @@ class MeanWellNPB(ThreadObject):
         # test state handling
         if MeanWellNPB.TEST_STATE_HANDLING:
             previousValue = "0x0000"
-            faultState = self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.FAULT_STATUS.value]["valueName"]
-            testEntry  = self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.CURVE_CFG.value]["valueName"]
+            faultState = self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.FAULT_STATUS]["valueName"]
+            testEntry  = self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.CURVE_CFG]["valueName"]
             for bit in range(1 << 8 - 1):
                 self.logger.info(self, f"test run {bit} = 0x{bit:04X}")
                 currentValue = f"0x{1 << bit:04X}"
@@ -496,25 +496,25 @@ class MeanWellNPB(ThreadObject):
         #   - in case the output current is less than 5.0A the charger is switched OFF if it is not already OFF since an output current of less than 5.0A is not supported by the charger
         if self.surplusCurrentUpdate and self.initialChargerValuesReceived:
             Supporter.debugPrint(f"try to set current", color = "RED", borderSize = 0)
-            if self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.VOUT_SET.value]["valueName"]] != self.configuration["voltageOut"]:
+            if self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.VOUT_SET]["valueName"]] != self.configuration["voltageOut"]:
                 Supporter.debugPrint(f"ignore current but set voltage instead", color = "RED", borderSize = 0)
                 voltageOut = self.configuration["voltageOut"]
-                voltageOut = int(voltageOut * pow(10, self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.VOUT_SET.value]["resolution"]))
-                self._transmitCommand(command = self.CAN_COMMAND_NAMES.VOUT_SET.value, address = self.configuration["address"], data = f"{voltageOut:04X}")         # set calculated output voltage
+                voltageOut = int(voltageOut * pow(10, self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.VOUT_SET]["resolution"]))
+                self._transmitCommand(command = self.CAN_COMMAND_NAMES.VOUT_SET, address = self.configuration["address"], data = f"{voltageOut:04X}")         # set calculated output voltage
                 self.initialChargerValuesReceived = False       # clear it again since the initial charger values contained invalid voltage value, wait until it has been updated, then try to set new current again
             else:
                 # send message with new current to Meanwell charger
-                surplusCurrent = self._calculateSurplusCurrent(self.chargingData["surplusPower"], self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.VOUT_SET.value]["valueName"]]) # VOUT_SET is OK here since we need the voltage to calculate to current from given power!
+                surplusCurrent = self._calculateSurplusCurrent(self.chargingData["surplusPower"], self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.VOUT_SET]["valueName"]]) # VOUT_SET is OK here since we need the voltage to calculate to current from given power!
                 Supporter.debugPrint(f"voltage ok, now set current to {surplusCurrent}", color = "RED", borderSize = 0)
-                surplusCurrent = int(surplusCurrent * pow(10, self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.IOUT_SET.value]["resolution"]))
+                surplusCurrent = int(surplusCurrent * pow(10, self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.IOUT_SET]["resolution"]))
                 if surplusCurrent > 0:
-                    self._transmitCommand(command = self.CAN_COMMAND_NAMES.IOUT_SET.value, address = self.configuration["address"], data = f"{surplusCurrent:04X}")     # set calculated current
-                    if self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.OPERATION.value]["valueName"]] == 0:
-                        self._transmitCommand(command = self.CAN_COMMAND_NAMES.OPERATION.value, address = self.configuration["address"], data = "01")                   # switch charger ON if necessary
+                    self._transmitCommand(command = self.CAN_COMMAND_NAMES.IOUT_SET, address = self.configuration["address"], data = f"{surplusCurrent:04X}")     # set calculated current
+                    if self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.OPERATION]["valueName"]] == 0:
+                        self._transmitCommand(command = self.CAN_COMMAND_NAMES.OPERATION, address = self.configuration["address"], data = "01")                   # switch charger ON if necessary
                 else:
                     # since Meanwell chargers don't support currents less than 5.0A the charger has to be switched OFF instead
-                    if self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.OPERATION.value]["valueName"]] == 1:
-                        self._transmitCommand(command = self.CAN_COMMAND_NAMES.OPERATION.value, address = self.configuration["address"], data = "00")                   # switch charger OFF if necessary
+                    if self.chargingData[self.CAN_COMMANDS[self.CAN_COMMAND_NAMES.OPERATION]["valueName"]] == 1:
+                        self._transmitCommand(command = self.CAN_COMMAND_NAMES.OPERATION, address = self.configuration["address"], data = "00")                   # switch charger OFF if necessary
                 self.surplusCurrentUpdate = False       # update sent, but don't change the current stored in charger structure since we will get this by the next message from the Meanwell charger
 
         # do we have to update home automation values?

@@ -6,6 +6,7 @@ from Worker.Worker import Worker
 from GridLoad.SocMeter import SocMeter
 from GPIO.BasicUsbRelais import BasicUsbRelais
 from Base.Supporter import Supporter
+from Base.CEnum import CEnum
 from Inverter.EffektaController import EffektaController
 import Base
 import subprocess
@@ -64,12 +65,12 @@ class PowerPlant(Worker):
 
 
     # @todo states noch sinnvoll benennen
-    class switchToGrid(Enum):
+    class switchToGrid(CEnum):
         STATE_0 = 0
         STATE_1 = 1
         STATE_2 = 2
 
-    class switchToInverter(Enum):
+    class switchToInverter(CEnum):
         STATE_0 = 0
         STATE_1 = 1
         STATE_2 = 2

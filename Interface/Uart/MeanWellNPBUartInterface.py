@@ -2,9 +2,9 @@ import time
 import json
 import re
 from Base.Supporter import Supporter
+from Base.CEnum import CEnum
 import Base.Crc
 import colorama
-from enum import Enum
 
 from Interface.Uart.SLCanUartInterface import SLCanUartInterface
 from Charger.MeanWellNPB import MeanWellNPB
@@ -74,7 +74,7 @@ class MeanWellNPBUartInterface(SLCanUartInterface):
 
         self.chargingData = {}
         self.SUPPORTED_COMMANDS = set()
-        commands = [member.value for member in self.CAN_COMMAND_NAMES]
+        commands = [member for member in self.CAN_COMMAND_NAMES]
         for command in commands:
             self.SUPPORTED_COMMANDS.add(MeanWellNPB._cutTrailingDigits(command))        # get all commands, cut trailing digits and add it to a set so that all commands are unique, i.e. there will be one SERIAL even if there is a SERIAL1 and SERIAL2
             if not self.CAN_COMMANDS[command]["valueName"] in self.chargingData:        # each parameter gets initialized once, i.e. only one out of e.g. SERIAL1 and SERIAL2 will be handled here! 
@@ -82,7 +82,7 @@ class MeanWellNPBUartInterface(SLCanUartInterface):
 
         addresses = range(4)
         for address in addresses:    # addresses can be 0, 1, 2 or 3
-            command = self.CAN_COMMAND_NAMES.OPERATION.value
+            command = self.CAN_COMMAND_NAMES.OPERATION
             self.flush()
             if self._handleCommand(command = command, address = address, error = False):
                 # switch device off if configured (data = 0x00)
@@ -128,7 +128,7 @@ class MeanWellNPBUartInterface(SLCanUartInterface):
 
         success = True
 
-        supportedCommands = [member.value for member in self.CAN_COMMAND_NAMES]
+        supportedCommands = [member for member in self.CAN_COMMAND_NAMES]
         supportedCommands.sort()
         for supportedCommand in supportedCommands:
             if command == MeanWellNPB._cutTrailingDigits(supportedCommand):

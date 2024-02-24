@@ -7,10 +7,11 @@ class BaseHomeAutomation(Base.MqttBase.MqttBase):
     '''
 
 
-    def __init__(self):
+    def __init__(self, prefix : str = ""):
         '''
         Constructor
         '''
+        BaseHomeAutomation.homeAutomationPrefix = prefix
         pass
 
 
