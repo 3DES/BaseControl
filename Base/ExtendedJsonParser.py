@@ -100,11 +100,11 @@ class ExtendedJsonParser(object):
         return t
 
     def t_TRUE(self, t):
-        r'(?i)(true|True)'
+        r'(true|True)'
         return t
 
     def t_FALSE(self, t):
-        r'(?i)(false|False)'
+        r'(false|False)'
         return t
 
     def t_newline(self, t):

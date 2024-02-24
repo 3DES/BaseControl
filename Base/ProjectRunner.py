@@ -8,7 +8,7 @@ import logging
 from signal import signal
 from signal import SIGINT
 import json
-
+import sys
 
 import Worker.Worker
 import Logger.Logger
@@ -223,6 +223,8 @@ class ProjectRunner(object):
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
         readableJsonConfiguration = json.dumps(configuration, indent = 4)
+
+        print(f"python version: {sys.version}")
         
         extendedJsonParser = ExtendedJsonParser()
         readableJsonConfiguration = json.dumps(extendedJsonParser.parse(readableJsonConfiguration, protectRegex = jsonDumpFilter), indent = 4)
@@ -259,7 +261,11 @@ class ProjectRunner(object):
             uptimeMessage = f"{os.path.basename(__file__)}: overall uptime ... {Supporter.formattedTime(deltaTime, addCurrentTime = True)}"
             Supporter.debugPrint(uptimeMessage, color = f"{colorama.Fore.RED}")
 
-            cls.projectLogger.writeLogBufferToDisk(logFileName = logFileName, leadIn = additionalLeadIn + (("\n" + readableJsonConfiguration) if jsonDump else ""), leadOut = uptimeMessage)
+            additionalLeadIn += f"\npython version: {sys.version}"
+            if jsonDump:
+                additionalLeadIn += "\n" + readableJsonConfiguration
+
+            cls.projectLogger.writeLogBufferToDisk(logFileName = logFileName, leadIn = additionalLeadIn, leadOut = uptimeMessage)
         return stopReason
 
 
