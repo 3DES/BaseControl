@@ -315,7 +315,7 @@ class BasicBms(ThreadObject):
                         if self.configuration["socMonitor"] in self.bmsWerte:
                             del self.bmsWerte[self.configuration["socMonitor"]]
                         self.homeAutomation.mqttDiscoverySensor(self.bmsWerte, subTopic = self.allBmsDataTopicExtension)
-                        self.homeAutomation.mqttDiscoverySensor(self.globalBmsWerte)
+                        self.homeAutomation.mqttDiscoverySensor(self.globalBmsWerte, unitDict = {'calc.VminOk' : "none", "calc.VmaxOk" : "none"})
 
                     # At first we check required bit toggleIfMsgSeen. We remember it and add this info at least to bms data of this topic 
                     toggleSeen = (newMqttMessageDict["content"]["toggleIfMsgSeen"] != self.bmsWerte[interfaceName]["toggleIfMsgSeen"])

@@ -79,6 +79,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
         self.tagsIncluded(["firmware"])
         self.tagsIncluded(["avrdudePath"], optional = True, default = "avrdude")
+        self.tagsIncluded(["debugVersion"], optional = True, default = False)
         self.firstLoop = True
         self.getDiagnosis = False
         self.wdEverTriggered = False
@@ -176,6 +177,10 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             self.serialReset_input_buffer()
             wdCommand = self.getCommand(cmd)
             self.serialWrite(wdCommand)
+            if self.configuration["debugVersion"]:
+                # debug version needs two dummy reads to get rid of the debug output
+                self.serialReadLine()
+                self.serialReadLine()
             response = self.serialReadLine()
             self.lastCommunication = { "command" : wdCommand, "response" : response }
             #Supporter.debugPrint(f"watch dog communication {self.lastCommunication}", color = "GREEN" if cmd[:1] != 'W' else "LIGHTBLUE_EX")
@@ -195,6 +200,11 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.logger.error(self, f"We try to set right framenumber {self.frameCounter}, and resend msg. Tries: {tries}")
                     delayNextRead = False
                     # todo wenn framenumber 0 dann sollten wir evtl einen eventuellen Reset des wdRel behandeln
+                    if self.configuration["debugVersion"]:
+                        # debug version always increments frame counter, even in error case
+                        self.frameCounter +=1
+                        if self.frameCounter > 0xFFFF:
+                            self.frameCounter = 0
                 elif procMsg["Error"] == "invalidStartup":
                     raise Exception("Got an invalid startup error from watchdog!")
                 elif procMsg["Error"] == "crc":
