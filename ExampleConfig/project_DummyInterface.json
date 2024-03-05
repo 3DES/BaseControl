@@ -95,7 +95,7 @@
             "UartUsbRelais":
             {
                 #"connection":   "Interface.Uart.UsbRelaisUartInterface.UsbRelaisUartInterface",
-                "connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
+                "connection":   "Interface.Dummy.DummyUartInterface.UartInterface",   # empty UArt Interface
                 "interface":    "COM4",
                 "baudrate":     115200
             }
@@ -112,7 +112,7 @@
         {
            "WdUartUsbRelais":
            {
-                "connection":   "Interface.Uart.UartInterface.UartInterface",   # empty UArt Interface
+                "connection":   "Interface.Dummy.DummyUartInterface.UartInterface",   # empty UArt Interface
                 #"connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
                 "firmware":     "firmware.hex",
                 #"avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
@@ -205,7 +205,11 @@
     "Wetter":
     {
         "class": "Weather.Weather.WetterOnline"
-    }
+    },
+
+    "@import": [
+        "json/secure.json"
+    ]
 
 }
 
