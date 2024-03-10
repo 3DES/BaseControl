@@ -49,15 +49,16 @@ class BasicUartInterface(InterfaceBase):
         while(found := regex.search(path)):
             device = found.group(2)
             driverPath = path
+            # be patient with the trailing "/", they are very important if the path is a symbolic link!
             if os.path.exists(driverPath + "/driver/bind"):
                 driverPath = str(pathlib.Path(driverPath + "/driver/").resolve())
-                driverTree.append([driverPath, device])
+                driverTree.append([driverPath + "/", device])
+                if not re.search(r":", device):
+                    # a device with a colon in its name is only an interface of a device, re-binding it is probably a good idea
+                    # the first device without a colon in its name when stepping up through the device tree is the real device, re-binding it is probably also a good idea
+                    # but then we should stop since re-binding all the devices when stepping up through the device tree will re-bind devices we won't re-bind, e.g. USB hubs
+                    break
             path = regex.sub(r'\1', path)
-            if not re.search(r":", device):
-                # a device with a colon in its name is only an interface of a device, re-binding it is probably a good idea
-                # the first device without a colon in its name when stepping up through the device tree is the real device, re-binding it is probably also a good idea
-                # but then we should stop since re-binding all the devices when stepping up through the device tree will re-bind devices we won't re-bind, e.g. USB hubs
-                break
         return driverTree
 
 
@@ -69,6 +70,7 @@ class BasicUartInterface(InterfaceBase):
             # if "rebind" has been given try to rebind the device in case of an error
             if self.configuration["rebind"]:
                 driverTree = self._buildDeviceTree(self.devicePath)
+                self.logger.info(self, f"Rebinding {driverTree}")
                 for driverPath, deviceName in driverTree:
                     self.serialClose()
                     driverFile = open(driverPath + "unbind", "w")
