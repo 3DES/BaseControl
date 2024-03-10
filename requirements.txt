@@ -6,3 +6,4 @@ epevermodbus==0.0.16
 requests==2.31.*
 colorama==0.4.*
 ply==3.*
+pyhid-usb-relay==1.*

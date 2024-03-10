@@ -2,8 +2,12 @@ import time
 import serial    #pip install pyserial
 import re
 import json
-from Base.Supporter import Supporter
+import subprocess
+import os
+import sys
+import pathlib
 
+from Base.Supporter import Supporter
 from Base.InterfaceBase import InterfaceBase
 
 
@@ -19,6 +23,8 @@ class BasicUartInterface(InterfaceBase):
         super().__init__(threadName, configuration)
 
         self.tagsIncluded(["interface"])
+        if not os.path.exists(self.configuration['interface']):
+            raise Exception(f"given interface {self.configuration['interface']} doesn't exist")
         self.tagsIncluded(["baudrate"], intIfy = True)
 
         self.tagsIncluded(["bytesize"], optional = True, default = serial.EIGHTBITS)
@@ -28,14 +34,58 @@ class BasicUartInterface(InterfaceBase):
         self.tagsIncluded(["xonxoff"], optional = True, default = False)
         self.tagsIncluded(["rtscts"], optional = True, default = False)
         self.tagsIncluded(["writeTimeout"], optional = True, default = 4)
+        self.tagsIncluded(["rebind"], optional = True, default = False)
+        self._rebindBreak = .5    # time unbind and bind is allowed to take
 
         self.receivedData = b""
 
 
+    def _buildDeviceTree(self, path: str):
+        """
+        Create driver tree from given interface
+        """
+        regex = re.compile(r'(.+)\/([^\/]+)$')
+        driverTree = []
+        while(found := regex.search(path)):
+            device = found.group(2)
+            driverPath = path
+            if os.path.exists(driverPath + "/driver/bind"):
+                driverPath = str(pathlib.Path(driverPath + "/driver/").resolve())
+                driverTree.append([driverPath, device])
+            path = regex.sub(r'\1', path)
+            if not re.search(r":", device):
+                # a device with a colon in its name is only an interface of a device, re-binding it is probably a good idea
+                # the first device without a colon in its name when stepping up through the device tree is the real device, re-binding it is probably also a good idea
+                # but then we should stop since re-binding all the devices when stepping up through the device tree will re-bind devices we won't re-bind, e.g. USB hubs
+                break
+        return driverTree
+
+
     def reInitSerial(self):
         success = True
+
         try:
             self.logger.debug(self, f"Serial Port {self.name} reInit!")
+            # if "rebind" has been given try to rebind the device in case of an error
+            if self.configuration["rebind"]:
+                driverTree = self._buildDeviceTree(self.devicePath)
+                for driverPath, deviceName in driverTree:
+                    self.serialClose()
+                    driverFile = open(driverPath + "unbind", "w")
+                    driverFile.write(deviceName)
+                    driverFile.close()
+                    time.sleep(self._rebindBreak)
+                    driverFile = open(driverPath + "bind", "w")
+                    driverFile.write(deviceName)
+                    driverFile.close()
+                    time.sleep(self._rebindBreak)
+                    try:
+                        self.serialConn.open()
+                    except Exception as exception:
+                        self.logger.info(self, f"Rebinding of {deviceName} failed")
+                    else:
+                        self.logger.info(self, f"Rebinding of {deviceName} succeeded")
+                        break
             self.serialClose()
             self.serialConn.open()
         except Exception as exception:
@@ -48,7 +98,23 @@ class BasicUartInterface(InterfaceBase):
         return success
 
 
+    def _getUdev(self, interface : str) -> str:
+        """
+        Get path of a device
+        """
+        udevResult = "/sys" + subprocess.Popen(f"udevadm info -q all -n {interface} | grep DEVPATH | cut -d'=' -f2", shell=True, stdout=subprocess.PIPE).stdout.read().decode("utf-8").rstrip()
+        if not os.path.exists(udevResult):
+            message = f"udevadm info -q all -n {interface} failed with {udevResult}"
+            self.logger.error(self, message)
+            raise Exception(message)
+        return udevResult
+
+
     def serialInit(self):
+        # get device path since that's the interesting path in case of lost usb devices (it's worth a try to bring it back with unbind and bind)
+        self.devicePath = self._getUdev(self.configuration['interface'])
+        self.logger.info(self, f"device path is {self.devicePath}")
+
         self.serialConn = serial.Serial(
             port         = self.configuration["interface"],
             baudrate     = self.configuration["baudrate"],
@@ -60,7 +126,7 @@ class BasicUartInterface(InterfaceBase):
             writeTimeout = self.configuration["writeTimeout"],
             rtscts       = self.configuration["rtscts"]
         )
-
+        
 
     def serialClose(self):
         self.serialConn.close()
