@@ -63,7 +63,7 @@ class KacoController(ThreadObject):
         KACO_VALUE.PN.value          : {"unit" : None, "variance" : 10.0, "ignoreDelta": None},
         KACO_VALUE.COS.value         : {"unit" : None, "variance" : None, "ignoreDelta": None},
         KACO_VALUE.TEMPERATURE.value : {"unit" : None, "variance" :  1.0, "ignoreDelta": None},
-        KACO_VALUE.ENERGY.value      : {"unit" : None, "variance" : 10.0, "ignoreDelta": None},
+        KACO_VALUE.ENERGY.value      : {"unit" : "Wh", "variance" : 10.0, "ignoreDelta": None},
         KACO_VALUE.TYPE.value        : {"unit" : None, "variance" : None, "ignoreDelta": None},
     }
 
@@ -81,7 +81,12 @@ class KacoController(ThreadObject):
 
     def threadInitMethod(self):
         self.kacoData = {}
-        self.homeAutomationUnits = {}               # needed if units have to be given explicitly for certain data elements 
+        self.homeAutomationUnits = {}               # needed if units have to be given explicitly for certain data elements
+
+        # fill all defined units into home automation units dict
+        for member in self.KACO_VALUE_CONTEXT.keys():
+            if self.KACO_VALUE_CONTEXT[member]["unit"] is not None:
+                self.homeAutomationUnits[member] = self.KACO_VALUE_CONTEXT[member]["unit"]
         self.homeAutomationTopic = {}               # we need a topic for each slave found by our interface
 
 
