@@ -73,7 +73,7 @@ class Epever485Interface(InterfaceBase):
                 break
             except:
                 time.sleep(10)
-                self.logger.info(self, f"Device --{self.name}-- {tries + 1} from {self.retries} inits failed.")
+                self.logger.info(self, f"Device --{self.name}-- {tries + 1} from {retries} inits failed.")
             tries += 1
         if tries >= retries:
             raise Exception(f'{self.name} connection could not established! Check interface and address')
@@ -87,7 +87,6 @@ class Epever485Interface(InterfaceBase):
         self.readAndSetParameters()
 
     def threadMethod(self):
-
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.readMqttQueue(error = False)
@@ -107,7 +106,7 @@ class Epever485Interface(InterfaceBase):
                             self.timer(name = "ErrorTimer", remove = True)
                     except:
                         self.logger.info(self, "Could not read Epever data, try to init again")
-                        self.initEpeverWithRetry(10)
+                        self.initEpeverWithRetry(20)
                         if self.timer(name = "ErrorTimer", timeout = 100):
                             raise Exception(f'{self.name} Could not read Epever data for more than 100s')
 

@@ -23,8 +23,6 @@ class BasicUartInterface(InterfaceBase):
         super().__init__(threadName, configuration)
 
         self.tagsIncluded(["interface"])
-        if not os.path.exists(self.configuration['interface']):
-            raise Exception(f"given interface {self.configuration['interface']} doesn't exist")
         self.tagsIncluded(["baudrate"], intIfy = True)
 
         self.tagsIncluded(["bytesize"], optional = True, default = serial.EIGHTBITS)
@@ -114,8 +112,9 @@ class BasicUartInterface(InterfaceBase):
 
     def serialInit(self):
         # get device path since that's the interesting path in case of lost usb devices (it's worth a try to bring it back with unbind and bind)
-        self.devicePath = self._getUdev(self.configuration['interface'])
-        self.logger.info(self, f"device path is {self.devicePath}")
+        if self.configuration["rebind"]:
+            self.devicePath = self._getUdev(self.configuration['interface'])
+            self.logger.info(self, f"device path is {self.devicePath}")
 
         self.serialConn = serial.Serial(
             port         = self.configuration["interface"],

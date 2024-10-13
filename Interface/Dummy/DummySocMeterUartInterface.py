@@ -16,8 +16,9 @@ class DummySocMeterUartInterface(InterfaceBase):
         super().__init__(threadName, configuration)
 
     def threadInitMethod(self):
-        self.SocMonitorWerte = {"Ah":-1, "Current":0, "Prozent":50}
+        self.SocMonitorWerte = {"Ah":-1, "Current":0, "Prozent":95}
         self.cmdList = []
+        self.ProzentCycleUp = True
 
 
     def threadMethod(self):
@@ -45,6 +46,15 @@ class DummySocMeterUartInterface(InterfaceBase):
 
         if self.timer(name = "timerSoc", timeout = 10):
             self.timer(name = "timerSoc", remove = True)
+            if self.SocMonitorWerte["Prozent"] == 100:
+                self.ProzentCycleUp = False
+            if self.SocMonitorWerte["Prozent"] == 90:
+                self.ProzentCycleUp = True
+
+            if self.ProzentCycleUp:
+                self.SocMonitorWerte["Prozent"] += 1
+            else:
+                self.SocMonitorWerte["Prozent"] -= 1
             if self.SocMonitorWerte["Ah"] == 50:
                 self.SocMonitorWerte["Ah"] = 30
             else:

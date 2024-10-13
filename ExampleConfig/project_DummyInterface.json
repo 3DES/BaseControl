@@ -40,6 +40,7 @@
         "managedEffektas": ["WrEffektaWest"],
         "socMonitorName": "SocMonitor",
         "bmsName": "Bms",
+        #"inputs":"WdUsbRelais",
         "weatherName": "Wetter",                            # optional
         "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     },
@@ -108,6 +109,8 @@
         "triggerThread":   "Bms",                                               # an external wd needs a trigger thread, only this thread is authorized to trigger the wd
         "gpioHandler": ["PowerPlant"],                                          # the usb relay object will subscribe to these gpio handlers to listen for relay commands 
         "relMapping":{"relWr": ["Relay1", "Relay5"], "notExisting": "Relay6", "relBalance": "Relay3", "relPvAus": "Relay4", "relNetzAus": "Relay2"},  # mapping of signal name to relay output
+        #"relMapping":{"RelStufe1": "Relay0", "RelStufe2": "Relay1", "RelStufe3": "Relay2", "RelNichtHeizen": "Relay3", "relWr": "Relay4", "relPvAus": "Relay5", "RelLastAktiv": "Relay6"},  # mapping of signal name to relay output
+        #"inputMapping":{"Input1":"inverterActive"},
         "interfaces":
         {
            "WdUartUsbRelais":

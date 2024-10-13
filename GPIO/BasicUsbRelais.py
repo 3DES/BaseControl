@@ -17,6 +17,8 @@ class BasicUsbRelais(ThreadObject):
     {"gpio":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}} will be mapped to {"setRelay":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} and sent to the interface
     '''
     gpioCmd = "gpio"
+    REL_OFF = "0"
+    REL_ON = "1"
 
     # either the watchdog has to start its timer for its watchdog test or it has to wait until its index becomes next
     _WATCHDOG_NOT_INITIALIZED = -1
@@ -220,6 +222,8 @@ class BasicUsbRelais(ThreadObject):
                                             tempRelais.update({relais:newMqttMessageDict["content"][self.gpioCmd][key]})
                                     else:
                                         tempRelais.update({self.configuration["relMapping"][key]:newMqttMessageDict["content"][self.gpioCmd][key]})
+                                    if not (newMqttMessageDict["content"][self.gpioCmd][key] == self.REL_OFF or newMqttMessageDict["content"][self.gpioCmd][key] == self.REL_ON):
+                                        raise Exception(f'{self.name} got a wrong value for relay state. Check your code. Relayname was: {key}, value: {newMqttMessageDict["content"][self.gpioCmd][key]}')
                             if found:
                                 self.mqttPublish(self.interfaceInTopics[0], {"setRelay":tempRelais}, globalPublish = False, enableEcho = False)
                                 break

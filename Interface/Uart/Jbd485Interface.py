@@ -102,11 +102,16 @@ class Jbd485Interface(InterfaceBase):
             basicInfo = self.jbd.readBasicInfo()         # {'pack_mv': 58170, 'pack_ma': 0, 'cur_cap': 290, 'full_cap': 550, 'cycle_cnt': 0, 'year': 2023, 'month': 7, 'day': 1, 'bal0': False, 'bal1': False, 'bal2': False, 'bal3': False, 'bal4': False, 'bal5': False, 'bal6': False, 'bal7': False, 'bal8': False, 'bal9': False, 'bal10': False, 'bal11': False, 'bal12': False, 'bal13': False, 'bal14': True, 'bal15': False, 'bal16': False, 'bal17': False, 'bal18': False, 'bal19': False, 'bal20': False, 'bal21': False, 'bal22': False, 'bal23': False, 'bal24': False, 'bal25': False, 'bal26': False, 'bal27': False, 'bal28': False, 'bal29': False, 'bal30': False, 'bal31': False, 'covp_err': False, 'cuvp_err': False, 'povp_err': False, 'puvp_err': False, 'chgot_err': False, 'chgut_err': False, 'dsgot_err': False, 'dsgut_err': False, 'chgoc_err': False, 'dsgoc_err': False, 'sc_err': False, 'afe_err': False, 'software_err': False, 'airot_err': False, 'airut_err': False, 'pcbot_err': False, 'cuv_alm': False, 'cov_alm': False, 'puv_alm': False, 'pov_alm': False, 'chgoc_alm': False, 'dsgoc_alm': False, 'chgot_alm': False, 'chgut_alm': False, 'dsgot_alm': False, 'dsgut_alm': False, 'airot_alm': False, 'airut_alm': False, 'pcbot_alm': False, 'cdiff_alm': False, 'socl_alm': False, 'na_alm': False, 'version': 40, 'cap_pct': 53, 'chg_fet_en': True, 'dsg_fet_en': True, 'ntc_cnt': 4, 'cell_cnt': 15, 'ntc_board': 26.3, 'ntc_air': 26.0, 'ntc0': 24.1, 'ntc1': 23.9, 'ntc2': 24.0, 'ntc3': 24.3, 'ntc4': None, 'ntc5': None, 'ntc6': None, 'ntc7': None, 'alarm_raw': 0, 'fault_raw': 0, 'bal_raw': 16384}
             cellInfo = self.jbd.readCellInfo()          # {'cell0_mv': 3875, 'cell1_mv': 3878, 'cell2_mv': 3879, 'cell3_mv': 3877, 'cell4_mv': 3873, 'cell5_mv': 3882, 'cell6_mv': 3879, 'cell7_mv': 3879, 'cell8_mv': 3871, 'cell9_mv': 3869, 'cell10_mv': 3878, 'cell11_mv': 3872, 'cell12_mv': 3877, 'cell13_mv': 3881, 'cell14_mv': 3893}
             self.BmsWerte["VoltageList"] = []
+            if basicInfo["full_cap"] != self.fullCap:
+                self.logger.error(self, f'BMS changed full_cap from {self.fullCap} to {basicInfo["full_cap"]}')
+                self.logger.error(self, f'{str(basicInfo)}')
+                self.logger.error(self, f'{str(cellInfo)}')
+                self.fullCap = basicInfo["full_cap"]
+                self.logger.writeLogBufferToDisk(f"{self.name}_full_cap_changed.log")
             for cell in list(cellInfo):
                 self.BmsWerte["VoltageList"].append(cellInfo[cell] / 1000)
             self.BmsWerte["Current"] = basicInfo["pack_ma"] / 1000
             self.BmsWerte["Prozent"] = basicInfo["cap_pct"]
-            self.fullCap = basicInfo["full_cap"]
             self.chg_fet_en = basicInfo["chg_fet_en"]
             self.BmsWerte["BmsEntladeFreigabe"] = not (not basicInfo["dsg_fet_en"] or basicInfo["puv_alm"] or basicInfo["cuv_alm"])
             self.BmsWerte["BmsLadeFreigabe"] = not (not basicInfo["chg_fet_en"] or basicInfo["pov_alm"] or basicInfo["cov_alm"])

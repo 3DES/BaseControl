@@ -121,6 +121,7 @@ class EffektaController(ThreadObject):
         for name in list(EffektaData.keys()):
             # from "DeviceStatus2" string take first character because it contains the state of the float mode
             floatmode = list(EffektaData[name]["DeviceStatus2"])
+            # todo pollen und timeout wenn keine Daten kommen. Es kann sein dass der powerplant die funktion aufruft und der effekta noch keine daten liefert.
             if floatmode[0] == "1":
                 globalEffektaData["FloatingModeOr"] = True
             # process all other values from the inverters and combine them
