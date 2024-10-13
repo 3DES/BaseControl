@@ -195,7 +195,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 #self.logger.trace(self, f"loop turn: {loopCount}, duration: {timeStamps[0][4] - timeStamps[0][0]}s, delta since last start: {timeStamps[0][0] - timeStamps[1][0]}, turns {loopCount}")
 
         except Exception as exception:
-            # beside explicitly exceptions handled thread-internally we also have to catch all implicit exceptions
+            # beside explicite exceptions handled thread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 
@@ -211,7 +211,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 for interface in self.interfaceThreads:
                     interfaceThread.join(Base.Base.Base.JOIN_TIME)  # join all stopped threads
         except Exception as exception:
-            # beside explicitly exceptions handled tread-internally we also have to catch all implicit exceptions
+            # beside explicite exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
             self.logger.error(self, traceback.format_exc())
 

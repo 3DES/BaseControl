@@ -65,7 +65,7 @@ class EffektaUartInterface(BasicUartInterface):
                 else:
                     return data
             else:
-                self.logger.error(self, f"CRC Error: received: {serialInput} command: {cmd}")
+                self.logger.error(self, f"CRC Error: received: {serialInput}, command: {cmd}, length: {len(serialInput)}")
                 return ""
         else:
             self.logger.error(self, f"length error, 0 bytes received, command: {cmd}")

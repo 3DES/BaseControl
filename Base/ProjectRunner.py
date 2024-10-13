@@ -46,8 +46,11 @@ class ProjectRunner(object):
 
 
     executed = False                # set to True after first execution
-    projectLogger = None
+    projectLogger  = None
+    projecDebugger = None
     projectMqttBridge = None
+    threadStartOrder = []
+    threadDictionary = None
 
 
     def __init__(self):
@@ -60,45 +63,71 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def setupThreads(cls, threadDictionary : dict, startupPriorities : dict, loggerName : str, mqttBridgeName : str):
+    def setupThreads(cls, threadDictionary : dict, startupPriorities : dict, loggerName : str, mqttBridgeName : str, debuggerName : str):
         '''
-        Setups up all threads in defined order, order has to be defined via init.json file, usually the following order is recommended:
+        Sets up all threads in defined order, order has to be defined via init.json file, usually the following order is recommended:
             1. Logger
             2. MqttBridge
-            3. WatchDog
-            4. all not priorized tasks
-            5. Worker
+            3. Debugger
+            4. WatchDog
+            5. all not prioritized tasks
+            6. Worker
         '''
-        threadStartOrder = []
+        cls.threadDictionary = threadDictionary
         for priority in sorted(startupPriorities.keys()):
             for threadName in sorted(startupPriorities[priority]):
                 # create thread
                 thread = threadDictionary[threadName]["class"](
                     threadName,
                     threadDictionary[threadName]["configuration"])
+                threadDictionary[threadName]["thread"] = thread
 
-                # store important threads
+                # remember important threads
                 if threadName == loggerName:
                     cls.projectLogger = thread
                 elif threadName == mqttBridgeName:
                     cls.projectMqttBridge = thread
+                elif (debuggerName is not None) and (threadName == debuggerName):
+                    cls.projecDebugger = thread
 
                 # finally start thread
-                threadStartOrder.append(threadName)
+                cls.threadStartOrder.append(threadName)
                 thread.start()
+
+                if "startPollingTime" in threadDictionary[threadName]["configuration"]:
+                    if (threadDictionary[threadName]["configuration"]["startPollingTime"] == "infinite") or (type(threadDictionary[threadName]["configuration"]["startPollingTime"]) == int):
+                        # "infinite" is supported here but can cause other errors, e.g. timeout in watchdog!
+                        POLLING_TIME = threadDictionary[threadName]["configuration"]["startPollingTime"]
+                    else:
+                        raise Exception(f"startPollingTime {threadDictionary[threadName]['configuration']['startPollingTime']} given for object {threadName} is not supported!")
+                else:
+                    POLLING_TIME = 20     # 20 seconds should be enough
 
                 # wait until thread has been finished initialization
                 POLLING_SLEEP_TIME = .1     # sleep of .1 seconds per poll
-                POLLING_TIME       = 20     # 20 seconds should be enough
-                timeOutCounter = POLLING_TIME // POLLING_SLEEP_TIME
-                while not thread.threadInitializationFinished() and timeOutCounter:
+                while not thread.threadInitializationFinished() and POLLING_TIME and not cls.checkThreadsException():
                     time.sleep(.1)
-                    timeOutCounter -= 1
-                if not timeOutCounter:
+                    if type(POLLING_TIME) == int:
+                        POLLING_TIME -= POLLING_SLEEP_TIME
+                        if POLLING_SLEEP_TIME < 0:
+                            # just to be sure while comes to an end, because e.g. "1 - n * 0.3" will never become 0
+                            POLLING_SLEEP_TIME = 0
+                if cls.checkThreadsException():
+                    raise Exception(f"got exception while starting thread {threadName}: {Base.ThreadBase.ThreadBase.get_exception()}")
+                if not thread.threadInitializationFinished():
                     raise Exception(f"starting up thread {threadName} took longer than {POLLING_TIME} seconds, please fix this!")
 
-        cls.projectLogger.info(cls, f"all threads up and running, started in following order: {threadStartOrder}")
-        Supporter.debugPrint(f"all threads up and running, started in following order: {threadStartOrder}", color = "LIGHTGREEN")
+        cls.projectLogger.info(cls, f"all threads up and running, started in following order: {cls.threadStartOrder}")
+        Supporter.debugPrint(f"all threads up and running, started in following order: {cls.threadStartOrder}", color = "LIGHTGREEN")
+
+        # if a debugger has been defined set thread dictionary for watching thread variables
+        if cls.projecDebugger is not None:
+            cls.projecDebugger.setThreadDictionary(cls.threadDictionary)
+
+
+    @classmethod
+    def checkThreadsException(cls):
+        return (Base.ThreadBase.ThreadBase.get_exception() is not None)
 
 
     @classmethod
@@ -108,17 +137,18 @@ class ProjectRunner(object):
         running = True
 
         # loop until any thread throws an exception (and for debugging after 5 seconds)
-        while (Base.ThreadBase.ThreadBase.get_exception() is None) and running and not signalReceived:
+        while (not cls.checkThreadsException()) and running and not signalReceived:
             time.sleep(1)     # that's fast enough!
 
             cls.projectLogger.trace(cls, "alive")
             if stopAfterSeconds:
                 if Supporter.getSecondsSince(startTime) > stopAfterSeconds:
                     cls.projectLogger.info(cls, "overall stop since given running time is over")
+                    Supporter.debugPrint(f"overall stop since given running time is over", color = "LIGHTRED")
                     running = False
 
-        if Base.ThreadBase.ThreadBase.get_exception() is not None:
-            return "oh noooo, we got an excepiton"
+        if cls.checkThreadsException():
+            return "oh noooo, we got an exception"
         elif not running:
             return "running time is over"
         elif signalReceived:
@@ -139,6 +169,7 @@ class ProjectRunner(object):
         DEFAULT_PRIORITY = 0
         startupPriority  = { DEFAULT_PRIORITY : [] }       # 0 is default startup priority, all tasks without a "startPriority" given will be put into this list
         loggerName     = None
+        debuggerName   = None
         mqttBridgeName = None
         workerName     = None
 
@@ -178,6 +209,12 @@ class ProjectRunner(object):
                         workerName = threadName
                     else:
                         raise Exception("init file contains more than one Worker, at least [" + workerName + "] and [" + threadName + "]")
+                elif issubclass(loadableClass, Base.Debugger.Debugger):
+                    # only one system wide Worker is allowed
+                    if debuggerName is None:
+                        debuggerName = threadName
+                    else:
+                        raise Exception("init file contains more than one Debugger, at least [" + debuggerName + "] and [" + threadName + "]")
                 elif not issubclass(loadableClass, Base.ThreadBase.ThreadBase):
                     # init file error found
                     raise Exception("init file contained class [" + threadName + "] is not a sub class of [Base.ThreadBase.ThreadBase]")
@@ -190,12 +227,14 @@ class ProjectRunner(object):
         # ensure all necessary threads have been defined
         if loggerName is None:
             raise Exception("missing any Logger in init file")
+        if debuggerName is None:
+            pass    # debugger is optional, so no problem here if it hasn't been given
         if mqttBridgeName is None:
             raise Exception("missing any MqttBridge in init file")
         if workerName is None:
             raise Exception("missing any Worker in init file")
 
-        return (threadDictionary, startupPriority, loggerName, mqttBridgeName)
+        return (threadDictionary, startupPriority, loggerName, mqttBridgeName, debuggerName)
 
 
     @classmethod
@@ -224,8 +263,8 @@ class ProjectRunner(object):
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
         readableJsonConfiguration = json.dumps(configuration, indent = 4)
 
-        print(f"python version: {sys.version}")
-        
+        print(f"python version information: {sys.version}")     # prints python version and GCC version pyhton was built with
+
         extendedJsonParser = ExtendedJsonParser()
         readableJsonConfiguration = json.dumps(extendedJsonParser.parse(readableJsonConfiguration, protectRegex = jsonDumpFilter), indent = 4)
         if jsonDump:
@@ -235,16 +274,16 @@ class ProjectRunner(object):
 
         try:
             # validate init file content, load all classes and filter certain special classes (i.e. Logger, MqttBridge and Logger)
-            (threadDictionary, startupPriorities, loggerName, mqttBridgeName) = cls.createThreadDictionary(configuration)
+            (threadDictionary, startupPriorities, loggerName, mqttBridgeName, debuggerName) = cls.createThreadDictionary(configuration)
 
             # now threads will be instantiated and stared, if any exception happens now we have to tear them down again!
             try:
                 # now really setup all the threads
                 #print(threadDictionary)
-                cls.setupThreads(threadDictionary, startupPriorities, loggerName, mqttBridgeName)
+                cls.setupThreads(threadDictionary, startupPriorities, loggerName, mqttBridgeName, debuggerName)
                 stopReason = cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
-            except Exception:
-                Logger.Logger.Logger.error(cls, "INSTANTIATE/RUNNING EXCEPTION " + traceback.format_exc())
+            except Exception as exception:
+                Logger.Logger.Logger.error(cls, f"INSTANTIATE/RUNNING EXCEPTION {exception}" + traceback.format_exc())
                 #logging.exception("INSTANTIATE EXCEPTION " + traceback.format_exc())
 
             Base.ThreadBase.ThreadBase.stopAllThreads()
@@ -256,12 +295,12 @@ class ProjectRunner(object):
         endTime = Supporter.getTimeStamp()
 
         # in error case try to write the log buffer content out to disk
-        if Base.ThreadBase.ThreadBase.get_exception() is not None or writeLogToDiskWhenEnds or signalReceived:
+        if cls.checkThreadsException() or writeLogToDiskWhenEnds or signalReceived:
             deltaTime = endTime - startTime
             uptimeMessage = f"{os.path.basename(__file__)}: overall uptime ... {Supporter.formattedTime(deltaTime, addCurrentTime = True)}"
             Supporter.debugPrint(uptimeMessage, color = f"{colorama.Fore.RED}")
 
-            additionalLeadIn += f"\npython version: {sys.version}"
+            additionalLeadIn += f"\npython version information: {sys.version}"
             if jsonDump:
                 additionalLeadIn += "\n" + readableJsonConfiguration
 

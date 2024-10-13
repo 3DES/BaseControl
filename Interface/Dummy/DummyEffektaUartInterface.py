@@ -25,7 +25,7 @@ class DummyEffektaUartInterface(InterfaceBase):
             newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
 
             try:
-                newMqttMessageDict["content"] = json.loads(newMqttMessageDict["content"])      # try to convert content in dict
+                newMqttMessageDict["content"] = self.extendedJson.parse(newMqttMessageDict["content"])      # try to convert content in dict
             except:
                 self.logger.error(self, f'Cannot convert {newMqttMessageDict["content"]} to dict')
 

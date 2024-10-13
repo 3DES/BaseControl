@@ -240,7 +240,7 @@ class SignalMessenger(ThreadObject):
 
                 # message handling enabled? (in emergency case message handling can be disabled!)
                 if not self.stopMessageHandling:
-                    jsonMessage = json.loads(str(message))
+                    jsonMessage = self.extendedJson.parse(str(message))
                     self.logger.info(self, "message received: " + str(jsonMessage))
                     
                     # contains source number and contains message?

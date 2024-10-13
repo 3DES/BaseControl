@@ -43,6 +43,10 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     def _getCmdTemplate(cls, name) -> str:
         return r'{"%s": {{ value }} }' %name
 
+    def _getCmdStrTemplate(cls, name) -> str:
+        return r'{"%s": "{{ value }}" }' %name
+
+
     @classmethod
     def _getPayloadOn(cls, name) -> str:
         return r'{"%s" : true}' %name
@@ -53,7 +57,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def prepareNameForTopicUse(cls, name) -> str:
-        forbiddenChar = [".","/"]
+        forbiddenChar = [".","/"," "]
         for char in forbiddenChar:
             name = name.replace(char, "_")
         return name
@@ -71,6 +75,14 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     @classmethod
     def getDiscoverySensorTopic(cls, deviceName : str, sensorName : str) -> str:
         return f'homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config'
+
+    @classmethod
+    def getDiscoveryTextTopic(cls, deviceName : str, sensorName : str) -> str:
+        textTopic = f'homeassistant/text/{ThreadObject.get_projectName()}_{deviceName}'
+        if sensorName is not None:
+            textTopic += f"_{cls.prepareNameForTopicUse(sensorName)}"
+        textTopic += '/config'
+        return textTopic
 
     @classmethod
     def getDiscoverySensorCmd(cls, deviceName : str, sensorName : str, niceName : str, unit : str, topic : str) -> dict:

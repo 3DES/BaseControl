@@ -193,10 +193,8 @@ class Logger(ThreadBase):
         # check and prepare mandatory parameters
         self.tagsIncluded(["projectName"], configuration = configuration)
         self.set_projectName(configuration["projectName"])
-        if not self.tagsIncluded(["homeAutomation"], optional = True, configuration = configuration):
-            configuration["homeAutomation"] = "HomeAutomation.BaseHomeAutomation.BaseHomeAutomation"
-        if not self.tagsIncluded(["homeAutomationPrefix"], optional = True, configuration = configuration):
-            configuration["homeAutomationPrefix"] = ""
+        self.tagsIncluded(["homeAutomation"], optional = True, configuration = configuration, default = "HomeAutomation.BaseHomeAutomation.BaseHomeAutomation")
+        self.tagsIncluded(["homeAutomationPrefix"], optional = True, configuration = configuration, default = "")
         self.set_homeAutomation(Supporter.loadClassFromFile(configuration["homeAutomation"])(configuration["homeAutomationPrefix"]))
 
         self.setup_logQueue()                                   # setup log queue
@@ -209,6 +207,59 @@ class Logger(ThreadBase):
         self.removeMqttRxQueue()        # mqttRxQueue not needed so remove it
 
         self.logger.info(self, "init (Logger)")
+
+
+#        print(f"timer: {self.timer('abc', timeout = 3)}")
+#        time.sleep(1)
+#        print(f"timer: {self.timer('abc')}")
+#        time.sleep(1)
+#        print(f"timer: {self.timer('abc')}")
+#        time.sleep(1)
+#        print(f"timer: {self.timer('abc')}")
+#        time.sleep(1)
+
+#        print(f"counter: {self.counter('foobar', value = 5)}")
+#        print(f"counter: {self.counter('foobar')}")
+#        print(f"counter: {self.counter('foobar')}")
+#        print(f"counter: {self.counter('foobar')}")
+#        print(f"counter: {self.counter('foobar')}")
+#        print(f"counter: {self.counter('foobar')}")
+#        print(f"counter: {self.counter('foobar')}")
+#        print(f"counter: {self.counter('foobar')}")
+#        print(f"counter: {self.counter('foobar', value = 5)}")
+#        print(f"counter: {self.counter('foobar', value = 5)}")
+#        print(f"counter: {self.counter('foobar', value = 5)}")
+#        print(f"counter: {self.counter('foobar', value = 5)}")
+
+#        print(f"accumulator: {self.accumulator('foobar', power = 21, useCounter = False, timeout = 5, synchronized = False, absolute = True, autoReset = True, minMaxAverage = True)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 23)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 25)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 27)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 29)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 31)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 27)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 28)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 28)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 28)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 28)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 28)}")
+#        time.sleep(1)
+#        print(f"accumulator: {self.accumulator('foobar', power = 28)}")
+#        time.sleep(1)
+#
+#        import sys
+#        sys.exit()
 
 
     def _handleMessage(self, newLogEntry : dict):
@@ -279,7 +330,11 @@ class Logger(ThreadBase):
             if (sender.__module__ == 'builtins'):
                 senderName = senderType + sender.__qualname__
             else:
-                senderName = senderType + sender.__module__ + "." + sender.__name__
+                senderName = senderType + sender.__module__
+
+                # add __name__ if available
+                if hasattr(sender, "__name__"):
+                    senderName += "." + sender.__name__
         #elif hasattr(sender, "__name__"):
         #    return sender.__name__
         else:

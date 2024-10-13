@@ -38,6 +38,8 @@ class WatchDog(ThreadObject):
         self.mqttSubscribeTopic(self.createInTopicFilter(self.watchDogTopic))      # if this class is not overwritten then it has the same name as the default watch dog toppic and will register to "<projectName>/WatchDog/#" twice what is not a problem!
 
         self.logger.info(self, "init (WatchDog)")
+        
+        self.startUpPhase = True
 
 
     def calculateNextTimeoutTime(self):
@@ -59,6 +61,10 @@ class WatchDog(ThreadObject):
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "uptime",               Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True))
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "minimumRemainingTime", self.remainingTime["minimum"], compareValue = changed)
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, "minimumRemainingTask", self.remainingTime["minimumThread"], compareValue = changed)
+        
+        # independent from any change checks current time is filled in and sent whenever one of the other values changes
+        self.homeAutomationValues["lastmessageTime"] = Supporter.formattedTime(Supporter.getTimeStamp(), shortTime = True)
+        
         return changed
 
 
@@ -75,6 +81,7 @@ class WatchDog(ThreadObject):
 
         self.homeAutomationValues = {
             "startTime"            : Supporter.formattedTime(self.startupTime, shortTime = True),
+            "lastmessageTime"      : Supporter.formattedTime(Supporter.getTimeStamp(), shortTime = True),
             "uptime"               : Supporter.formattedUptime(Supporter.getSecondsSince(self.startupTime), noSeconds = True),
             "minimumRemainingTime" : self.remainingTime["minimum"],
             "minimumRemainingTask" : "",
@@ -94,6 +101,17 @@ class WatchDog(ThreadObject):
 #        pass
 
 
+    def searchMissedThreads(self):
+        '''
+        Searches all threads during initialization that have not yet send a notification
+        '''
+        missedThreads = []
+        for expectedThread in self.configuration["expectThreads"]:
+            if expectedThread not in self.watchDogLastInformedDict:
+                missedThreads.append(expectedThread)
+        return missedThreads
+
+
     def threadMethod(self):
         '''
         Overwritten thread main method
@@ -105,7 +123,7 @@ class WatchDog(ThreadObject):
             # handle received message, if newMqttMessageDict["content"]["sender"] is included this thread must be still alive
             if "content" in newMqttMessageDict:
                 if "sender" in newMqttMessageDict["content"]:
-                    sender = json.loads(newMqttMessageDict["content"])["sender"]
+                    sender = self.extendedJson.parse(newMqttMessageDict["content"])["sender"]
 
                     # do we expect a thread with this name?
                     if sender not in self.configuration["expectThreads"]:
@@ -136,24 +154,35 @@ class WatchDog(ThreadObject):
                               ", shortest remaining time: " +
                               Supporter.encloseString(str(self.remainingTime)))
 
-        # after setup time is over once check amount of threads each time thread loop is executed
-        if Supporter.getTimeStamp() >= self.watchDogLastInformedInitTime:
-            # create a union of expected and already found threads and check length what has to be identical!
-            if len(self.configuration["expectThreads"]) != len(self.watchDogLastInformedDict):
-                missedThreads = []
-                for expectedThread in self.configuration["expectThreads"]:
-                    if expectedThread not in self.watchDogLastInformedDict:
-                        missedThreads.append(expectedThread)
-                # @todo ggf. besser noch den HW-Watchdog informieren und danach die exception schmeissen
+        # startup checks
+        if self.startUpPhase:
+            if len(self.configuration["expectThreads"]) == len(self.watchDogLastInformedDict):
+                # received notification from all expected threads, so startup phase can be finished
+                self.startUpPhase = False   # startup phase is over now
+                message = f"all threads ({len(self.configuration['expectThreads'])}) up and running after {int(Supporter.getTimeStamp() - self.startupTime)} seconds"
+                Supporter.debugPrint(message)
+                self.logger.debug(self, message)
+            elif Supporter.getTimeStamp() < self.watchDogLastInformedInitTime:
+                # still waiting for some notification (show message every 5 seconds to inform user why watchdog is not switched ON)
+                if self.timer(name = "waitingForMonitoredThreads", timeout = 5, firstTimeTrue = True):
+                    missedThreads = self.searchMissedThreads()
+                    message = f"waiting for monitored threads, still waiting for {int(self.watchDogLastInformedInitTime - Supporter.getTimeStamp())} seconds\nmissing {len(missedThreads)} threads: {', '.join(missedThreads)}"
+                    Supporter.debugPrint(message)
+                    self.logger.debug(self, message)
+            else:
+                # setup time is over but there are still some missed notifications, it's time to throw an exception
+                missedThreads = self.searchMissedThreads()
+                # @todo ggf. besser noch den HW-Watchdog informieren und danach die exception schmeissen (besser noch Exception erkennen und WD in den GPIOs hart abschalten)
                 raise Exception("watch dog expects [" +
                                 str(len(self.configuration["expectThreads"])) +
                                 "] but got only " +          # we know we have less since unknown threads are handled somewhere else and not stored in known thread list!
                                 Supporter.encloseString(str(len(self.watchDogLastInformedDict))) +
                                 " within timeout time (" +
                                 str(self.configuration["triggerTime"] + self.configuration["timeout"] + self.configuration["setupTime"]) + 
-                                "s), missing:\n" + "\n".join(missedThreads) + 
-                                "\n=[EXPECTED]============================\n" + "\n".join(sorted(self.configuration["expectThreads"])) +
-                                "\n=[INFORMED]============================\n" + "\n".join(sorted(self.watchDogLastInformedDict.keys()))
+                                "s)" +
+                                "\n=[MISSED]==============================\n" + "\n".join(map(lambda string: "    " + string, sorted(missedThreads))) +
+                                "\n=[EXPECTED]============================\n" + "\n".join(map(lambda string: "    " + string, sorted(self.configuration["expectThreads"]))) +
+                                "\n=[INFORMED]============================\n" + "\n".join(map(lambda string: "    " + string, sorted(self.watchDogLastInformedDict.keys())))
                                 )
 
         # now check all (already stored) timeout times
@@ -161,7 +190,7 @@ class WatchDog(ThreadObject):
             if self.watchDogLastInformedDict[thread] < Supporter.getTimeStamp():
                 # thread in timeout ignore list, only then suppress exception!
                 if not thread in self.configuration["ignoreThreads"]:
-                    # @todo ggf. besser noch den HW-Watchdog informieren und danach die exception schmeissen
+                    # @todo ggf. besser noch den HW-Watchdog informieren und danach die exception schmeissen (besser noch Exception erkennen und WD in den GPIOs hart abschalten)
                     raise Exception("thread " +
                                     Supporter.encloseString(thread) +
                                     "timed out")

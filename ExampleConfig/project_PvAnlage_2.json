@@ -86,7 +86,7 @@
 
     "WatchDog":
     {
-        "startPriority" : -1,  # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+        "startPriority" : -8,  # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
         "class":      "WatchDog.WatchDog.WatchDog",
         "interfaces":
         {

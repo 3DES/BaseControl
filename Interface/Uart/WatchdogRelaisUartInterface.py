@@ -54,11 +54,10 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         
         
         todo: aktuell bekomme ich nicht mit mit wenn der WD abfällt wenn ihn keiner triggert.
-        todo: wd trigger cmd {"cmd":"triggerWdRelay"} in den watchdog.py einbauen und an alle wd schicken (Liste über init.json übergeben)
+        todo: wd trigger cmd {"cmd":"triggerWdRelay"} in den watchdog.py einbauen und an alle wd schicken (Liste ueber init.json uebergeben)
         todo: getFirmwarePath() und getAvrDudePath() an linux final anpassen und ggf zwisch windows und linux unterscheiden
-
         todo: neue Firmware einchecken und getAndLogDiagnosis() anpassen und testen
-
+        @todo Exception erkennen und WD in den GPIOs hart abschalten, bevor alles beendet wird
     '''
     magicWord = "4D4853574D485357"          # MHSWMHSW
     maxUpdateTries = 4

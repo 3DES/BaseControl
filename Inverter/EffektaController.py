@@ -17,6 +17,14 @@ class EffektaController(ThreadObject):
     NetzErhaltungsLadestrom = "MUCHGC002"
     chargePrioNetzPV = "PCP02"             # charge prio 02=Netz und pv, 03=pv
     chargePrioPV = "PCP03"             # charge prio 02=Netz und pv, 03=pv
+    fullTextMode = {
+        "P" : "Power on mode",
+        "S" : "Standby mode",
+        "L" : "Line mode",
+        "B" : "Battery mode",
+        "F" : "Fault mode",
+        "H" : "Power saving mode"
+    }
 
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
@@ -131,7 +139,7 @@ class EffektaController(ThreadObject):
         self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
 
     def threadInitMethod(self):
-        self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "DailyProduction": 0.0, "CompleteProduction": 0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
+        self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "ActualModeText": "", "DailyProduction": 0.0, "CompleteProduction": 0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
         self.tempDailyProduction = 0.0
         self.valideChargeValues = []
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
@@ -210,6 +218,10 @@ class EffektaController(ThreadObject):
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
                             self.sendeGlobalMqtt = True
                             self.EffektaData["EffektaWerte"]["ActualMode"] = newMqttMessageDict["content"]["query"]["response"]
+                            if self.EffektaData["EffektaWerte"]["ActualMode"] in self.fullTextMode:
+                                self.EffektaData["EffektaWerte"]["ActualModeText"] = self.fullTextMode[self.EffektaData["EffektaWerte"]["ActualMode"]]
+                            else:
+                                self.EffektaData["EffektaWerte"]["ActualModeText"] = "unknown mode"
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QPIGS" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         (Netzspannung, Netzfrequenz, AcOutSpannung, AcOutFrequenz, AcOutPowerVA, AcOutPower, AcOutLoadProz, BusVoltage, BattSpannung, BattCharge, BattCapacity, InverterTemp, PvCurrent, PvVoltage, BattVoltageSCC, BattDischarge, DeviceStatus1, BattOffset, EeVersion, PvPower, DeviceStatus2) = newMqttMessageDict["content"]["query"]["response"].split()
                         self.EffektaData["EffektaWerte"]["AcOutSpannung"] = float(AcOutSpannung)
@@ -251,7 +263,7 @@ class EffektaController(ThreadObject):
 
         if self.sendeGlobalMqtt:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = True, enableEcho = False)
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = True,  enableEcho = False)
             self.sendeGlobalMqtt = False
         else:
             pass

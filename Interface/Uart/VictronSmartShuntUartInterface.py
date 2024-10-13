@@ -24,8 +24,8 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
     AH_DRAWN_TEXT        = "Ah"             # "H6"
     MIN_VOLTAGE_TEXT     = "VminAccu"       # "H7"
     MAX_VOLTAGE_TEXT     = "VmaxAccu"       # "H8"
-    
-    
+
+
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -38,24 +38,44 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
         self.matchedValues = {}
         self.data = b""     # bytearray("")
         self.initialChecksumFound = False
-        
-        self.READ_TIMEOUT = 20      # tries to read valid values for up to 20 seconds
+
+        self.tagsIncluded("readTimeout", optional = True, default = 20)
+        self.READ_TIMEOUT = self.configuration["readTimeout"]     # tries to read valid values for up to 20 or more seconds
 
 
     def matchBuffer(self):
         if not self.initialChecksumFound:
-            if matches := re.search(b"Checksum\t.\r\n(?P<remaining>.*)", self.data, re.DOTALL):
+            if matches := re.search(b".*Checksum\t.(?P<remaining>\r\n.*)", self.data, re.DOTALL):
                 self.data = matches.group("remaining")
                 self.initialChecksumFound = True
         else:
-            if matches := re.search(b"(?P<block>.+?)Checksum\t(?P<checksum>.)\r\n(?P<remaining>.*)", self.data, re.DOTALL):
+            if matches := re.search(b"(?P<block>.+?Checksum\t.)(?P<remaining>\r\n.*)", self.data, re.DOTALL):
                 currentBlock = matches.group("block")
-                checksum = matches.group("checksum")
-                self.data = matches.group("remaining")
-                for key in self.MATCHED_KEYS:
-                    matchString = bytes(f"{key}\t(?P<value>[^\r]+)\r\n", "utf-8")
-                    if matches := re.search(matchString, currentBlock):
-                        self.matchedValues[key] = matches.group("value")
+
+                # calculate checksum (simple BCC -> 0x00 - "sum of all elements including lead-in \r\n but exclusive checksum")
+                # the following lines show how this works:  
+                #     data=b'\r\nH1\t-46788\r\nH2\t-445\r\nH3\t0\r\nH4\t0\r\nH5\t0\r\nH6\t-76923\r\nH7\t5610\r\nH8\t56605\r\nH9\t2225\r\nH10\t0\r\nH11\t17\r\nH12\t0\r\nH15\t0\r\nH16\t0\r\nH17\t394\r\nH18\t2478\r\nChecksum\t\x82'
+                #     summ = 0
+                #     for char in a:
+                #         summ += int(char)
+                #     # empty line to paste this directly into the interpreter
+                #     summ &= 0xFF
+                #     print("" + ("in" if summ else "") + f"valid checksum 0x{summ:02X}")
+                calculatedChecksum = 0
+                for char in currentBlock:
+                    calculatedChecksum += int(char)
+                calculatedChecksum &= 0xFF
+
+                # result must be zero if block is valid since last element is checksum and 0x00 - "sum of all elements including lead-in \r\n but exclusive checksum") + checksum is 0x00
+                if (calculatedChecksum == 0x00):
+                    self.data = matches.group("remaining")
+                    for key in self.MATCHED_KEYS:
+                        # a key always consists of \r\n as lead-in, the key itself, a \t and a value, the next \r\n already belongs to the next key
+                        matchString = bytes(f"\r\n{key}\t(?P<value>[^\r]+)", "utf-8")
+                        if matches := re.search(matchString, currentBlock):
+                            self.matchedValues[key] = matches.group("value")
+                else:
+                    self.logger.warning(self, f"received Victron message with invalid checksum [{currentBlock}]")
 
 
     def prepareHomeAutomation(self, force : bool = False):
@@ -124,12 +144,14 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
 
         if not self.toSimulate():
             # get real values from victron shunt
+            self.flush()       # clear serial pipe to get current values and not old ones
             while sorted(list(self.matchedValues.keys())) != self.MATCHED_KEYS:
                 self.data += self.serialRead(length = DEFAULT_READ_LENGTH, timeout = timeout)
                 self.matchBuffer()
-    
+
                 if self.timer(name = "readValues", timeout = self.READ_TIMEOUT):
                     raise Exception(f"Reading Victron values timed out after {self.READ_TIMEOUT} seconds")
+            #Supporter.debugPrint(f"matched Victron values: {self.matchedValues}")
             self.timer(name = "readValues", remove = True)
         else:
             # simulation mode, so simulate some values

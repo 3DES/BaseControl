@@ -61,6 +61,23 @@ class BasicBms(ThreadObject):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), {"cmd":"clearWdRelay"}, globalPublish = False, enableEcho = False)
         raise Exception(exceptionMessage)
 
+    def convertVoltageList(self, voltageList : list) -> dict:
+        '''
+        expects a list with voltage values and converts it into a dictionary, e.g.
+        [ 3.4, 3.4, 3.41, 3.39 ] -> {"CellVoltage0" : 3.4, "CellVoltage1" : 3.4, "CellVoltage2" : 3.41, "CellVoltage3" : 3.39, "CellVoltageDelta" : 0.02}
+        Furthermore maximum delta is added as "CellVoltageDelta". It's calculated here even it could be calculated easier with given min and max values but so it's independent from values the BMS calculates 
+        '''
+        resultDict = {}
+
+        # add cell voltages for this interface
+        for cellNumber, cellVoltage in enumerate(voltageList):
+            resultDict[f"CellVoltage{cellNumber}"] = cellVoltage
+
+        # add maximum delta for this interface
+        resultDict["CellVoltageDelta"] = round(max(voltageList) - min(voltageList), 3)
+
+        return resultDict
+
     def mergeBmsData(self):
         # this funktion merges all data from all bms interfaces to self.globalBmsWerte["merged"]
         vMinList = []
@@ -97,6 +114,10 @@ class BasicBms(ThreadObject):
             if "VoltageList" in self.bmsWerte[interfaceName]:
                 vMinList.append(min(self.bmsWerte[interfaceName]["VoltageList"]))
                 vMaxList.append(max(self.bmsWerte[interfaceName]["VoltageList"]))
+
+                # convert voltage list in single cell voltages to be shown and logged in homeassistant, original "VoltageList" entry will not be unchanged
+                self.bmsWerte[interfaceName].update(self.convertVoltageList(self.bmsWerte[interfaceName]["VoltageList"]))
+
                 vMinSeen = True
                 vMaxSeen = True
             if "FullChargeRequired" in self.bmsWerte[interfaceName]:
@@ -260,6 +281,7 @@ class BasicBms(ThreadObject):
     def threadInitMethod(self):
         self.tagsIncluded(["socMonitor"], optional = True)
         self.bmsWerte = {}                                  # local Bms interface data from each interface stored in its interface key
+        self.notDiscoverableInterfaceElements = []                   # ignore elements from all interfaces, e.g. "VoltageList" -> <interface1>.VoltageList, <interface2>.VoltageList, ...
         self.numOfDevices = len(self.interfaceInTopics)
         if self.configuration["socMonitor"] is not None:
             self.mqttSubscribeTopic(self.getSocMonitorTopic(), globalSubscription = False)
@@ -314,7 +336,14 @@ class BasicBms(ThreadObject):
                         # delete soc monitor to prevent double discovery in homeassistant, the soc monitor discovers it self at homeassistant. We mustn't do it.
                         if self.configuration["socMonitor"] in self.bmsWerte:
                             del self.bmsWerte[self.configuration["socMonitor"]]
-                        self.homeAutomation.mqttDiscoverySensor(self.bmsWerte, subTopic = self.allBmsDataTopicExtension)
+
+                        # if "VoltageList" is in current interface add discover ignore entry for it and discover single cell voltages instead
+                        if "VoltageList" in self.bmsWerte[interfaceName] and type(self.bmsWerte[interfaceName]["VoltageList"]) == list:
+                            # if there is a "VoltageList" element discover all cell voltages separately
+                            self.bmsWerte[interfaceName].update(self.convertVoltageList(self.bmsWerte[interfaceName]["VoltageList"]))
+                            self.notDiscoverableInterfaceElements.append(f"{interfaceName}.VoltageList")    # add discover ignore entry
+
+                        self.homeAutomation.mqttDiscoverySensor(self.bmsWerte, ignoreKeys = self.notDiscoverableInterfaceElements, subTopic = self.allBmsDataTopicExtension)
                         self.homeAutomation.mqttDiscoverySensor(self.globalBmsWerte, unitDict = {'calc.VminOk' : "none", "calc.VmaxOk" : "none"})
 
                     # At first we check required bit toggleIfMsgSeen. We remember it and add this info at least to bms data of this topic 

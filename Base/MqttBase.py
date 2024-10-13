@@ -204,40 +204,6 @@ class MqttBase(Base):
         return MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters
 
 
-    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None, default = None) -> bool:
-        '''
-        Checks if given parameters are contained in task configuration
-        
-        A dictionary with configuration can be given optionally for the case that configuration has to be checked before super().__init__() has been called
-        if intIfy is True it will be ensured that the value contains an integer
-        if optional is True no exception will be thrown if element is missed, in that case the return value will be True if all given tags have been included or False if at least one wansn't included
-        '''
-        success = True
-
-        # take given configuration or self.configuration, if none is available throw an exception
-        if configuration is None:
-            if not hasattr(self, "configuration"):
-                raise Exception("tagsIncluded called without a configuration dictionary and without self.configuration set")
-            else:
-                configuration = self.configuration
-
-        # check and prepare mandatory parameters
-        for tagName in tagNames:
-            if tagName not in configuration:
-                # in case of not optional throw an exception
-                if not optional:
-                    raise Exception(self.name + " needs a \"" + tagName + "\" value in init file")
-
-                # if there was only one element to check and it doesn't exist, set default value
-                if len(tagNames) == 1:
-                    configuration[tagName] = default
-                success = False         # remember there was at least one missing element
-            elif intIfy:
-                configuration[tagName] = int(configuration[tagName])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
-
-        return success
-
-
     def __init__(self, baseName : str, configuration : dict, interfaceQueues : dict = None):
         '''
         Constructor
@@ -628,6 +594,36 @@ class MqttBase(Base):
         return topic
 
 
+    def mqttDiscoveryText(self, textField, commandTopic : str, commandTemplate : str, senderName : str = None) -> str:
+        """
+        textField: name of the text filed that has to be discovered
+        ... @todo
+        """
+        senderObj = Supporter.getCaller()      # get caller object
+##        (textField = "DEBUG", commandTopic = self.createInTopicFilter(self.objectTopic), commandTemplate = '{ "variable" : "{{ value }}" }')
+##xxxxxx            mosquitto_pub -t 'homeassistant/text/AccuTester_DEBUG_VariableName/config' -m '{"name" : "hallo", "command_topic" : "AccuTester/DEBUG/in", "command_template":"{ \"variable\" : \"{{ value }}\" }"}' -h homeassistant -u pi -P raspberry
+        preparedMsg = f'{{ "name" : "{textField}", "command_topic" : "{commandTopic}", "command_template" : "{commandTemplate}" }}'
+        sensorTopic = self.homeAutomation.getDiscoveryTextTopic(senderName, textField)
+        self.logger.debug(self, f"discover text message prepared: topic = {sensorTopic} content = {preparedMsg}")
+        senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+
+
+    def mqttUnDiscovery(self, sensor, senderName : str = None) -> str:
+        """
+        Remove a discovered element from MQTT broker
+
+        sensor: single sensor to be reoved from MQTT broker and homeautomation
+        """
+        senderObj = Supporter.getCaller()      # get caller object
+
+        # default is is the name variable in the caller object if nth. else has been given
+        if senderName is None:
+            senderName = senderObj.name
+
+        sensorTopic = self.homeAutomation.getDiscoverySensorTopic(senderName, sensor)
+        senderObj.mqttPublish(sensorTopic, "", globalPublish = True, enableEcho = False)
+
+
     def mqttDiscoveryInputNumberSlider(self, sensors, ignoreKeys : list = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None):
         """
         sensors: dict oder List der Slider die angelegt werden sollen
@@ -766,7 +762,7 @@ class MqttBase(Base):
             try:
                 # @todo pruefen ob [contentTag] ueberhaupt existiert und falls nicht, was dann?
                 # @todo pruefen ob [contentTag] string enthaelt, falls Inhalt = dict, was dann?
-                message[contentTag] = json.loads(message[contentTag])                           # try to convert content into dict
+                message[contentTag] = self.extendedJson.parse(message[contentTag])                           # try to convert content into dict
             except Exception as ex:
                 if error:
                     self.logger.error(self, f'Cannot convert content {message[contentTag]} to python dict, {ex}')

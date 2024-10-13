@@ -24,6 +24,12 @@ class SocMeter(ThreadObject):
         '''
         super().__init__(threadName, configuration)
 
+
+    # thread is not yet ready just because initialization has been done since thread should wait until first SOC message has arrived from interface, so overwrite setThreadStarted() and set the variable manually later on
+    def setThreadStarted(self):
+        pass
+
+
     def threadInitMethod(self):
         self.SocMonitorWerte = { "Ah" : -1, "Current" : 0, "Prozent" : self.InitAkkuProz}
 
@@ -52,6 +58,7 @@ class SocMeter(ThreadObject):
 
             # check if msg is from our interface
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
+                self.threadStarted = True       # first message from interface has been received so initalization is done now, therefore, set variable to True
                 if "Current" in newMqttMessageDict["content"]:
                     if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Current"], self.SocMonitorWerte["Current"], -200, 200, percent = 20, dynamic = True, minIgnoreDelta = 5):
                         takeDataAndSend()
@@ -59,7 +66,7 @@ class SocMeter(ThreadObject):
                         takeDataAndSend()
                     elif Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Ah"], self.SocMonitorWerte["Ah"], -1, 500, percent = 1, dynamic = True, minIgnoreDelta = 10):
                         takeDataAndSend()
-                    # send always localy
+                    # send always locally
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
             else:
                 if "cmd" in newMqttMessageDict["content"]:

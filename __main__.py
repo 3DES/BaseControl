@@ -75,8 +75,9 @@ if __name__ == '__main__':
     jsonDumpFilter = "user|password|\+49"     # default filter
     logFileName = "logger.txt"
 
-    commandLine = f"command line parameters: {sys.argv}" 
-    print(commandLine)
+    # collect command line and print it in re-usable format
+    commandLine = " ".join("'" + parameter + "'" for parameter in sys.argv)
+    print(f"command line parameters: {commandLine}")
 
     # handle command line arguments
     argumentParser = argparse.ArgumentParser()

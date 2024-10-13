@@ -1,8 +1,9 @@
 from Base.Supporter import Supporter
 import Logger.Logger
+from Base.ExtendedJsonParser import ExtendedJsonParser
 
 
-class Base(object):
+class Base():
     '''
     classdocs
     '''
@@ -15,6 +16,7 @@ class Base(object):
     _SIMULATE = False            # to be set to True as soon as at least one of the objects are simulating values, this will prevent the external watchdog relay from being triggered
     _SIMULATION_ALLOWED = False  
 
+    extendedJson = ExtendedJsonParser()       #  extended json parser for all children
 
     @classmethod
     def setSimulationModeAllowed(cls, simulationAllowed : bool):
@@ -42,12 +44,46 @@ class Base(object):
         return Base._SIMULATE
 
 
+    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None, default = None) -> bool:
+        '''
+        Checks if given parameters are contained in task configuration
+        
+        A dictionary with configuration can be given optionally for the case that configuration has to be checked before super().__init__() has been called
+        if intIfy is True it will be ensured that the value contains an integer
+        if optional is True no exception will be thrown if element is missed, in that case the return value will be True if all given tags have been included or False if at least one wansn't included
+        '''
+        success = True
+
+        # take given configuration or self.configuration, if none is available throw an exception
+        if configuration is None:
+            if not hasattr(self, "configuration"):
+                raise Exception("tagsIncluded called without a configuration dictionary and without self.configuration set")
+            configuration = self.configuration
+
+        # check and prepare mandatory parameters
+        for tagName in tagNames:
+            if tagName not in configuration:
+                # in case of not optional throw an exception
+                if not optional:
+                    raise Exception(self.name + " needs a \"" + tagName + "\" value in init file")
+
+                # if there was only one element to check and it doesn't exist, set default value
+                if len(tagNames) == 1:
+                    configuration[tagName] = default
+                success = False         # remember there was at least one missing element
+            elif intIfy:
+                configuration[tagName] = int(configuration[tagName])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
+
+        return success
+
+
     def toSimulate(self):
         '''
         Should current object run in simulation mode?
         '''
         if self.tagsIncluded(["SIMULATE"], optional = True, default = False):
             return self.configuration["SIMULATE"]
+        return None
 
 
     def __init__(self, baseName : str, configuration : dict):
@@ -63,25 +99,126 @@ class Base(object):
             self.setGlobalSimulationMode()
             Supporter.debugPrint(f"SIMULATE set")      # @todo Prio1 hierauf muessen wir noch reagieren und dafür sorgen, daß die Anlage nicht einschaltet!!!
 
+        # add dicts for counters, timers and accumulators to namespace
+        self.COUNTER_DICT     = f"__counter_{self.name}"
+        self.TIMER_DICT       = f"__timer_{self.name}"
+        self.ACCUMULATOR_DICT = f"__accumulator_{self.name}"
+        nameSpace = globals()
+        nameSpace[self.COUNTER_DICT]     = {}
+        nameSpace[self.TIMER_DICT]       = {}
+        nameSpace[self.ACCUMULATOR_DICT] = {}
 
-    def _getCounterName(self, name : str):
-        return f"__counter_{self.name}_{name}"
+
+    def _createCounter(self, name : str, content : dict):
+        nameSpace = globals()
+        nameSpace[self.COUNTER_DICT][name] = content
+
+    def _getCounter(self, name):
+        if self.counterExists(name):
+            nameSpace = globals()
+            return nameSpace[self.COUNTER_DICT][name]
+        return None
+
+    def _removeCounter(self, name : str):
+        if self.counterExists(name):
+            nameSpace = globals()
+            nameSpace[self.COUNTER_DICT][name] = None
+        else:
+            raise Exception(f"cannot remove counter {name} since it doesn't exist or has been removed already")
+
+    def _createTimer(self, name : str, content : dict):
+        nameSpace = globals()
+        nameSpace[self.TIMER_DICT][name] = content
+
+    def _getTimer(self, name):
+        if self.timerExists(name):
+            nameSpace = globals()
+            return nameSpace[self.TIMER_DICT][name]
+        return None
+
+    # @todo was ist mit diesen Funktionen hier, aktuell nimmt die keiner her, koennen die weg oder sollten wir die verwenden?!?!?
+    def _removeTimer(self, name : str):
+        if self.timerExists(name):
+            nameSpace = globals()
+            nameSpace[self.TIMER_DICT][name] = None
+        else:
+            raise Exception(f"cannot remove timer {name} since it doesn't exist or has been removed already")
+
+    def _createAccumulator(self, name : str, content : dict):
+        nameSpace = globals()
+        nameSpace[self.ACCUMULATOR_DICT][name] = content
+
+    def _getAccumulator(self, name):
+        if self.accumulatorExists(name):
+            nameSpace = globals()
+            return nameSpace[self.ACCUMULATOR_DICT][name]
+        return None
+
+    def _removeAccumulator(self, name : str):
+        if self.accumulatorExists(name):
+            nameSpace = globals()
+            nameSpace[self.ACCUMULATOR_DICT][name] = None
+        else:
+            raise Exception(f"cannot remove accumulator {name} since it doesn't exist or has been removed already")
 
 
-    def _getTimerName(self, name : str):
-        return f"__timer_{self.name}_{name}"
-
-
-    def _getAccumulatorName(self, name : str):
-        return f"__accumulator_{self.name}_{name}"
+    def counterExistedButRemoved(self, name :  str) -> str:
+        '''
+        Checks if counter name ever existed but has been removed again
+        
+        @param name   name of the counter to be checked
+        @return       True if counter ever existed but has been removed again, False if counter hasn't ever existed
+        '''
+        nameSpace = globals()
+        return (name is not None) and (name in nameSpace[self.COUNTER_DICT]) and (nameSpace[self.COUNTER_DICT][name] is None)
 
 
     def counterExists(self, name : str):
         '''
         To check if a counter already exists
+        
+        @param name    counter to be checked
+        @return        name if counter exists, None if not
         '''
         nameSpace = globals()
-        return self._getCounterName(name) in nameSpace
+        if (name is None) or (name not in nameSpace[self.COUNTER_DICT]) or ((name in nameSpace[self.COUNTER_DICT]) and (nameSpace[self.COUNTER_DICT][name] is None)):
+            name = None
+        return name
+
+
+    def timerExistedButRemoved(self, name :  str) -> str:
+        '''
+        Checks if timer name ever existed but has been removed again
+        
+        @param name     name of the timer to be checked
+        @return         True if timer ever existed but has been removed again, False if timer hasn't ever existed
+        '''
+        nameSpace = globals()
+        return (name is not None) and (name in nameSpace[self.TIMER_DICT]) and (nameSpace[self.TIMER_DICT][name] is None)
+
+
+    def timerExists(self, name : str) -> str:
+        '''
+        To check if a timer already exists
+        
+        @param name    timer to be checked
+        @return        name if timer exists, None if not
+        '''
+        nameSpace = globals()
+        if (name is None) or (name not in nameSpace[self.TIMER_DICT]) or ((name in nameSpace[self.TIMER_DICT]) and (nameSpace[self.TIMER_DICT][name] is None)):
+            name = None
+        return name
+
+
+    def accumulatorExistedButRemoved(self, name :  str) -> str:
+        '''
+        Checks if accumulator name ever existed but has been removed again
+        
+        @param name   name of the accumulator to be checked
+        @return       True if accumulator ever existed but has been removed again, False if accumulator hasn't ever existed
+        '''
+        nameSpace = globals()
+        return (name is not None) and (name in nameSpace[self.ACCUMULATOR_DICT]) and (nameSpace[self.ACCUMULATOR_DICT][name] is None)
 
 
     def accumulatorExists(self, name : str):
@@ -89,82 +226,74 @@ class Base(object):
         To check if an accumulator already exists
         '''
         nameSpace = globals()
-        return self._getAccumulatorName(name) in nameSpace
+        if (name is None) or (name not in nameSpace[self.ACCUMULATOR_DICT]) or ((name in nameSpace[self.ACCUMULATOR_DICT]) and (nameSpace[self.ACCUMULATOR_DICT][name] is None)):
+            name = None
+        return name
 
 
-    def timerExistedButRemoved(self, timerName :  str) -> str:
+    def counterRemove(self, counterName : str, exception : bool = True) -> bool:
         '''
-        Checks if timer name ever existed but has been removed again
+        Checks if a counter exists and removes it in that case, but it isn't really removed but instead counter dict will be set to None, so it can be checked if a not existing counter or an already removed counter is removed
+        Whereas removing an already removed counter is OK removing a not existing counter is always a bug!
         
-        @param timerName     name of the timer to be checked
-        @return              True if timer ever existed and maybe still exist, False if timer hasn't ever existed
+        @param counterName     name of the counter
+        @param exception       if a never existed counterName has been given an exception will be thrown since that is usually a bug, but by setting this value to False the exception can be suppressed and None will be returned instead
+        @return                True if counter exists, False if counter existed but has already been deleted, None if counter never existed but throwing an exception has been suppressed
+                               Exception in case counterName is None or counter never existed, and throwing exceptions hasn't been suppressed, because that must be a development bug!
         '''
-        nameSpace = globals()
-
-        if timerName is not None:
-            realTimerName = self._getTimerName(timerName)
-            return ((timerName is not None) and (timerName in nameSpace) and (nameSpace[timerName] == None)) or ((realTimerName is not None) and (realTimerName in nameSpace) and (nameSpace[realTimerName] == None)) 
-        else:
+        if self.counterExists(counterName):
+            self._removeCounter(counterName)
+            return True
+        elif self.counterExistedButRemoved(counterName):
             return False
-
-
-    def timerExists(self, timerName : str) -> str:
-        '''
-        To check if a timer already exists
-        
-        @param name    timer to be checked
-        @return        timerName if timer it exists, None if not
-        '''
-        nameSpace = globals()
-
-        # a None timer cannot exist!
-        if timerName is not None:
-            # name space name of timer name given?
-            if timerName not in nameSpace:
-                # get name space name of timer
-                timerName = self._getTimerName(timerName)
-                # timer exists in name space?
-                if timerName not in nameSpace:
-                    # no timer found
-                    timerName = None
-
-        # timer existed but removed again?
-        if self.timerExistedButRemoved(timerName):
-            timerName = None
-
-        return timerName
+        elif exception:
+            # counter never existed so that must be a development error!
+            raise Exception("counter " + counterName + " cannot be deleted since it doesn't exist")
+        return None
 
 
     def timerRemove(self, timerName : str, exception : bool = True) -> bool:
         '''
-        Checks if a timer exists and removes it in that case, but it isn'r really removed but instead timer list will be set to None, so it can be checked if a not existing timer or an already removed timer is removed
+        Checks if a timer exists and removes it in that case, but it isn't really removed but instead timer list will be set to None, so it can be checked if a not existing timer or an already removed timer is removed
         Whereas removing an already removed timer is OK removing a not existing timer is always a bug!
         
-        @param timername       name of the timer
+        @param timerName       name of the timer
         @param exception       if a never existed timerName has been given an exception will be thrown since that is usually a bug, but by setting this value to False the exception can be suppressed and None will be returned instead
         @return                True if timer exists, False if timer existed but has already been deleted, None if timer never existed but throwing an exception has been suppressed
                                Exception in case timerName is None or timer never existed, and throwing exceptions hasn't been suppressed, because that must be a development bug!
         '''
-        timerDeleted = False
-        nameSpace = globals()
+        if self.timerExists(timerName):
+            nameSpace = globals()
+            nameSpace[self.TIMER_DICT][timerName] = None
+            return True
+        elif self.timerExistedButRemoved(timerName):
+            return False
+        elif exception:
+            # timer never existed so that must be a development error!
+            raise Exception("timer " + timerName + " cannot be deleted since it doesn't exist")
+        return None
 
-        # check if timer exists
-        if searchTimer := self.timerExists(timerName):
-            timerName = searchTimer
 
-        # timer never existed so that must be a development error!
-        if searchTimer is None:
-            if exception:
-                raise Exception("timer " + timerName + " cannot be deleted since it doesn't exist")
-            else:
-                return None
-
-        # time exists and hasn't been deleted already, so delete it now
-        if nameSpace[timerName] != None:
-            nameSpace[timerName] = None   # "delete" timer
-            timerDeleted = True
-
-        return timerDeleted
+    def accumulatorRemove(self, accumulatorName : str, exception : bool = True) -> bool:
+        '''
+        Checks if a accumulator exists and removes it in that case, but it isn't really removed but instead accumulator list will be set to None, so it can be checked if a not existing accumulator or an already removed accumulator is removed
+        Whereas removing an already removed accumulator is OK removing a not existing accumulator is always a bug!
+        
+        @param accumulatorName name of the accumulator
+        @param exception       if a never existed accumulatorName has been given an exception will be thrown since that is usually a bug, but by setting this value to False the exception can be suppressed and None will be returned instead
+        @return                True if accumulator exists, False if accumulator existed but has already been deleted, None if accumulator never existed but throwing an exception has been suppressed
+                               Exception in case accumulatorName is None or accumulator never existed, and throwing exceptions hasn't been suppressed, because that must be a development bug!
+        '''
+        if self.accumulatorExists(accumulatorName):
+            nameSpace = globals()
+            nameSpace[self.ACCUMULATOR_DICT][accumulatorName] = None
+            return True
+        elif self.accumulatorExistedButRemoved(accumulatorName):
+            return False
+        elif exception:
+            # accumulator never existed so that must be a development error!
+            raise Exception("accumulator " + accumulatorName + " cannot be deleted since it doesn't exist")
+        return None
 
 
     def counter(self, name : str, value : int = 0, autoReset : bool = True, singularTrue : bool = False, remove : bool = False, getValue : bool = False, dontCount : bool = False, startWithOne : bool = False):
@@ -188,21 +317,18 @@ class Base(object):
         
         if startWithOne is True counter counts [1..value], otherwise counter counts [0..value-1], this can only be set during setup, to change it counter has to be removed and set up again
         '''
-        counterName = self._getCounterName(name)
-        nameSpace = globals()
-
         COUNTER_VALUE            = "value"           # key to the current counter value
         COUNTER_THRESHOLD        = "threshold"       # key to the counter threshold value
         COUNTER_STARTS_WITH_ONE  = "startWithOne"    # key to information if counter starts counting with 0 or 1
         COUNTER_RESET_VALUE      = 1                 # internal counter value starts always with 1
 
         if remove:
-            if counterName not in nameSpace:
+            if not self.counterExists(name):
                 raise Exception("counter " + name + " cannot be deleted since it doesn't exist")
-            del(nameSpace[counterName])
+            self.counterRemove(name)
             return True
         else:
-            if counterName not in nameSpace:
+            if not self.counterExists(name):
                 if value < 1:
                     if not autoReset:
                         # without autoReset a counter simply counts so no value is necessary
@@ -211,31 +337,31 @@ class Base(object):
                         # with autoReset a counter is necessary otherwise it's not decidible when counter flows over
                         raise Exception("A counter cannot be set up with any value less than 1 except autoReset has been set to False")
                 # create local variable with name given in string (usually we could fill it with one array but by filling it value by value it's clear what element is used for what)
-                nameSpace[counterName] = {
+                self._createCounter(name, {
                     COUNTER_VALUE           : COUNTER_RESET_VALUE,  # counter internally always starts with 1
                     COUNTER_THRESHOLD       : value,                # threshold value of the counter
                     COUNTER_STARTS_WITH_ONE : startWithOne          # if True the returned counter value is ["value"] otherwise it's ["value"] - 1 because then the counter starts with 0
-                }
+                })
             else:
                 if value < 1:
-                    value = nameSpace[counterName][COUNTER_THRESHOLD]   # take stored value instead of given one
+                    value = self._getCounter(name)[COUNTER_THRESHOLD]   # take stored value instead of given one
                 else:
-                    nameSpace[counterName][COUNTER_THRESHOLD] = value   # change counter threshold
+                    self._getCounter(name)[COUNTER_THRESHOLD] = value   # change counter threshold
 
                 if not dontCount:
                     # stop counting up when value + 1 has been reached (otherwise counter would count up endless)
-                    if nameSpace[counterName][COUNTER_VALUE] < value or not autoReset:
-                        nameSpace[counterName][COUNTER_VALUE] += 1
+                    if self._getCounter(name)[COUNTER_VALUE] < value or not autoReset:
+                        self._getCounter(name)[COUNTER_VALUE] += 1
                     else:
                         # auto reset value if given
-                        nameSpace[counterName][COUNTER_VALUE] = COUNTER_RESET_VALUE       # counter internally always is reset to 1
+                        self._getCounter(name)[COUNTER_VALUE] = COUNTER_RESET_VALUE       # counter internally always is reset to 1
 
             if getValue:
                 # counter usually starts by one but it's possible to set "startWithOne = False" to get a counter start counting by zero, therefore decrease counter value by one in that case  
-                return nameSpace[counterName][COUNTER_VALUE] if nameSpace[counterName][COUNTER_STARTS_WITH_ONE] else (nameSpace[counterName][COUNTER_VALUE] - 1) 
+                return self._getCounter(name)[COUNTER_VALUE] if self._getCounter(name)[COUNTER_STARTS_WITH_ONE] else (self._getCounter(name)[COUNTER_VALUE] - 1) 
             else:
                 # return True if "counter == value" or in case "counter > value" only if singularTrue has not been given, otherwise return False
-                return (nameSpace[counterName][COUNTER_VALUE] == value) or (nameSpace[counterName][COUNTER_VALUE] > value and not singularTrue) 
+                return (self._getCounter(name)[COUNTER_VALUE] == value) or (self._getCounter(name)[COUNTER_VALUE] > value and not singularTrue) 
 
 
     def timer(self, name : str, timeout : int = 0, startTime : int = 0, minimumStartTime : bool = False, remove : bool = False, removeOnTimeout : bool = False, strict : bool = False, reSetup : bool = False, remainingTime : bool = False, oneShot : bool = False, firstTimeTrue : bool = False, autoReset : bool = True):
@@ -304,8 +430,6 @@ class Base(object):
         ONE_SHOT_DONE   = -1                # NEXT_TIMEOUT will be set to that value to remember that one-shot timer already shot once
 
         setupTurn = False
-        nameSpace = globals()
-        timerName         = self._getTimerName(name)
         existingTimerName = self.timerExists(name)
 
         if remove:
@@ -314,40 +438,40 @@ class Base(object):
         else:
             currentTime = Supporter.getTimeStamp()
 
-            # setup timer in global namespace if necessary
+            # setup timer if necessary
             if timeout > 0:
                 if (existingTimerName is None) or reSetup:
                     if startTime == 0:
                         startTime = currentTime                                                         # startTime is needed, if it hasn't been given take current time instead
                     # timer doesn't exist or setup has been given so use "timerName" because "existingTimerName" could be None
-                    nameSpace[timerName] = {
+                    self._createTimer(name, {
                         NEXT_TIMEOUT    : updateTime(startTime, timeout, currentTime, minimumStartTime),
                         PERIOD_DURATION : timeout,
                         ONE_SHOT_TIMER  : oneShot 
-                    }     # create local variable with name given in string
+                    })     # create local variable with name given in string
                     setupTurn = True                                                                    # timer has been setup in this call
-                    existingTimerName = timerName
+                    existingTimerName = name
                 else:
-                    nameSpace[existingTimerName][PERIOD_DURATION] = timeout                             # update timer period for following interval but not for the currently running one
+                    self._getTimer(existingTimerName)[PERIOD_DURATION] = timeout                             # update timer period for following interval but not for the currently running one
             elif existingTimerName is None:            # timeout is 0 otherwise we wouldn't be here!
                 raise Exception("a timer cannot be set up with a timeout of 0")
 
             # timeout happened?
-            if currentTime >= nameSpace[existingTimerName][NEXT_TIMEOUT]:
+            if currentTime >= self._getTimer(existingTimerName)[NEXT_TIMEOUT]:
                 if strict:
-                    deltaTime = currentTime - nameSpace[existingTimerName][NEXT_TIMEOUT]
-                    fullPeriodes = int(deltaTime / nameSpace[existingTimerName][PERIOD_DURATION]) 
+                    deltaTime = currentTime - self._getTimer(existingTimerName)[NEXT_TIMEOUT]
+                    fullPeriodes = int(deltaTime / self._getTimer(existingTimerName)[PERIOD_DURATION]) 
                     if fullPeriodes > 1:    # delta must be less than 2 periods otherwise throw exception
                         raise Exception("Timer has been polled too slowly so more than one timeout period passed over and some events have been missed, event happened occurred " + str(deltaTime) + " seconds ago")
 
-                if oneShot or nameSpace[existingTimerName][ONE_SHOT_TIMER]:
-                    if nameSpace[existingTimerName][NEXT_TIMEOUT] != ONE_SHOT_DONE:
+                if oneShot or self._getTimer(existingTimerName)[ONE_SHOT_TIMER]:
+                    if self._getTimer(existingTimerName)[NEXT_TIMEOUT] != ONE_SHOT_DONE:
                         # timeout happened, so remove timer if "removeOnTimeout" has been given
                         if removeOnTimeout:
                             self.timerRemove(existingTimerName)
                         else:
-                            nameSpace[existingTimerName][NEXT_TIMEOUT] = ONE_SHOT_DONE      # one-shot timers shoot only once so remember that is has shot already, since it hasn't been removed!
-                            nameSpace[existingTimerName][ONE_SHOT_TIMER] = oneShot          # it's possible that timer hasn't been setup as one-shot timer but during check oneShot has been given
+                            self._getTimer(existingTimerName)[NEXT_TIMEOUT] = ONE_SHOT_DONE      # one-shot timers shoot only once so remember that is has shot already, since it hasn't been removed!
+                            self._getTimer(existingTimerName)[ONE_SHOT_TIMER] = oneShot          # it's possible that timer hasn't been setup as one-shot timer but during check oneShot has been given
 
                         return True
                     else:
@@ -355,10 +479,10 @@ class Base(object):
                         return False
                 elif autoReset:
                     # the "if/elif" ensures that oneShot implicitly means autoReset=False, but on the other hand independently from oneShot autoReset can be set to False if needed
-                    nameSpace[existingTimerName][NEXT_TIMEOUT] = updateTime(nameSpace[existingTimerName][NEXT_TIMEOUT], nameSpace[existingTimerName][PERIOD_DURATION])
+                    self._getTimer(existingTimerName)[NEXT_TIMEOUT] = updateTime(self._getTimer(existingTimerName)[NEXT_TIMEOUT], self._getTimer(existingTimerName)[PERIOD_DURATION])
 
                 # timeout happened, so remove timer if "removeOnTimeout" has been given
-                originalTimeout = nameSpace[existingTimerName][NEXT_TIMEOUT]
+                originalTimeout = self._getTimer(existingTimerName)[NEXT_TIMEOUT]
                 if removeOnTimeout:
                     self.timerRemove(existingTimerName)
 
@@ -368,7 +492,7 @@ class Base(object):
                     return True
             else:
                 if remainingTime:
-                    return nameSpace[existingTimerName][NEXT_TIMEOUT] - currentTime
+                    return self._getTimer(existingTimerName)[NEXT_TIMEOUT] - currentTime
                 else: 
                     return False or (setupTurn and firstTimeTrue)
 
@@ -399,12 +523,12 @@ class Base(object):
         @param autoReset             ignored if absolute is False, otherwise if absolute is True and autoReset is True
                                      the reference power value will be set to 0 and the given power value will be accumulated
         @param minMaxAverage         find minimum, maximum and average of all given values (up to timeout if given)
-        @return                      returns the amount of calculated energy so far, to read energy value only given power should be 0
+        @return                      returns the amount of calculated energy so far, to read energy value only the given power should be 0
                                      except if getTime is True, then the time since accumulator has been set up or since last timeout is returned
 
         '''
         def calculatePower(accumulatorName : str, power : float, timeStamp : float = None) -> dict:
-            accumulatorDict = globals()[accumulatorName]
+            accumulatorDict = self._getAccumulator(accumulatorName)
             additionalPower = (power - accumulatorDict["referencePower"])
 
             # multiply new value by time cycle if activated
@@ -428,7 +552,7 @@ class Base(object):
                     accumulatorDict["maximum"] = power
                 if accumulatorDict["overallSum"] is None:
                     accumulatorDict["overallSum"] = 0                    
-                accumulatorDict["overallSum"] += (power - accumulatorDict["referencePower"])
+                accumulatorDict["overallSum"] += additionalPower
 
             return accumulatorDict["calculatedEnergy"]
 
@@ -440,14 +564,12 @@ class Base(object):
             # create and check some initial values
             returnValue = None
             resetMinMaxValues = False
-            accumulatorName = self._getAccumulatorName(name)
-            nameSpace = globals()
 
-            if (not self.accumulatorExists(name)):
+            if not self.accumulatorExists(name):
                 # setup new timer
                 if timeout:
                     # in case of timeout has been given we need a periodic timer
-                    timerName = accumulatorName
+                    timerName = "__created_by_accumulator_" + name
                     if useCounter:
                         if timeout != int(timeout):
                             raise Exception(f"if a counter should be used the timeout parameter must contain an integer, not a float value!")
@@ -459,7 +581,7 @@ class Base(object):
                     timerName = None
 
                 # create new accumulator
-                nameSpace[accumulatorName] = {
+                self._createAccumulator(name, {
                     "referencePower"   : 0,
                     "referenceTime"    : currentTime if multiplyTime else None,         # only needed if used for calculation
                     "timeout"          : timeout,                                       # can be None in case no timeout has been given
@@ -473,15 +595,15 @@ class Base(object):
                     "maximum"          : None,
                     "overallSum"       : None,
                     "calculatedEnergy" : 0
-                }
-                accumulatorDict = nameSpace[accumulatorName] 
+                })
+                accumulatorDict = self._getAccumulator(name) 
                 if power:
                     if accumulatorDict["absolute"]:
                         # in case of absolute the given power is the new reference power but will not be added to "calculatedEnergy"
                         accumulatorDict["referencePower"] = power
                     elif not accumulatorDict["multiplyTime"]:
                         # not multiplyTime is important here since it's unknown here what time delta should be used to be calculated with power value
-                        calculatePower(accumulatorName = accumulatorName, power = power, timeStamp = currentTime)
+                        calculatePower(accumulatorName = name, power = power, timeStamp = currentTime)
 
                 if not accumulatorDict["timerName"]:
                     # calculated energy has to be returned except timer has been configured
@@ -489,7 +611,7 @@ class Base(object):
                 #else:
                 #    returnValue = None      # return None in case of timeout accumulator until a timeout really happened
             else:
-                accumulatorDict = nameSpace[accumulatorName]
+                accumulatorDict = self._getAccumulator(name)
                 powerCalculated = False
 
                 # "autoReset": in absolute case given power level is not allowed to be less than previous given power level except autoReset has been set, in that case power will be used as new reference power but calculated energy will stay at its level and not be reset, too
@@ -502,7 +624,7 @@ class Base(object):
 
                 # timeout: accumulator with timeout detected
                 if accumulatorDict["timerName"]:
-                    calculatePower(accumulatorName = accumulatorName, power = power, timeStamp = currentTime)
+                    calculatePower(accumulatorName = name, power = power, timeStamp = currentTime)
                     powerCalculated = True      # remember power value has been processed
                     resetMinMaxValues = True    # only reset position where min, max, overallSum and valueCounter values have to be reset
 
@@ -518,7 +640,7 @@ class Base(object):
 
                 # power not processed so far, so process it now
                 if not powerCalculated:
-                    calculatePower(accumulatorName = accumulatorName, power = power, timeStamp = currentTime)
+                    calculatePower(accumulatorName = name, power = power, timeStamp = currentTime)
                     returnValue = accumulatorDict["calculatedEnergy"]
                     powerCalculated = True      # remember power value has been processed
 

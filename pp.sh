@@ -62,11 +62,11 @@ if [ -z $MAX_BACKUPS ]; then
 fi
 
 # start parameters
-EXECUTE='__main__.py -w -l=5 -p=3 --json-dump'
-#EXECUTE="__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter user|password|\+49"
+EXECUTE="__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter user|password|\+49"
     # from command line you have to execute:
     #   python3 __main__.py -w -l=5 -p=3 --json-dump --json-dump-filter "user|password|\+49"
     # but here the quotation marks are not allowed, otherwise they will become part of the regex!
+#EXECUTE='__main__.py -w -l=5 -p=3 --json-dump'
 #EXECUTE='__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter-none'
 #EXECUTE="__main__.py -w -l=5 -p=3"
 #EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu #--json-dump"
@@ -86,13 +86,25 @@ if [ "$#" -gt 0 ]; then
     EXECUTE=$EXECUTE $@
 fi
 
+# prepare interpreter
+if [ "$PYTHON" == "" ]; then
+    PYTHON=python3
+fi
+
 echo "#####################################"
 echo "# ${PROJECT_NAME}"
-echo "# execute python3 $EXECUTE"
+echo "# execute $PYTHON $EXECUTE"
 echo "#####################################"
 
+# ensure interpreter exists
+if [ ! $(which $PYTHON) ]; then
+    echo "python interpreter not found [$PYTHON]"
+    exit
+fi
+
 # start powerplant
-python3 $EXECUTE
+$PYTHON $EXECUTE
+
 
 # move all backup files to next index (MAX_BACKUP-1 overwrites MAX_BACKUP, there will be not more backup files than MAX_BACKUP)
 let newIndex=${MAX_BACKUPS}-1

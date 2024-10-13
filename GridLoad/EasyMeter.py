@@ -99,19 +99,11 @@ class EasyMeter(ThreadObject):
         # initialize object variables...
         # dictionary to hold process data that are used to decide if and how much power can be used to load the batteries
         self.energyProcessData = {
-            "currentEnergyLevel"     : 0,
-            "lastEnergyLevel"        : 0,
-            "backedupEnergyLevel"    : 0,
-
-            "currentEnergyTimestamp" : 0,
-            "lastEnergyTimestamp"    : 0,
-
-            "messageTimestamp"       : 0,
-
-            "deltaEnergyLevel"       : 0,
-            "deltaEnergyTimestamp"   : 0,
-
-            "gridLossDetected"       : True,
+            "currentEnergyLevel"     : 0,       # amount of collected energy within the last 15 minutes
+            "lastEnergyLevel"        : 0,       # amount of collected energy within the 15 minutes before 
+            "currentEnergyTimestamp" : 0,       # time stamp when the last energy message has been received (for grid loss detection)
+            "messageTimestamp"       : 0,       # time when last message with surplus energy information has been sent out
+            "gridLossDetected"       : True,    # set to be True when a grid loss has been detected (that is when started up or when seconds since last energy message is more than "gridLossThreshold")
         }
 
         # data for easy meter message to be sent out to worker thread
@@ -342,6 +334,8 @@ class EasyMeter(ThreadObject):
         '''
         Check result from processed data and fill in proper values or store error information
         '''
+        newPowerLevelAvailable = False
+
         if not messageError:
             self.energyData["validMessages"] += 1
 
@@ -349,27 +343,30 @@ class EasyMeter(ThreadObject):
 
             # current energy level == 0 means script has been (re-)started and we are here for the first time, in that case take the values received with the last message
             if self.energyProcessData["currentEnergyLevel"] == 0:              # can only happen after reboot since this is the real overall energy measured so far
-                self.energyProcessData["backedupEnergyLevel"] = float(self.energyData[self.DELIVERED_ENERGY_KEY])
-                self.energyProcessData["lastEnergyLevel"]     = float(self.energyData[self.DELIVERED_ENERGY_KEY])
-            else:
-                # backup last levels
-                self.energyProcessData["backedupEnergyLevel"] = self.energyProcessData["lastEnergyLevel"]
-                self.energyProcessData["lastEnergyLevel"]     = self.energyProcessData["currentEnergyLevel"]
+                self.energyProcessData["lastEnergyLevel"] = 0
+                self.energyProcessData["collectedEnergy"] = 0
 
-            # remember current level
-            self.energyProcessData["currentEnergyLevel"]     = float(self.energyData[self.DELIVERED_ENERGY_KEY])
-            self.energyProcessData["lastEnergyTimestamp"]    = self.energyProcessData["currentEnergyTimestamp"]
+            # collect new delivered energy value and check if specified cycle time is over
+            if (accumulated := self.accumulator(name = "collectedEnergyForTheLast15Minutes",
+                                                power = float(self.energyData[self.DELIVERED_ENERGY_KEY]),
+                                                timeout = self.configuration["loadCycle"],
+                                                synchronized = True,
+                                                absolute = True,
+                                                autoReset = True,
+                                                minMaxAverage = True)) is not None:
+                newPowerLevelAvailable = True                                                                      # inform caller that new surplus data is available
+                self.energyProcessData["lastEnergyLevel"]    = self.energyProcessData["currentEnergyLevel"]        # backup last level
+                self.energyProcessData["currentEnergyLevel"] = accumulated["acc"]                                  # remember new level
+
+            # remember current time for grid loss detection
             self.energyProcessData["currentEnergyTimestamp"] = Supporter.getTimeStamp()
-
-            if self.energyProcessData["lastEnergyTimestamp"] != 0:              # in case "lastEnergyLevel" is still 0 that's the second time this code is executed after reboot
-                self.energyProcessData["deltaEnergyLevel"]     = self.energyProcessData["currentEnergyLevel"] - self.energyProcessData["lastEnergyLevel"] 
-                self.energyProcessData["deltaEnergyTimestamp"] = self.energyProcessData["currentEnergyTimestamp"] - self.energyProcessData["lastEnergyTimestamp"]
         else:
             # logging values only
             self.energyData["invalidMessages"]            += 1
             self.energyData["lastInvalidMessageTimeStamp"] = Supporter.getTimeStamp()
             self.energyData["invalidMessageError"]         = messageError
-# @todo das hier ist nicht fertig... alle Werte müssen aufsummiert werden und dann gesammelt für den längeren Zeitraum rausgeschickt werden!!!
+
+        return newPowerLevelAvailable
 
 
     def receiveGridMeterMessage(self):
@@ -379,6 +376,8 @@ class EasyMeter(ThreadObject):
         '''
         #Supporter.debugPrint(f"{watching...")
 
+        newPowerLevelAvailable = False
+
         if not self.easyMeterInterfaceQueue.empty():
             while not self.easyMeterInterfaceQueue.empty():
                 message = self.easyMeterInterfaceQueue.get(block = False)  # read a message from interface but take only last one (if there are more they can be thrown away, only the newest one is from interest)
@@ -386,10 +385,12 @@ class EasyMeter(ThreadObject):
                 # take data out of message from easy meter interface
                 data = message["content"]
                 messageError = self.processReceivedMessage(data)            # fill variables from message content (if message is OK)
-                self.handleReceivedValues(messageError)                     # process filled variables and try to calculate new power level
-                
+                newPowerLevelAvailable = newPowerLevelAvailable or self.handleReceivedValues(messageError)                     # process filled variables and try to calculate new power level
+
             #Supporter.debugPrint(f"energy data = {self.energyData}")
             #Supporter.debugPrint(f"energy process data = {self.energyProcessData}")
+
+        return newPowerLevelAvailable
 
 
     def calculateNewPowerLevel(self):
@@ -403,8 +404,8 @@ class EasyMeter(ThreadObject):
             newPowerLevel      = self.POWER_OFF_LEVEL
         else:
             # grid is OK so send proper values
-            lastEnergyDelta    = int(self.energyProcessData["lastEnergyLevel"]    - self.energyProcessData["backedupEnergyLevel"])
-            currentEnergyDelta = int(self.energyProcessData["currentEnergyLevel"] - self.energyProcessData["lastEnergyLevel"])
+            lastEnergyDelta    = int(self.energyProcessData["lastEnergyLevel"])
+            currentEnergyDelta = int(self.energyProcessData["currentEnergyLevel"])
             if lastEnergyDelta > currentEnergyDelta:
                 newReductionLevel = self.configuration["decreasingDelta"]
             else:
@@ -507,10 +508,8 @@ class EasyMeter(ThreadObject):
             self.energyProcessData["gridLossDetected"] = True
 
         # any grid meter data to be received?
-        self.receiveGridMeterMessage()
-
-        # prepare the one message every "loadCycle" seconds that contains new power values
-        if self.timer("energyLoadTimer", timeout = self.configuration["loadCycle"], startTime = Supporter.getTimeOfToday(), firstTimeTrue = True):         # start timer with the interval in which new load parameters have to be sent out, timer is synchronized to the real time and not to random time it has been started
+        if self.receiveGridMeterMessage():
+            # prepare the one message every "loadCycle" seconds that contains new power values
             self.prepareNewEasyMeterMessage()
 
         # one message every 60 seconds
