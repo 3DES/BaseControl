@@ -398,6 +398,11 @@ class PowerPlant(Worker):
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden!")
                 else:
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_TO_GRID
+                # if inputvoltage is not present we can leave this state and force to inverter.
+                # Either inverter is already on, so a force will not change anything, or there is initial no grid and we want to switch inverter on
+                # Without this check we might get stuck here without grid
+                if deciredMode == self.INVERTER_MODE:
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_FORCE_TO_INVERTER
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_SWITCH_TO_GRID:
                 stateMode = self.TRANSFER_TO_NETZ
                 self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_INVERTER_OFF
