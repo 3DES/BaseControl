@@ -65,16 +65,21 @@ class PowerPlant(Worker):
 
 
     # @todo states noch sinnvoll benennen
-    class switchToGrid(CEnum):
-        STATE_0 = 0
-        STATE_1 = 1
-        STATE_2 = 2
-
-    class switchToInverter(CEnum):
-        STATE_0 = 0
-        STATE_1 = 1
-        STATE_2 = 2
-        STATE_3 = 3
+    class tranferRelaisStates(CEnum):
+        STATE_CHECK_INPUT_BEVORE_TRANSFER_TO_GRID   = 0
+        STATE_SWITCH_TO_GRID                        = 1
+        STATE_SWITCH_INVERTER_OFF                   = 2
+        STATE_CHECK_OUTPUT_AFTER_INVERTER_OFF       = 3
+        STATE_WAIT_FOR_INVERTER_MODE_REQ            = 4
+        STATE_CHECK_OUTPUT_BEVORE_INVERTER_ON       = 5
+        STATE_SWITCH_INVERTER_ON                    = 6
+        STATE_CHECK_OUTPUT_AFTER_INVERTER_ON        = 7
+        STATE_FINISCH_TRANSFER_TO_INVERTER          = 8
+        STATE_CANCEL_TRANSFER_TO_INVERTER           = 9
+        STATE_WAIT_FOR_GRID_MODE_REQ                = 10
+        STATE_FORCE_TO_INVERTER                     = 11
+        STATE_WAIT_FOR_NEW_INVERTER_DATA            = 12
+        STATE_WAIT_FOR_GRID_AND_TIMEOUT             = 13
 
     _MIN_GOOD_WEATHER_HOURS = 6     # it's good weather if forecasted sun hours are more than this value
     _HUNDRED_PERCENT = 100          # just to make magic numbers more readable
@@ -210,6 +215,13 @@ class PowerPlant(Worker):
                 dataList.update({device : self.localDeviceData[device]})
         return EffektaController.getCombinedEffektaData(dataList)
 
+    def updateVariables(self):
+        """
+        update some variables in setableScriptValues
+        AkkusSupply is True if all load is supplyed via akku
+        """
+        self.setScriptValues("AkkuSupply", ((self.scriptValues["WrMode"] == self.AKKU_MODE) and (self.scriptValues["NetzRelais"] == self.INVERTER_MODE)))
+
     def manageLogicalCombinedEffektaData(self):
         """
         check logically combined Effekta data
@@ -300,10 +312,8 @@ class PowerPlant(Worker):
         # subscribe global to in topic to get PowerSaveMode
         self.aufNetzSchaltenErlaubt = True
         self.aufPvSchaltenErlaubt = True
-        self.transferToNetzState = 0
-        self.transferToPvState = 0
         self.errorTimerFinished = False
-        self.minGridTime = 60*5
+        self.GridTransferCounter = 0
         self.localRelaisData = {
             BasicUsbRelais.gpioCmd : {
                 self.REL_NETZ_AUS : "unknown",      # initially set all relay states to "unknown"
@@ -319,9 +329,9 @@ class PowerPlant(Worker):
             },
             expectedStates = {}                 # no expected states during initialization
         )
-        # @todo evtl überlegen ob es hier nicht sinnvoll ist, schalteRelaisAufNetz() aufzurufen. Dann schaltet die Anlage definiert um.
-        self.currentMode = self.GRID_MODE
-        self.setScriptValues("NetzRelais", self.currentMode)
+        self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_INVERTER_MODE_REQ
+        self.setScriptValues("NetzRelais", self.GRID_MODE)
+        # todo auf den tatsächlichen zustand des schützes aufsynchronisieren
 
     def manageUtilityRelais(self):
         '''
@@ -358,52 +368,39 @@ class PowerPlant(Worker):
         STATE_2                  || OFF          | OFF <<<    | OFF      || back in "startup" state
         ====================================================================================================
         '''
-        
-        def forceInverterMode():
-                self.modifyRelaisData(
-                    {
-                        self.REL_NETZ_AUS : self.AUS,
-                        self.REL_PV_AUS   : self.AUS,
-                        self.REL_WR_1   : self.EIN,       # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
-                    },
-                )
-                self.currentMode = self.INVERTER_MODE
-                self.aufNetzSchaltenErlaubt = False
-                self.timer(name = "switchBackToGrid", timeout = self.minGridTime, removeOnTimeout = True)
-                # todo Parameter ??? Diese werden normalerweise vom threadMethod geschrieben
-                # self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
-                self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung hat automatisch auf Inverter geschaltet. Netzausfall.")
+        # Init some timouts and constants
+        minGridTime                 = 60*5
+        errorMessageTimer           = 60*10
+        parameterSetTimer           = 30
+        outputVoltageLowTimer       = 60*10
+        inverterErrorResponseTime   = 80
+        acOutTimeout                = 100
+        maxGridTransfersPerDay      = 2
+        debug = False
 
-        def checkUtilityAndforceToInverterMode():
-            # @todo Netzausfallerkennung ist noch nicht vorhanden, aktuell schaltet die externe Schaltung in dem Fall das Wendeschütz um und wir hängen auf den Wechselrichtern, wir sollten das erkennen und REL_NETZ_AUS aktivieren bis wir erkennen, daß das Netz wieder da ist und dann gezielt zurück schalten oder sowas in der Art!!!
-            # todo testen
-            # Die Hardwre des Wendeschützes und die ZusatzRelais schalten automatisch auf Inverter (und starten diese auch) wenn das Netz ausfällt
-            # Wenn der Schütz im NetzMode durch einen Netzausfall auf Inverter schaltet dann müssen wir hier auf PVMode forcen
-            
-            # if the utility relay switches to inverter (happens automatically if grid is not available) and the currentmode is grid we switch inverters on an force internal currentmode to inverter
-            if self.getInputValueByName("inverterActive") and self.currentMode == self.GRID_MODE:
-                forceInverterMode()
-    
-            if self.timerExists("switchBackToGrid") and self.timer(name = "switchBackToGrid", timeout = self.minGridTime, removeOnTimeout = True):
-                self.aufNetzSchaltenErlaubt = True
+        # for debugging:
+        #minGridTime                 = 15
+        #parameterSetTimer           = 5
+        #outputVoltageLowTimer       = 20
+        #maxGridTransfersPerDay      = 3
+        #debug = True
 
-        # @TODO sollte erledigt sein mit dem SChaltplan vom Mane -> @todo schalte alle wr ein die bei Netzausfall automatisch gestartet wurden (nicht alle!). (ohne zwischenschritt relPvAus=ein), Bei Netzrückkehr wird dann automatisch die Funktion schalteRelaisAufNetz() aufgerufen.
-        # Diese sollte aber bevor sie auf Netz schaltet in diesem Fall ca 1 min warten damit sich die Inverter synchronisieren können.
-        def schalteRelaisAufNetz():
-            # prüfen ob alle WR vom Netz versorgt werden
-            # todo was ist wenn das Netz ausfällt während des umschaltens (sichereung)
-            stateMode = self.TRANSFER_TO_NETZ
+        def switchTransferRelais(deciredMode, forceToState = None):
+            if forceToState is not None:
+                self.tranferRelaisState = forceToState
 
             tmpglobalEffektaData = self.getCombinedEffektaData()
             # first of all ensure that all inverters see their input voltages, otherwise a switch to the grid doesn't make any sense
-            if not tmpglobalEffektaData["InputVoltageAnd"]:
-                if self.timer(name = "timerToNetz", timeout = 600, firstTimeTrue = True):
-                    self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden!")
-            elif self.transferToNetzState == self.switchToGrid.STATE_0:
-                # if "InputVoltageAnd" was True but became False the timer still exists, so check it and remove it if necessary
-                if self.timerExists("timerToNetz"):
-                    self.timer(name = "timerToNetz", remove = True)
-                self.transferToNetzState = self.switchToGrid.STATE_1
+            if self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_INPUT_BEVORE_TRANSFER_TO_GRID:
+                stateMode = self.TRANSFER_TO_NETZ
+                if not tmpglobalEffektaData["InputVoltageAnd"]:
+                    if self.timer(name = "errorMessageTimer", timeout = errorMessageTimer, firstTimeTrue = True, removeOnTimeout = True):
+                        self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden!")
+                else:
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_TO_GRID
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_SWITCH_TO_GRID:
+                stateMode = self.TRANSFER_TO_NETZ
+                self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_INVERTER_OFF
                 self.publishAndLog(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Netz.")
                 self.modifyRelaisData(
                     {
@@ -415,13 +412,13 @@ class PowerPlant(Worker):
                         self.REL_WR_1     : self.EIN,
                     }
                 )
-            elif self.transferToNetzState == self.switchToGrid.STATE_1:
-                # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht währendessen abschalten
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_SWITCH_INVERTER_OFF:
+                stateMode = self.TRANSFER_TO_NETZ
                 # @todo Wendeschütz lesen und timer erst starten, wenn laut Wendeschütz Umschaltung durchgeführt wurde
 
-                # wait additional 30 seconds just to be sure grid voltages are stable
-                if self.timer(name = "timerToNetz", timeout = 30, removeOnTimeout = True):
-                    self.transferToNetzState = self.switchToGrid.STATE_2
+                # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht währendessen abschalten
+                if self.timer(name = "parameterSetTimer", timeout = parameterSetTimer, removeOnTimeout = True):
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_CHECK_OUTPUT_AFTER_INVERTER_OFF
                     self.modifyRelaisData(
                         {
                             self.REL_WR_1     : self.AUS,       # now switch inverter output voltages off
@@ -432,9 +429,10 @@ class PowerPlant(Worker):
                             self.REL_WR_1     : self.EIN,
                         }
                     )
-            elif self.transferToNetzState == self.switchToGrid.STATE_2:
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_OUTPUT_AFTER_INVERTER_OFF:
+                stateMode = self.GRID_MODE
                 # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
-                if self.timer(name = "timerToNetz", timeout = 500, removeOnTimeout = True):
+                if self.timer(name = "outputVoltageLowTimer", timeout = outputVoltageLowTimer, removeOnTimeout = True):
                     tmpglobalEffektaData = self.getCombinedEffektaData()
                     if tmpglobalEffektaData["OutputVoltageHighOr"]:
                         # Durch das ruecksetzten von PowersaveMode schalten wir als nächstes wieder zurück auf PV.
@@ -442,11 +440,12 @@ class PowerPlant(Worker):
                         self.setScriptValues("PowerSaveMode", False)
                         # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zurück auf inverter geschaltet wenn kein Fehler am Inverter anliegt
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Wechselrichter konnte nicht abgeschaltet werden. Er hat nach Wartezeit immer noch Spannung am Ausgang! Die Automatische Netzumschaltung wurde deaktiviert.")
-                        # Wir setzen den Status bereits hier ohne Rücklesen damit das relPvAus nicht zurückgesetzt wird. (siehe zurücklesen der Relais Werte)
+                        # Die Wechselrichter lassen sich nicht ausschalten, wir schalten wieder auf inverter
+                        self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON
                     else:
                         self.modifyRelaisData(
                             {
-                                self.REL_PV_AUS   : self.AUS,       # inverters get enabled again
+                                self.REL_PV_AUS   : self.AUS,
                             },
                             expectedStates = {
                                 self.REL_NETZ_AUS : self.AUS,
@@ -457,26 +456,19 @@ class PowerPlant(Worker):
                         # kurz warten damit das zurücklesen nicht zu schnell geht
                         time.sleep(0.5)     # @todo gruselig, sollte durch Timer ersetzt werden!!!
 
-                    self.transferToNetzState = self.switchToGrid.STATE_0
+                        self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_INVERTER_MODE_REQ
 
-                    # switch grid relay to grid is only allowed once per day (reset every day at 8 o'clock PM)
-                    self.aufNetzSchaltenErlaubt = False
+                    self.GridTransferCounter += 1
 
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf Netz.")
-                    stateMode = self.GRID_MODE
-                # check utility an leave this state if utility is not present
-                if not tmpglobalEffektaData["InputVoltageAnd"]:
-                    self.transferToNetzState = self.switchToGrid.STATE_0
-                    forceInverterMode()
-                    stateMode = self.INVERTER_MODE
-            return stateMode
-
-        def schalteRelaisAufInverter():
-            stateMode = self.TRANSFER_TO_INVERTER
-
-            if self.transferToPvState == self.switchToInverter.STATE_0:
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_INVERTER_MODE_REQ:
+                stateMode = self.GRID_MODE
+                if (deciredMode == self.INVERTER_MODE) and self.aufPvSchaltenErlaubt:
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_CHECK_OUTPUT_BEVORE_INVERTER_ON
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_OUTPUT_BEVORE_INVERTER_ON:
+                stateMode = self.TRANSFER_TO_INVERTER
                 # ensure that no inverter sees any output voltage, otherwise there is sth. wrong
-                if tmpglobalEffektaData["OutputVoltageHighOr"]:
+                if tmpglobalEffektaData["OutputVoltageHighOr"] and not debug:
                     self.modifyRelaisData(
                         # all these states are already expected but sth. is wrong and inverter output voltages are on, so try to switch off again
                         expectedStates = {
@@ -485,11 +477,17 @@ class PowerPlant(Worker):
                             self.REL_WR_1     : self.AUS,       # this should lead to a switch over to grid mode
                         }
                     )
-                    if self.timer(name = "timerToPv", timeout = 600, firstTimeTrue = True):
+                    if self.timer(name = "errorMessageTimer", timeout = errorMessageTimer, firstTimeTrue = True, removeOnTimeout = True):
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Output liefert bereits Spannung!")
                     # @todo auch hier kommen wir ggf. nie wieder raus, dann doch besser gezielt beenden!
                 # warten bis Parameter geschrieben sind
-                elif self.timer(name = "timerToPv", timeout = 30, removeOnTimeout = True):
+                else:
+                    if debug:
+                        self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Debug! No OutputVoltage checked!")
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON:
+                stateMode = self.TRANSFER_TO_INVERTER
+                if self.timer(name = "parameterSetTimer", timeout = parameterSetTimer, removeOnTimeout = True):
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Inverter.")
                     # grid mode has to be active, inverter mode has to be inactive, switch on inverter output voltages
                     self.modifyRelaisData(
@@ -503,9 +501,10 @@ class PowerPlant(Worker):
                             self.REL_WR_1     : self.AUS,
                         }
                     )
-                    self.transferToPvState = self.switchToInverter.STATE_1
-            elif self.transferToPvState == self.switchToInverter.STATE_1:
-                if self.timer(name = "timeoutAcOut", timeout = 100, removeOnTimeout = True):                                # wait until inverter output voltages are ON and stable
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_CHECK_OUTPUT_AFTER_INVERTER_ON
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_OUTPUT_AFTER_INVERTER_ON:
+                stateMode = self.TRANSFER_TO_INVERTER
+                if self.timer(name = "timeoutAcOut", timeout = acOutTimeout, removeOnTimeout = True):                                # wait until inverter output voltages are ON and stable
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Wartezeit zu lange. Keine Ausgangsspannung am WR erkannt.")
                     # Wir schalten die Funktion aus
                     self.setScriptValues("PowerSaveMode", False)
@@ -521,14 +520,13 @@ class PowerPlant(Worker):
                         }
                     )
                     # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
-                    self.sleeptime = 600    # set long sleep time for following state
-                    self.transferToPvState = self.switchToInverter.STATE_3
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_CANCEL_TRANSFER_TO_INVERTER
                 elif self.getCombinedEffektaData()["OutputVoltageHighAnd"] == True:
                     self.timer(name = "timeoutAcOut", remove = True)    # timer hasn't timed out yet, so removeOnTimeout didn't get active, therefore, the timer has to be removed manually
-                    self.transferToPvState = self.switchToInverter.STATE_2
-                    self.sleeptime = 10     # set short sleep time for following state
-            elif self.transferToPvState == self.switchToInverter.STATE_2:
-                if self.timer(name = "waitForOut", timeout = self.sleeptime, removeOnTimeout = True):
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER:
+                stateMode = self.INVERTER_MODE
+                if self.timer(name = "waitForOut", timeout = 10, removeOnTimeout = True):
                     self.modifyRelaisData(
                         {
                             self.REL_PV_AUS   : self.AUS,       # enable inverters what makes utility relay switch over to inverter mode since inverter output voltages are up
@@ -539,13 +537,12 @@ class PowerPlant(Worker):
                             self.REL_WR_1     : self.EIN,
                         }
                     )
-                    self.transferToPvState = self.switchToInverter.STATE_0
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_GRID_MODE_REQ
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf Inverter.")
-                    stateMode = self.INVERTER_MODE
-            elif self.transferToPvState == self.switchToInverter.STATE_3:
-                # @todo wir sind hier noch nicht fertig, die Zeile oben "stateMode = self.OUTPUT_VOLTAGE_ERROR" führt noch dazu, dass wir hier nie wieder herkommen und wenn wir das fixen dann haben wir das Problem, dass wir sofort wieder versuchen umzuschalten...
-                # Abbruch des SChaltvorgangs weil keine Outputvoltage erkannt wurde.
-                if self.timer(name = "waitForOut", timeout = 60*8, removeOnTimeout = True):
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CANCEL_TRANSFER_TO_INVERTER:
+                stateMode = self.GRID_MODE
+                # Abbruch des Schaltvorgangs weil keine Outputvoltage erkannt wurde.
+                if self.timer(name = "waitForOut", timeout = outputVoltageLowTimer, removeOnTimeout = True):
                     self.modifyRelaisData(
                         {
                             self.REL_PV_AUS   : self.AUS,       # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
@@ -556,29 +553,47 @@ class PowerPlant(Worker):
                             self.REL_WR_1     : self.AUS,
                         }
                     )
-                    self.transferToPvState = self.switchToInverter.STATE_0
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_INVERTER_MODE_REQ
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Umschaltung auf Inverter ist fehlgeschlagen und steht jetzt wieder auf Netz.")
-                    stateMode = self.GRID_MODE
                     self.aufPvSchaltenErlaubt = False
-            return stateMode
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_GRID_MODE_REQ:
+                stateMode = self.INVERTER_MODE
+                if (deciredMode == self.GRID_MODE) and self.aufNetzSchaltenErlaubt:
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_CHECK_INPUT_BEVORE_TRANSFER_TO_GRID
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_FORCE_TO_INVERTER:
+                # Force relais to InverterMode, after minGridTime it is allowed to switch to grid again
+                stateMode = self.INVERTER_MODE
+                self.modifyRelaisData(
+                    {
+                        self.REL_NETZ_AUS : self.AUS,
+                        self.REL_PV_AUS   : self.AUS,
+                        self.REL_WR_1   : self.EIN,       # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
+                    },
+                )
+                # todo Parameter ??? Diese werden normalerweise vom threadMethod geschrieben
+                # die Funktion self.schalteAlleWrAufAkku(self.configuration["managedEffektas"]) macht das
+                self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung hat automatisch auf Inverter geschaltet. Netzausfall.")
+                self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_NEW_INVERTER_DATA
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_NEW_INVERTER_DATA:
+                stateMode = self.INVERTER_MODE
+                if self.timer(name = "readParameterTimer", timeout = parameterSetTimer, removeOnTimeout = True):
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_GRID_AND_TIMEOUT
+                    self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung wartet auf Netzrückkehr.")
+            elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_GRID_AND_TIMEOUT:
+                stateMode = self.INVERTER_MODE
+                if tmpglobalEffektaData["InputVoltageAnd"] and self.timer(name = "minGridTime", timeout = minGridTime, removeOnTimeout = True):
+                    self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_GRID_MODE_REQ
 
-        def switchToUtilityAllowed():
-            return self.aufNetzSchaltenErlaubt and (self.currentMode in [self.INVERTER_MODE, self.TRANSFER_TO_NETZ])
+            # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
+            self.setScriptValues("NetzRelais", stateMode)
 
-        def switchToInverterAllowed():
-            return self.aufPvSchaltenErlaubt and (self.currentMode in [self.GRID_MODE, self.TRANSFER_TO_INVERTER])
 
-        def switchToDesiredMode(mode):
-            if mode == self.AKKU_MODE:
-                mode = self.INVERTER_MODE
-            # VerbraucherAkku -> schalten auf PV, VerbraucherNetz -> schalten auf Netz, VerbraucherPVundNetz -> zwischen 6-22 Uhr auf PV sonst Netz
-            # Wenn der transfer noch nicht beendet wurde dann rufen wir die Funktionen so lange auf bis das der Fall ist
-            if (mode == self.INVERTER_MODE and switchToInverterAllowed()) or (mode == self.GRID_MODE and self.currentMode == self.TRANSFER_TO_INVERTER):
-                self.currentMode = schalteRelaisAufInverter()
-            elif (mode == self.GRID_MODE and switchToUtilityAllowed()) or (mode == self.INVERTER_MODE and self.currentMode == self.TRANSFER_TO_NETZ):
-                self.currentMode = schalteRelaisAufNetz()
+        # @todo Netzausfallerkennung im worker ist noch nicht vorhanden (Parameter!!)
 
-        checkUtilityAndforceToInverterMode()
+        # Die Hardwre des Wendeschützes und die ZusatzRelais schalten automatisch auf Inverter (und starten diese auch) wenn das Netz ausfällt
+        # Wir prüfen das hier und ziehen mit STATE_FORCE_TO_INVERTER den internen State auf INVERTER_MODE 
+        if self.getInputValueByName("inverterActive") and self.scriptValues["NetzRelais"] == self.GRID_MODE:
+            switchTransferRelais(self.INVERTER_MODE, self.tranferRelaisStates.STATE_FORCE_TO_INVERTER)
 
         tmpglobalEffektaData = self.getCombinedEffektaData()
         if tmpglobalEffektaData["ErrorPresentOr"] == False:
@@ -587,31 +602,39 @@ class PowerPlant(Worker):
                 self.timer(name = "ErrorTimer", remove = True)
                 self.errorTimerFinished = False
 
+            if self.GridTransferCounter >= maxGridTransfersPerDay:
+                self.aufNetzSchaltenErlaubt = False
+
             # each day at 8 o'clock PM some variables have to be reset
             if self.timer(name = "DailyResetTimer", timeout = 60 * 60 * 24, startTime = Supporter.getTimeOfToday(hour = 20)):
                 self.aufNetzSchaltenErlaubt = True
+                self.GridTransferCounter = 0
                 self.aufPvSchaltenErlaubt = True
 
             if self.scriptValues["PowerSaveMode"] == True:
-                switchToDesiredMode(self.scriptValues["WrMode"])
+                # worker switches between AKKU_MODE and GRID_MODE and both modes can be handled with TransferRelais INVERTER_MODE. 
+                # so AKKU_MODE is mapped to INVERTER_MODE and GRID_MODE is GRID_MODE
+                if self.scriptValues["WrMode"] == self.AKKU_MODE:
+                    switchTransferRelais(self.INVERTER_MODE)
+                else:
+                    switchTransferRelais(self.scriptValues["WrMode"])
             else: # Powersave off
                 # Wir resetten die Verriegelung hier auch, damit man durch aus und einschalten von PowerSaveMode das Umschalten auf Netz wieder frei gibt.
                 self.aufNetzSchaltenErlaubt = True
-                switchToDesiredMode(self.INVERTER_MODE)
+                self.GridTransferCounter = 0
+                switchTransferRelais(self.INVERTER_MODE)
         else: # Fehler vom Inverter
             # wir erlauben das umschalten auf netz damit die anlage auch ummschalten kann
             self.aufNetzSchaltenErlaubt = True
 
             # Wenn ein Fehler 80s ansteht, dann werden wir aktiv und schalten auf Netz um
             if self.errorTimerFinished:
-                switchToDesiredMode(self.GRID_MODE)
-            elif self.timer(name = "ErrorTimer", timeout = 80):
+                switchTransferRelais(self.GRID_MODE)
+            elif self.timer(name = "ErrorTimer", timeout = inverterErrorResponseTime):
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Fehler am Inverter erkannt. Wir schalten auf Netz.")
                     # todo: wenn der fehler wieder weg ist nach dem umschalten auf Netz und abschlten der inverter, dann fallen wir in den if zweig und die Netzumschaltung schaltet wieder. Es könnte ein toggeln entstehen.
                     self.errorTimerFinished = True
 
-        # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
-        self.setScriptValues("NetzRelais", self.currentMode)
 
     def publishRelaisData(self, relaisData : dict):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), relaisData, globalPublish = False, enableEcho = False)
@@ -661,7 +684,6 @@ class PowerPlant(Worker):
 
         relayThresholds = sorted([96, 97, 98])                          # three thresholds means three supported relays, sorted because they are needed in ascending order!!!
         relayNames      = (self.stufe1, self.stufe2, self.stufe3)       # names of the relays to be switched off at the given thresholds
-        inverters       = len(self.configuration["managedEffektas"])
         rangeMaximum    = min(len(relayThresholds), len(relayNames))    # not more relays are supported than thresholds or relay names have been given
 
         # remember all inverters that are locked because of overload
@@ -684,7 +706,7 @@ class PowerPlant(Worker):
                 self.nichtHeizen = self.AUS
 
             # calculate power stage appending on SOC
-            if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 100) and self.localDeviceData["minBalanceTimeFinished"] and (self.currentMode == self.INVERTER_MODE):
+            if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == 100) and self.localDeviceData["minBalanceTimeFinished"] and self.scriptValues["AkkuSupply"]:
                 # all available/supported relays should be switched ON if 100% has been reached
                 self.localLoad = rangeMaximum
             else:
@@ -925,7 +947,7 @@ class PowerPlant(Worker):
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "NetzSchnellladenRussia":65.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0, "wetterSchaltschwelleHeizung":9}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "NetzSchnellladenRussia":"Laden USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True}
-        self.sensors = {"WrNetzladen":False,  "Error":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": "", "Load":0}
+        self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": "", "Load":0}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
         self.dummyCommand = "NoCommand"
         self.manualCommands.append(self.dummyCommand)
@@ -1009,6 +1031,7 @@ class PowerPlant(Worker):
             self.passeSchaltschwellenAn()
 
             self.manageExcessPower()
+            self.updateVariables()
 
             # do some initialization during startup
             if not self.startupInitialization:
