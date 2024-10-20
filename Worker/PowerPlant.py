@@ -60,7 +60,7 @@ class PowerPlant(Worker):
                     sends {"cmd":"resetSoc"} to SocMonitor if floatMode from inverter is set (rising edge)
             OutTopic:
                     {"BasicUsbRelais.gpioCmd":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}}
-                    {"BasicUsbRelais.gpioCmd":{"RelNichtHeizen": "0", "RelLastAktiv": "0", "RelStufe1": "1", "RelStufe2": "0", "RelStufe3": "0"}}
+                    {"BasicUsbRelais.gpioCmd":{"relPowerPlantWaiting": "0", "relPowerPlantRunning": "0", "RelNichtHeizen": "0", "RelLastAktiv": "0", "RelStufe1": "1", "RelStufe2": "0", "RelStufe3": "0"}}
     '''
 
 
@@ -1012,6 +1012,8 @@ class PowerPlant(Worker):
         self.homeAutomation.mqttDiscoverySensor(sensors = [self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO)], subTopic = self.strFromLoggerLevel(Logger.LOG_LEVEL.INFO))
         self.homeAutomation.mqttDiscoverySensor(sensors = [self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR)], subTopic = self.strFromLoggerLevel(Logger.LOG_LEVEL.ERROR))
 
+        self.modifyExcessRelaisData("relPowerPlantRunning", self.AUS, True)
+        self.modifyExcessRelaisData("relPowerPlantWaiting", self.EIN, True)
 
     def threadMethod(self):
         self.sendeMqtt = False
@@ -1045,6 +1047,7 @@ class PowerPlant(Worker):
                 self.initInverter()
                 # init TransferRelais a second Time to overwrite scriptValues["NetzRelais"] with the initial value. The initial MQTT msg maybe wrote last state to this key!
                 self.initTransferRelais()
+                self.modifyExcessRelaisData("relPowerPlantWaiting", self.AUS, True)
 
             # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] and not self.scriptValues["Error"]:
@@ -1125,9 +1128,13 @@ class PowerPlant(Worker):
             self.passeSchaltschwellenAn()
 
             # for the first 30 seconds after PowerPlant has been started the relay will not be switched, that suppresses unnecessary relay switching processes when PowerPlant is started several times, e.g. because of debugging reasons
-            if self.localDeviceData["initialRelaisTimeout"] or self.timer(name = "timeoutTransferRelais", timeout = 30, removeOnTimeout = True):
-                self.manageUtilityRelais()
+            if not self.localDeviceData["initialRelaisTimeout"] and self.timer(name = "timeoutTransferRelais", timeout = 30, removeOnTimeout = True):
                 self.localDeviceData["initialRelaisTimeout"] = True             # from now on this value will ensure that the previous "if" becomes True, since timer has already removed itself
+                # All initial timers are finished now, so we switch on the relPowerPlantRunning relais
+                self.modifyExcessRelaisData("relPowerPlantRunning", self.EIN, True)
+
+            if self.localDeviceData["initialRelaisTimeout"]:
+                self.manageUtilityRelais()
 
             # Do mqtt values have to be updated?
             if self.sendeMqtt:
