@@ -18,6 +18,7 @@ import Base.Base
 import Base.ThreadBase
 from Base.Supporter import Supporter
 from Base.ExtendedJsonParser import ExtendedJsonParser
+from Base.Debugger import Debugger
 import Logger
 import os
 import colorama
