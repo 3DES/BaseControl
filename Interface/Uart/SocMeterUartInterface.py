@@ -33,8 +33,10 @@ class SocMeterUartInterface(BasicUartInterface):
                     self.cmdList.append("socResetMaxAndHold")
                 elif newMqttMessageDict["content"]["cmd"] == list:
                     self.cmdList += newMqttMessageDict["content"]["cmd"]
-                else:
+                elif newMqttMessageDict["content"] == list:
                     self.cmdList.append(newMqttMessageDict["content"])
+                else:
+                    self.logger.error(self, f'Message to {self.name} is ignored because of wrong datatype. Msg: {newMqttMessageDict["content"]}')
 
         """
         Message we get from Monitor

@@ -65,6 +65,17 @@ class MqttBrokerInterface(InterfaceBase):
             self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
             #Supporter.debugPrint(f"ON_MESSAGE: {tempTopic}, {tempMsg}", color = "RED")
 
+    def handleQueueOverflow(self):
+        # if there was no on_connect so far and our mqttRxQueue is filled up at a level of 90% we will try to clear the loop at least even if messages get lost
+
+        printError = False
+        while self.mqttRxQueue.qsize() >= (self.QUEUE_SIZE * 0.9):
+            self.mqttRxQueue.get(block = False)      # read a message
+            printError = True
+
+        if printError:
+            self.logger.error(self, "MQTT RX queue was quiet full. We loss Messages!")
+
     def threadInitMethod(self):
         # subscribe internally global to get all global msg
         self.mqttSubscribeTopic("#", globalSubscription = True)
@@ -73,6 +84,7 @@ class MqttBrokerInterface(InterfaceBase):
 
         tries = 0
         while tries < self.MAX_INIT_TRIES:
+            self.handleQueueOverflow()
             try:
                 # Try to connect to MQTT server, there could be a exception if ethernet or server is not available
                 self.connectMqtt()
@@ -91,10 +103,7 @@ class MqttBrokerInterface(InterfaceBase):
                 # (re-)subscribe to projectName/# 
                 self.client.subscribe(f"{self.get_projectName()}/#")
 
-        # if there was no on_connect so far and our mqttRxQueue is filled up at a level of 90% we will try to clear the loop at least even if messages get lost
-        if self.mqttRxQueue.qsize() >= (self.QUEUE_SIZE * 0.9):
-            self.InitialConnected = True
-            self.logger.error(self, "MQTT RX queue quiet full, we may lose messages.")
+        self.handleQueueOverflow()
 
         if self.InitialConnected:
             while not self.mqttRxQueue.empty():

@@ -118,22 +118,25 @@ class EffektaController(ThreadObject):
         given data is a dict with one or more Effektas {"effekta_A":{Data}, "effekta_B":{Data}}
         """
         globalEffektaData = {"FloatingModeOr" : False, "OutputVoltageHighOr" : False, "InputVoltageAnd" : True, "OutputVoltageHighAnd" : True, "OutputVoltageLowAnd" : True, "ErrorPresentOr" : False}
-        for name in list(EffektaData.keys()):
-            # from "DeviceStatus2" string take first character because it contains the state of the float mode
-            floatmode = list(EffektaData[name]["DeviceStatus2"])
-            # todo pollen und timeout wenn keine Daten kommen. Es kann sein dass der powerplant die funktion aufruft und der effekta noch keine daten liefert.
-            if floatmode[0] == "1":
-                globalEffektaData["FloatingModeOr"] = True
-            # process all other values from the inverters and combine them
-            if float(EffektaData[name]["Netzspannung"]) < 210.0:
-                globalEffektaData["InputVoltageAnd"] = False
-            if float(EffektaData[name]["AcOutSpannung"]) < 210.0:
-                globalEffektaData["OutputVoltageHighAnd"] = False 
-            if float(EffektaData[name]["AcOutSpannung"]) > 25.0:
-                globalEffektaData["OutputVoltageLowAnd"] = False
-                globalEffektaData["OutputVoltageHighOr"] = True
-            if EffektaData[name]["ActualMode"] == "F":
-                globalEffektaData["ErrorPresentOr"] = True
+        try:
+            for name in list(EffektaData.keys()):
+                # from "DeviceStatus2" string take first character because it contains the state of the float mode
+                floatmode = list(EffektaData[name]["DeviceStatus2"])
+                # todo pollen und timeout wenn keine Daten kommen. Es kann sein dass der powerplant die funktion aufruft und der effekta noch keine daten liefert.
+                if floatmode[0] == "1":
+                    globalEffektaData["FloatingModeOr"] = True
+                # process all other values from the inverters and combine them
+                if float(EffektaData[name]["Netzspannung"]) < 210.0:
+                    globalEffektaData["InputVoltageAnd"] = False
+                if float(EffektaData[name]["AcOutSpannung"]) < 210.0:
+                    globalEffektaData["OutputVoltageHighAnd"] = False 
+                if float(EffektaData[name]["AcOutSpannung"]) > 25.0:
+                    globalEffektaData["OutputVoltageLowAnd"] = False
+                    globalEffektaData["OutputVoltageHighOr"] = True
+                if EffektaData[name]["ActualMode"] == "F":
+                    globalEffektaData["ErrorPresentOr"] = True
+        except:
+            self.logger.error(self, "Wir konnten CombinedEffektaData nicht bilden.")
         return globalEffektaData
 
     def updateChargeValues(self):

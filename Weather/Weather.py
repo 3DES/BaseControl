@@ -200,7 +200,7 @@ class WetterOnline(ThreadObject):
                 #tempWetter = getSonnenStunden()
                 #self.wetterdaten.update( (k,v) for k,v in tempWetter.items() if v is not None)
             except:
-                self.logger.error(self, "Wetter Daten konnten nicht geholt werden! getSonnenStunden() fehlerhaft")
+                self.logger.error(self, "Wetter Daten konnten nicht geholt werden! Internet, Lan oder Funktion getSonnenStunden() prüfen.")
 
             # Initial wollen wir unsere Sensoren bei der Homeautomation anlegen
             if "Tag_1" in self.wetterdaten and self.initWeather:
