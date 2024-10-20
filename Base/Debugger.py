@@ -278,6 +278,6 @@ class Debugger(ThreadObject):
                 
 
 
-#"delete" message ohne variable sollte alles löschen
-#cls und self-Variablen sollten irgendwie unterschieden werden können, ggf. auch noch globale variablen?! evtl. per Zusatzparameter?!
+#"delete" message ohne variable sollte alles loeschen
+#cls und self-Variablen sollten irgendwie unterschieden werden koennen, ggf. auch noch globale variablen?! evtl. per Zusatzparameter?!
 
