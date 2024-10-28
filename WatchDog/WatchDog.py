@@ -109,6 +109,7 @@ class WatchDog(ThreadObject):
         for expectedThread in self.configuration["expectThreads"]:
             if expectedThread not in self.watchDogLastInformedDict:
                 missedThreads.append(expectedThread)
+        missedThreads.sort()
         return missedThreads
 
 

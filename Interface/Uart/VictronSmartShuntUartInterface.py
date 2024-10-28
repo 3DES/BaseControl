@@ -185,3 +185,6 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
             #Supporter.debugPrint(f"{self.homeAutomationValues}", color = "LIGHTRED")
             self.publishHomeAutomation()
 
+
+    def threadBreak(self):
+        time.sleep(1)

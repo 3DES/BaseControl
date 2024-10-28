@@ -10,7 +10,7 @@ from strenum import StrEnum    # pip install StrEnum
 
 from Base.Supporter import Supporter
 from Base.InterfaceFactory import InterfaceFactory
-from Base.Base import Base
+import Base.Base as Base
 
 
 class MqttBase(Base):
@@ -19,7 +19,7 @@ class MqttBase(Base):
     '''
     __threadLock_always_use_getters_and_setters                 = threading.Lock()                                  # class lock to access class variables
     __exception_always_use_getters_and_setters                  = None                                              # will be set with first thrown exception but not overwritten anymore
-    __mqttTxQueue_always_use_getters_and_setters                = Queue(Base.QUEUE_SIZE + Base.QUEUE_SIZE_EXTRA)    # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
+    __mqttTxQueue_always_use_getters_and_setters                = Queue(Base.Base.QUEUE_SIZE + Base.Base.QUEUE_SIZE_EXTRA)    # the queue all tasks send messages to MqttBridge (MqttBridge will be the only one that reads form it!)
     __projectName_always_use_getters_and_setters                = None                                              # project name needed for MQTT's first level topic (i.e. <projectName>/<thread>/...)
     __watchDogMinimumTriggerTime_always_use_getters_and_setters = 0                                                 # project wide minimum watch dog time (if more than one watch dogs are running in the system the shortest time will be stored here!)
     __logger_always_use_getters_and_setters                     = None                                              # project wide logger
@@ -204,7 +204,7 @@ class MqttBase(Base):
         return MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters
 
 
-    def __init__(self, baseName : str, configuration : dict, interfaceQueues : dict = None):
+    def __init__(self, baseName : str, configuration : dict, interfaceQueues : dict = None, queueSize : int = Base.Base.QUEUE_SIZE):
         '''
         Constructor
         '''
@@ -215,7 +215,7 @@ class MqttBase(Base):
         self.logger.info(self, "init (MqttBase)")
         self.startupTime = Supporter.getTimeStamp()                         # remember startup time
         self.watchDogTimer = Supporter.getTimeStamp()                       # remember time the watchdog has been contacted the last time, thread-wise!
-        self.mqttRxQueue = Queue(self.QUEUE_SIZE)                           # create RX MQTT listener queue
+        self.mqttRxQueue = Queue(queueSize)                                 # create RX MQTT listener queue
 
         # thread topic handling
         self.objectTopic = self.getObjectTopic()                            # e.g. AccuControl/PowerPlant
@@ -760,16 +760,15 @@ class MqttBase(Base):
         self.logger.debug(self, f"received message{infoText}: {str(message[contentTag])}")      # debug message
         if convert:
             try:
-                # @todo pruefen ob [contentTag] ueberhaupt existiert und falls nicht, was dann?
                 # @todo pruefen ob [contentTag] string enthaelt, falls Inhalt = dict, was dann?
                 message[contentTag] = self.extendedJson.parse(message[contentTag])                           # try to convert content into dict
             except Exception as ex:
                 if error:
-                    self.logger.error(self, f'Cannot convert content {message[contentTag]} to python dict, {ex}')
+                    self.logger.error(self, f'Cannot convert content {message[contentTag]} to python dict\n{ex}\n' + ' '.join(f'0x{ord(c):02x}' for c in message[contentTag]))
                     if exception:
-                        raise Exception(ex)
+                        raise
                 else:
-                    self.logger.debug(self, f'Cannot convert content {message[contentTag]} to python dict, {ex}')
+                    self.logger.debug(self, f'Cannot convert content {message[contentTag]} to python dict\n{ex}\n' + ' '.join(f'0x{ord(c):02x}' for c in message[contentTag]))
 
         return message
 

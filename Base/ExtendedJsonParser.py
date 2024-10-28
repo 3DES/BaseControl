@@ -273,7 +273,6 @@ class ExtendedJsonParser(object):
     def __init__(self):
         self.lexer  = lex.lex(module = self)
         self.parser = yacc.yacc(module = self)
-        self.parseResult = None
         self.fileName = ""
 
     def _readExtendedJsonFile(self, fileName):
@@ -284,17 +283,13 @@ class ExtendedJsonParser(object):
     def parse(self, extendedJsonString : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         self.combineDicts = combineDicts
         self.protectRegex = re.compile("{0}".format(protectRegex))
-        self.parseResult = self.parser.parse(extendedJsonString)
-        return self.parseResult
+        return self.parser.parse(extendedJsonString)
 
     def parseFile(self, fileName : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         self.fileName = fileName
         fileContent = self._readExtendedJsonFile(fileName)
-        self.parseResult = self.parse("\n".join(fileContent), combineDicts = combineDicts, protectRegex = protectRegex)
-        return self.parseResult
+        return self.parse("\n".join(fileContent), combineDicts = combineDicts, protectRegex = protectRegex)
 
-    def lastParseResult(self):
-        return self.parseResult
 
 if __name__ == '__main__':
     #res = parser.parse("\n".join(lines)) # the input

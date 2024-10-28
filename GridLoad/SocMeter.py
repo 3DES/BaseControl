@@ -40,6 +40,7 @@ class SocMeter(ThreadObject):
         # subscribe global to own out topic to get old data and set timeout
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
 
+
     def threadMethod(self):
 
         def takeDataAndSend():
@@ -88,3 +89,7 @@ class SocMeter(ThreadObject):
                     #        elif SocMonitorWerte["Currentaktuell"] < 0:
                     #            tempDailyDischarge = tempDailyDischarge  + ((float(BattSpannung) * abs(SocMonitorWerte["Currentaktuell"])) * battEnergyCycle / 60 / 60 / 1000)
                     #            self.EffektaData["EffektaWerte"]["DailyDischarge"] = round(tempDailyDischarge, 2)
+
+
+    def threadBreak(self):
+        time.sleep(.2)

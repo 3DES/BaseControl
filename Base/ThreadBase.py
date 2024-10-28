@@ -1,9 +1,13 @@
 import threading
 import traceback
 import time
+try:
+    import prctl     # this module is not available for all OSes
+except ImportError:
+    prctl = None
 
 
-import Base
+import Base.Base as Base
 import Logger.Logger        # prevent circular import!
 import Base.MqttBase        # prevent circular import!
 from Base.Supporter import Supporter 
@@ -52,11 +56,11 @@ class ThreadBase(Base.MqttBase.MqttBase):
         ThreadBase._ThreadBase__numberOfThreads_always_use_getters_and_setters = numberOfThreads
 
 
-    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None, queueSize : int = Base.Base.QUEUE_SIZE):
         '''
         Constructor
         '''
-        super().__init__(threadName, configuration, interfaceQueues)
+        super().__init__(threadName, configuration, interfaceQueues, queueSize)
         # don't set up any further threads if there is already an exception!
         if self.get_exception() is None:
             self.killed  = False        # to stop thread independent if it has been started before or not
@@ -64,7 +68,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.logger.info(self, "init (ThreadBase)")
 
             self.event = threading.Event()                  # event is currently not used
-            self.thread = threading.Thread(target = self.threadLoop, args=[self.event], daemon = True)
+            self.thread = threading.Thread(target = self.threadLoop, args=[self.event], daemon = True, name = threadName)
 
             self.interfaceThreads = None                    # to collect interfaces setup during thread init phase
 
@@ -143,6 +147,10 @@ class ThreadBase(Base.MqttBase.MqttBase):
 
         self.setThreadStarted()      # signalize that thread has been started
 
+        # set thread name if module import was successful
+        if prctl is not None:
+            prctl.set_name(self.name)    # set thread name so that it will be shown in top command
+
         # first of all execute thread init method once
         try:
             self.threadInitMethod()             # call init method for the case the thread has sth. to set up
@@ -209,7 +217,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 for interface in self.interfaceThreads:                    
                     interfaceThread = interface.killThread()        # send stop to thread containing object and get real thread back
                 for interface in self.interfaceThreads:
-                    interfaceThread.join(Base.Base.Base.JOIN_TIME)  # join all stopped threads
+                    interfaceThread.join(Base.Base.JOIN_TIME)  # join all stopped threads
         except Exception as exception:
             # beside explicite exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -328,7 +336,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         for thread,threadObject in sorted(threadsToJoin.items()):
             # @todo eigentlich sollte nicht Logger.Logger.Logger.message verwendet werden sondern Logger.Logger.Logger.get_logger().message!!! Das gilt systemweit!!!
             Logger.Logger.Logger.message(Logger.Logger.Logger.LOG_LEVEL.INFO, cls, f"joining {thread}")
-            threadObject.join(Base.Base.Base.JOIN_TIME)     # join all stopped threads
+            threadObject.join(Base.Base.JOIN_TIME)     # join all stopped threads
             time.sleep(0)                                   # give the logger task the chance to clear its queue content
 
         # finally stop logger if available
@@ -337,5 +345,5 @@ class ThreadBase(Base.MqttBase.MqttBase):
             cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down logger " + Supporter.encloseString(tearDownLoggerObject.name))
             loggerThread = tearDownLoggerObject.killThread()
             Supporter.debugPrint(f"joining {Supporter.encloseString(tearDownLoggerObject.name)}", borderSize = 0)
-            loggerThread.join(Base.Base.Base.JOIN_TIME)     # finally join the logger thread
+            loggerThread.join(Base.Base.JOIN_TIME)     # finally join the logger thread
 

@@ -16,8 +16,6 @@ class Base():
     _SIMULATE = False            # to be set to True as soon as at least one of the objects are simulating values, this will prevent the external watchdog relay from being triggered
     _SIMULATION_ALLOWED = False  
 
-    extendedJson = ExtendedJsonParser()       #  extended json parser for all children
-
     @classmethod
     def setSimulationModeAllowed(cls, simulationAllowed : bool):
         '''
@@ -107,6 +105,7 @@ class Base():
         nameSpace[self.COUNTER_DICT]     = {}
         nameSpace[self.TIMER_DICT]       = {}
         nameSpace[self.ACCUMULATOR_DICT] = {}
+        self.extendedJson = ExtendedJsonParser()       #  every child needs its own extended json parser otherwise we have a race condition!
 
 
     def _createCounter(self, name : str, content : dict):

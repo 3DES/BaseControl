@@ -44,7 +44,7 @@ class WBmsUartInterface(BasicUartInterface):
                 elif line == b'Rel laden 0\r\n':
                     self.BmsWerte["BmsLadeFreigabe"] = False
             except:
-                self.logger.warning(self, f"Convert error!")
+                self.logger.warning(self, f"Convert error! {segmentList}")
 
         if lastLine:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)

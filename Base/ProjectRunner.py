@@ -211,7 +211,7 @@ class ProjectRunner(object):
                     else:
                         raise Exception("init file contains more than one Worker, at least [" + workerName + "] and [" + threadName + "]")
                 elif issubclass(loadableClass, Base.Debugger.Debugger):
-                    # only one system wide Worker is allowed
+                    # only one system wide Debugger is allowed
                     if debuggerName is None:
                         debuggerName = threadName
                     else:

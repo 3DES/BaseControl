@@ -232,7 +232,7 @@ class MqttBridge(ThreadObject):
                                 break
                             except Exception as ex:
                                 # probably any full queue!
-                                raise Exception(f"{self.name} : {subscriber} {self.get_mqttListeners()[subscriber]['queue'].qsize()}\ncaught exception:{ex}")
+                                raise Exception(f"{self.name} : queue of {subscriber} full, # of elements = {self.get_mqttListeners()[subscriber]['queue'].qsize()}\ncaught exception:{ex}")
 
 
     def broadcast_message(self, sender : str, content : str):
