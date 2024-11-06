@@ -13,7 +13,7 @@ from Base.InterfaceFactory import InterfaceFactory
 import Base.Base as Base
 
 
-class MqttBase(Base):
+class MqttBase(Base.Base):
     '''
     classdocs
     '''

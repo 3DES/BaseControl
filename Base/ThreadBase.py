@@ -7,7 +7,7 @@ except ImportError:
     prctl = None
 
 
-import Base.Base as Base
+import Base
 import Logger.Logger        # prevent circular import!
 import Base.MqttBase        # prevent circular import!
 from Base.Supporter import Supporter 
@@ -56,7 +56,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         ThreadBase._ThreadBase__numberOfThreads_always_use_getters_and_setters = numberOfThreads
 
 
-    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None, queueSize : int = Base.Base.QUEUE_SIZE):
+    def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None, queueSize : int = Base.Base.Base.QUEUE_SIZE):
         '''
         Constructor
         '''
@@ -75,6 +75,8 @@ class ThreadBase(Base.MqttBase.MqttBase):
             self.threadNumber = self.addThread(self)        # register thread and receive uniq thread number (currently it's not used any further since all thread names are uniq, too)
         else:
             self.logger.error(self, "exception seen from other thread, set up denied")
+            
+        self.watchdogInitiallyTriggered = False     # initially the watchdog should be informed when thread has been executed for the first time
 
 
     @classmethod
@@ -217,7 +219,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
                 for interface in self.interfaceThreads:                    
                     interfaceThread = interface.killThread()        # send stop to thread containing object and get real thread back
                 for interface in self.interfaceThreads:
-                    interfaceThread.join(Base.Base.JOIN_TIME)  # join all stopped threads
+                    interfaceThread.join(Base.Base.Base.JOIN_TIME)  # join all stopped threads
         except Exception as exception:
             # beside explicite exceptions handled tread-internally we also have to catch all implicit exceptions
             self.set_exception(exception)
@@ -230,8 +232,9 @@ class ThreadBase(Base.MqttBase.MqttBase):
         '''
         Triggers Watchdog but should be overwritten if necessary
         '''
-        if self.watchDogTimeRemaining() <= 0:
+        if (self.watchDogTimeRemaining() <= 0) or (not self.watchdogInitiallyTriggered):
             self.mqttSendWatchdogAliveMessage()
+            self.watchdogInitiallyTriggered = True
 
 
     def setThreadStarted(self):
@@ -336,7 +339,7 @@ class ThreadBase(Base.MqttBase.MqttBase):
         for thread,threadObject in sorted(threadsToJoin.items()):
             # @todo eigentlich sollte nicht Logger.Logger.Logger.message verwendet werden sondern Logger.Logger.Logger.get_logger().message!!! Das gilt systemweit!!!
             Logger.Logger.Logger.message(Logger.Logger.Logger.LOG_LEVEL.INFO, cls, f"joining {thread}")
-            threadObject.join(Base.Base.JOIN_TIME)     # join all stopped threads
+            threadObject.join(Base.Base.Base.JOIN_TIME)     # join all stopped threads
             time.sleep(0)                                   # give the logger task the chance to clear its queue content
 
         # finally stop logger if available
@@ -345,5 +348,5 @@ class ThreadBase(Base.MqttBase.MqttBase):
             cls.__stopAllThreadsLog(tearDownLoggerObject, Logger.Logger.Logger.LOG_LEVEL.INFO, cls, "tearing down logger " + Supporter.encloseString(tearDownLoggerObject.name))
             loggerThread = tearDownLoggerObject.killThread()
             Supporter.debugPrint(f"joining {Supporter.encloseString(tearDownLoggerObject.name)}", borderSize = 0)
-            loggerThread.join(Base.Base.JOIN_TIME)     # finally join the logger thread
+            loggerThread.join(Base.Base.Base.JOIN_TIME)     # finally join the logger thread
 

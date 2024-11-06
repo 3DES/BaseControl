@@ -706,32 +706,43 @@ class DalyBmsUartInterface(BasicUartInterface):
             voltageList.append(cellVoltage)
 
 
-        errorInjectionTest = 0 # 2, 3, ..., 8
-        #errorInjectionInterface = "BmsInterfaceAccu1"
-        errorInjectionInterface = "BmsInterfaceAccu2"
+        errorInjectionTest = 0#0 # 2, 3, ..., 8
+        errorInjectionInterface = "BmsInterfaceAccu1"
+        #errorInjectionInterface = "BmsInterfaceAccu2"
         if errorInjectionTest:
             if self.name == errorInjectionInterface:
                 if self.timer("errorInjection", timeout = 10, autoReset = False):
+                    extraText = ""
+                    overVoltage = 3.67      # accumulator dependent! should be larger than vMax parameter for BMS
+                    underVoltage = 2.78     # accumulator dependent! should be smaller than vMin parameter for BMS
                     # undervoltage tests
                     if errorInjectionTest == 1:
-                        vMin = 2.0
+                        vMin = underVoltage
+                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
                     elif errorInjectionTest == 2:
-                        voltageList[0]  = 1.3
+                        voltageList[0]  = underVoltage
+                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
                     elif errorInjectionTest == 3:
-                        voltageList[3]  = 1.3
+                        voltageList[3]  = underVoltage
+                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
                     elif errorInjectionTest == 4:
-                        voltageList[-1] = 1.3
+                        voltageList[-1] = underVoltage
+                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
                     # overvoltage tests
                     elif errorInjectionTest == 5:
-                        vMax = 4.0
+                        vMax = overVoltage
+                        extraText = "voltage too high should react within 10 seconds"
                     elif errorInjectionTest == 6:
-                        voltageList[0]  = 4.3
+                        voltageList[0]  = overVoltage
+                        extraText = "voltage too high should react within 10 seconds"
                     elif errorInjectionTest == 7:
-                        voltageList[3] = 4.3
+                        voltageList[3]  = overVoltage
+                        extraText = "voltage too high should react within 10 seconds"
                     elif errorInjectionTest == 8:
-                        voltageList[-1] = 4.3
+                        voltageList[-1] = overVoltage
+                        extraText = "voltage too high should react within 10 seconds"
 
-                    Supporter.debugPrint(f"ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds", color = f"{colorama.Fore.RED}")
+                    Supporter.debugPrint(f"ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds" + (", " + extraText if len(extraText) else ""), color = f"{colorama.Fore.RED}")
 
         # @TODO temperaturen auswerten!!!
 
@@ -744,11 +755,16 @@ class DalyBmsUartInterface(BasicUartInterface):
         dischargingOk = values["mosfet_status"]["discharging_mosfet"]
 
         message = {"toggleIfMsgSeen" : self.toggle, "Vmin" : vMin, "Vmax" : vMax, "VoltageList" : voltageList, "BmsEntladeFreigabe" : dischargingOk, "BmsLadeFreigabe" : chargingOk}
+        if "temperatures" in values:
+            message["TemperatureMin"] = values["temperature_range"]["lowest_temperature"]
+            message["TemperatureMax"] = values["temperature_range"]["highest_temperature"]
+
         self.toggle = not self.toggle       # toggle our toggle bit, if we are here all values have been read successfully!
 
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False)
 
         self.logger.debug(self, str(message))
+        #Supporter.debugPrint(str(values), color = "LIGHTRED")
 
 
     def threadBreak(self):

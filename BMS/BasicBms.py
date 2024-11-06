@@ -238,10 +238,11 @@ class BasicBms(ThreadObject):
             if "Vmin" in self.globalBmsWerte["merged"]:
                 if self.globalBmsWerte["merged"]["Vmin"] < self.configuration["parameters"]["vMin"]:
                     self.globalBmsWerte["calc"]["VminOk"] = False
+
                     if self.timer(name = "timerVmin", timeout = self.configuration["parameters"]["vMinTimer"]):
                         self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = False
-                        self.clearWatchdog()
-                        raise Exception(f"CellVoltage fall below given voltage: {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
+                        self.clearWatchdog(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmin']}V fall below specified voltage of {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
+                        raise Exception(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmin']}V fall below specified voltage of {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
                 else:
                     self.globalBmsWerte["calc"]["VminOk"] = True
                     self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
@@ -259,10 +260,11 @@ class BasicBms(ThreadObject):
                 if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vMax"]:
                     self.globalBmsWerte["calc"]["VmaxOk"] = False
 
-                    # there is a hard coded timeout value for vMax of 10 seconds!
-                    if self.timer(name = "timerVmax", timeout = 10):
+                    vMaxTimer = 10      # hard coded timeout value for vMax of 10 seconds, should not be changed!
+                    if self.timer(name = "timerVmax", timeout = vMaxTimer):
                         self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = False
-                        self.clearWatchdog(f"CellVoltage exceeds given voltage: {self.configuration['parameters']['vMax']}V for 10s.")
+                        self.clearWatchdog(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmax']}V exceeds specified voltage of {self.configuration['parameters']['vMax']}V for {vMaxTimer}s.")
+                        raise Exception(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmax']}V exceeds specified voltage of {self.configuration['parameters']['vMax']}V for {vMaxTimer}s.")
                 else:
                     self.globalBmsWerte["calc"]["VmaxOk"] = True
                     self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
