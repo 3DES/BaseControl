@@ -624,7 +624,7 @@ class MqttBase(Base.Base):
         senderObj.mqttPublish(sensorTopic, "", globalPublish = True, enableEcho = False)
 
 
-    def mqttDiscoveryInputNumberSlider(self, sensors, ignoreKeys : list = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None):
+    def mqttDiscoveryInputNumberSlider(self, sensors, ignoreKeys : list = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None, stateTopic : str = None):
         """
         sensors: dict oder List der Slider die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
@@ -638,6 +638,7 @@ class MqttBase(Base.Base):
             nameList = list(sensors.keys())
         else:
             nameList = sensors
+        sensorTopic = ""
         for key in nameList:
             niceName = ""
             minVal = 0
@@ -646,10 +647,12 @@ class MqttBase(Base.Base):
                 if (nameDict is not None) and (key in nameDict):
                     niceName = nameDict[key]
                 if (minValDict is not None) and (key in minValDict):
-                    minVal = minValDict["key"]
+                    minVal = minValDict[key]
                 if (maxValDict is not None) and (key in maxValDict):
-                    maxVal = maxValDict["key"]
+                    maxVal = maxValDict[key]
                 preparedMsg = self.homeAutomation.getDiscoveryInputNumberSliderCmd(senderObj.name, key, niceName, minVal, maxVal)
+                if stateTopic is not None:
+                    preparedMsg["state_topic"] = stateTopic 
                 sensorTopic = self.homeAutomation.getDiscoveryInputNumberSliderTopic(senderObj.name, key)
                 senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 

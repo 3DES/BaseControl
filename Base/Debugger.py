@@ -247,8 +247,22 @@ class Debugger(ThreadObject):
         Register needed topics here
         '''
         self.logger.info(self, "thread init (Debugger)")
-        self.mqttSubscribeTopic(self.createInTopic(self.objectTopic), globalSubscription = True)       # global subscription necessary to get external debug settings
-        self.homeAutomation.mqttDiscoveryText(textField = "Debugger Interface", commandTopic = self.createInTopic(self.objectTopic), commandTemplate = '{ \\"variable\\" : \\"{{ value }}\\" }')
+
+        self.mqttSubscribeTopic(self.createInTopicFilter(self.objectTopic), globalSubscription = True)
+
+        inTopic = self.createInTopic(self.objectTopic)
+        self.outTopic = self.createOutTopic(self.objectTopic)
+        self.homeAutomation.mqttDiscoveryText(textField = "Debugger Interface", commandTopic = inTopic, commandTemplate = '{ \\"variable\\" : \\"{{ value }}\\" }')
+        self.homeAutomation.mqttDiscoveryText(textField = "Log Filter",         commandTopic = inTopic, commandTemplate = '{ \\"LogFilter\\" : \\"{{ value }}\\" }')
+        self.homeAutomation.mqttDiscoveryText(textField = "Print Log Filter",   commandTopic = inTopic, commandTemplate = '{ \\"PrintLogFilter\\" : \\"{{ value }}\\" }')
+
+        self.sensorValues = {"LogLevel" : Logger.get_logLevel().value, "PrintLogLevel" : Logger.get_printLogLevel().value}
+        for sensor in sorted(self.sensorValues.keys()):
+            self.homeAutomation.mqttDiscoveryInputNumberSlider(sensors = [sensor], maxValDict = {sensor : 5})
+        self.sensorValues["LogFilter"] = Logger.get_logFilter()
+        self.sensorValues["PrintLogFilter"] = Logger.get_printLogFilter()
+        self.mqttPublish(self.outTopic, self.sensorValues, globalPublish = True, enableEcho = False)
+        Supporter.debugPrint(f"published : {self.sensorValues}", color = "LIGHTRED", borderSize = 5)
 
 
     def threadMethod(self):
@@ -259,25 +273,37 @@ class Debugger(ThreadObject):
             self.test["d"][2] += 1
 
         while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+            newMqttMessageDict = self.readMqttQueue(error = False)      # read a message
 
 #mosquitto_pub -t 'AccuTester/Debugger/in' -m '{"variable":"Logger.logCounter", "delete" : True,}' -h homeassistant -u pi -P raspberry
 #mosquitto_pub -t 'homeassistant/text/AccuTester_DEBUG_VariableName/config' -m '{"name" : "hallo", "command_topic" : "AccuTester/DEBUG/in", "command_template":"{ \"variable\" : \"{{ value }}\" }"}' -h homeassistant -u pi -P raspberry
 
-            if self.threadDictionary is not None:
-                try:
-                    self.logger.debug(self, "received message :" + str(newMqttMessageDict))
-                    message = self.extendedJson.parse(newMqttMessageDict["content"])
-                    self.debugMessageHandler(message)
-                except Exception as ex:
-                    self.logger.debug(self, "invalid message" + str(newMqttMessageDict))
+            if "content" in newMqttMessageDict:
+                message = newMqttMessageDict["content"]
+                if "LogLevel" in message:
+                    Logger.set_logLevel(message['LogLevel'])
+                    self.sensorValues['LogLevel'] = Logger.get_logLevel().value
+                    self.mqttPublish(self.outTopic, self.sensorValues, globalPublish = True, enableEcho = False)
+                elif "PrintLogLevel" in message:
+                    Logger.set_printLogLevel(message['PrintLogLevel'])
+                    self.sensorValues['PrintLogLevel'] = Logger.get_printLogLevel().value
+                    self.mqttPublish(self.outTopic, self.sensorValues, globalPublish = True, enableEcho = False)
+                elif "LogFilter" in message:
+                    Logger.set_logFilter(message['LogFilter'])
+                    self.sensorValues['LogFilter'] = Logger.get_logFilter()
+                    self.mqttPublish(self.outTopic, self.sensorValues, globalPublish = True, enableEcho = False)
+                elif "PrintLogFilter" in message:
+                    Logger.set_printLogFilter(message['PrintLogFilter'])
+                    self.sensorValues['PrintLogFilter'] = Logger.get_printLogFilter()
+                    self.mqttPublish(self.outTopic, self.sensorValues, globalPublish = True, enableEcho = False)
+                else:
+                    if self.threadDictionary is not None:
+                        try:
+                            self.logger.debug(self, "received message :" + str(newMqttMessageDict))
+                            self.debugMessageHandler(message)
+                        except Exception as ex:
+                            self.logger.debug(self, "invalid message" + str(newMqttMessageDict))
 
         # update all variables that have been changed since last time
         for variable in self.watches:
             self.publishContent(self.watches[variable])
-                
-
-
-#"delete" message ohne variable sollte alles loeschen
-#cls und self-Variablen sollten irgendwie unterschieden werden koennen, ggf. auch noch globale variablen?! evtl. per Zusatzparameter?!
-

@@ -239,7 +239,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logFileName : str, logLevel : int, printLogLevel : int, logFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, jsonDumpFilter : str = None, additionalLeadIn : str = "", simulationAllowed : bool = False):
+    def executeProject(cls, initFileName : str, logFileName : str, logLevel : int, printLogLevel : int, logFilter : str, printLogFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, jsonDumpFilter : str = None, additionalLeadIn : str = "", simulationAllowed : bool = False):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -257,14 +257,15 @@ class ProjectRunner(object):
 
         # set some command line parameters to the referring threads
         Logger.Logger.Logger.set_logLevel(logLevel)
-        Logger.Logger.Logger.set_printLogLevel(printLogLevel)
         Logger.Logger.Logger.set_logFilter(logFilter)
+        Logger.Logger.Logger.set_printLogLevel(printLogLevel)
+        Logger.Logger.Logger.set_printLogFilter(printLogFilter)
         Base.Base.Base.setSimulationModeAllowed(simulationAllowed)
 
         configuration = Supporter.loadInitFile(initFileName, missingImportMeansError)
         readableJsonConfiguration = json.dumps(configuration, indent = 4)
 
-        print(f"python version information: {sys.version}")     # prints python version and GCC version pyhton was built with
+        print(f"python version information: {sys.version}")     # prints python version and GCC version python was built with
 
         extendedJsonParser = ExtendedJsonParser()
         readableJsonConfiguration = json.dumps(extendedJsonParser.parse(readableJsonConfiguration, protectRegex = jsonDumpFilter), indent = 4)

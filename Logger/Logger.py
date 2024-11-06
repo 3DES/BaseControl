@@ -66,7 +66,8 @@ class Logger(ThreadBase):
     __printLogLevel_always_use_getters_and_setters  = LOG_LEVEL.NONE                # default is print nothing
     __logBuffer_always_use_getters_and_setters      = collections.deque([], 5000)   # length of 5000 elements
     __preLogBuffer_always_use_getters_and_setters   = []                            # list to collect all log messages created before logger has been started up (they should be printed too for the case the logger will never come up!), if the logger comes up it will log all these messages first!
-    __logFilter_always_use_getters_and_setters      = r""                           # filter regex
+    __logFilter_always_use_getters_and_setters      = r""                           # filter regex for what logs will be logged
+    __printLogFilter_always_use_getters_and_setters = r""                           # filter regex for what logs will be printed (what is not logged cannnot be printed, so log filter go first!)
 
 
     @classmethod
@@ -129,6 +130,15 @@ class Logger(ThreadBase):
             elif newPrintLogLevel < Logger.LOG_LEVEL.NONE.value:
                 newPrintLogLevel = Logger.LOG_LEVEL.NONE.value
             Logger._Logger__printLogLevel_always_use_getters_and_setters = Logger.LOG_LEVEL(newPrintLogLevel)
+
+
+    @classmethod
+    def set_printLogFilter(cls, newPrintLogFilter : str):
+        '''
+        To change print log filter, e.g. during development to show messages only from a certain thread
+        '''
+        with cls.get_threadLock():
+            Logger._Logger__printLogFilter_always_use_getters_and_setters = newPrintLogFilter
 
 
     @classmethod
@@ -270,6 +280,7 @@ class Logger(ThreadBase):
 
         message = newLogEntry["message"]
         level = newLogEntry["level"]
+        senderName = newLogEntry["sender"]
 
         # add message number to new message
         message = "#" + str(self.logCounter) + " " + message
@@ -277,7 +288,7 @@ class Logger(ThreadBase):
         # store message in log buffer
         self.add_logMessage(message)
 
-        if (Logger.get_printLogLevel() >= level):
+        if self.filter(senderName, forPrinting = True) and (Logger.get_printLogLevel() >= level):
             if (not "messageFilter" in self.configuration) or re.search(self.configuration["messageFilter"], message):
                 print(message)   # print is OK here!
                 return True
@@ -435,14 +446,21 @@ class Logger(ThreadBase):
 
 
     @classmethod
-    def get_filter(cls):
-        return Logger._Logger__logFilter_always_use_getters_and_setters
-        
+    def get_printLogFilter(cls):
+        return Logger._Logger__printLogFilter_always_use_getters_and_setters
+
+
     @classmethod
-    def filter(cls, sender):
-        filterPattern = cls.get_filter()
-        length = (len(filterPattern) == 0)
-        matched = (re.search(filterPattern, sender) is not None)
+    def get_logFilter(cls):
+        return Logger._Logger__logFilter_always_use_getters_and_setters
+
+
+    @classmethod
+    def filter(cls, sender, forPrinting : bool = False):
+        if not forPrinting:
+            filterPattern = cls.get_logFilter()
+        else:
+            filterPattern = cls.get_printLogFilter()
         return (len(filterPattern) == 0) or (re.search(filterPattern, sender) is not None)
 
 
@@ -452,11 +470,11 @@ class Logger(ThreadBase):
         Overall log method, all log methods have to end up here
         '''
         if level <= cls.get_logLevel():
+            timeStamp = datetime.now()
             if isinstance(sender, str):
                 senderName = sender
             else:
                 senderName = cls.getSenderName(sender)
-            timeStamp = datetime.now()
             levelText = "{:<18}".format("[" + str(level) + "]")
 
             if not isinstance(message, str):
@@ -464,11 +482,11 @@ class Logger(ThreadBase):
 
             logMessage = {
                 "message" : str(timeStamp) + "  " + levelText + " \"" + senderName + "\" : " + message,
-                "level"   : level
+                "level"   : level,
+                "sender"  : senderName
             }
 
             preLogged = False       # in case logger is not running the given message is pre-logged and in case of error or fatal it is additionally printed to STDOUT!
-
             if cls.filter(senderName) or (level <= cls.LOG_LEVEL.ERROR):
                 if cls.get_logQueue() is not None:
                     # ensure Logger gets enough time to handle its queue!

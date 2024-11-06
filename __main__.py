@@ -65,9 +65,10 @@ import Logger.Logger
 project main function
 '''
 if __name__ == '__main__':
-    initFileName  = "init.json"
-    logLevel      = Logger.Logger.Logger.LOG_LEVEL.INFO.value
-    logFilter     = r""
+    initFileName   = "init.json"
+    logLevel       = Logger.Logger.Logger.LOG_LEVEL.INFO.value
+    logFilter      = r""
+    printLogFilter = r""
     stopAfterSeconds = 0
     writeLogToDiskWhenEnds = False
     missingImportMeansError = False
@@ -87,6 +88,7 @@ if __name__ == '__main__':
     argumentParser.add_argument("-f", "--log-filter",           default = logFilter,               dest = "logFilter",              type = str,                      help = "log filter regex, only messages from matching threads will be logged except error and fatal messages")
     argumentParser.add_argument("-s", "--stop-after",           default = stopAfterSeconds,        dest = "stopAfterSeconds",       type = int,                      help = "for development only, all threads will be teared down after this amount of seconds (default = -1 = endless)")
     argumentParser.add_argument("-p", "--print-log-level",      default = None,                    dest = "printLogLevel",          type = int,                      help = "up to which level log entries should be printed onto screen")
+    argumentParser.add_argument("--print-log-filter",           default = printLogFilter,          dest = "printLogFilter",         type = str,                      help = "print log filter regex, only messages from matching threads will be printed except error and fatal messages")
     argumentParser.add_argument("-w", "--write-when-ends",      default = writeLogToDiskWhenEnds,  dest = "writeLogToDiskWhenEnds",             action='store_true', help = "always write log buffer to disk when program comes to an end not only in error case")
     argumentParser.add_argument("-e", "--missing-import-error", default = missingImportMeansError, dest = "missingImportMeansError",            action='store_true', help = "an exception will be thrown if an @import file in init file doesn't exist, otherwise it's only printed to stdout")
     argumentParser.add_argument("-d", "--remote-debug",                                            dest = "remoteDebugging",                    action='store_true', help = "remote debugging is enabled and it's expected that the debug server is up and running")
@@ -126,6 +128,7 @@ if __name__ == '__main__':
         logLevel                = arguments.logLevel,
         printLogLevel           = arguments.printLogLevel,
         logFilter               = arguments.logFilter,
+        printLogFilter          = arguments.printLogFilter,
         stopAfterSeconds        = arguments.stopAfterSeconds,
         writeLogToDiskWhenEnds  = arguments.writeLogToDiskWhenEnds,
         missingImportMeansError = arguments.missingImportMeansError,
