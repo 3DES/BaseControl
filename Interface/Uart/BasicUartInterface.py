@@ -36,6 +36,7 @@ class BasicUartInterface(InterfaceBase):
         self._rebindBreak = .5    # time unbind and bind is allowed to take
 
         self.receivedData = b""
+        self.tagsIncluded(["autoDump"], optional = True, default = False)
 
 
     def _buildDeviceTree(self, path: str):
@@ -133,7 +134,7 @@ class BasicUartInterface(InterfaceBase):
         self.serialConn.close()
 
 
-    def serialWrite(self, data):
+    def serialWrite(self, data, dump : bool = False):
         success = True
         try:
             self.serialConn.write(data)
@@ -141,10 +142,14 @@ class BasicUartInterface(InterfaceBase):
             self.logger.error(self, f"Sending serial data failed: {exception}")
             success = False
             self.reInitSerial()
+
+        if dump or self.configuration['autoDump']:
+            Supporter.debugPrint([f"::serialWrite:: serial dump [{Supporter.hexCharDump(data)}]", f"read/matched data [{data}]"])
+
         return success
 
 
-    def serialReadLine(self):
+    def serialReadLine(self, dump : bool = False):
         '''
         Reads data up to a new line
         Don't mix serialRead() and serialReadLine()
@@ -156,6 +161,10 @@ class BasicUartInterface(InterfaceBase):
         except:
             self.reInitSerial()
             retVal = b""
+
+        if dump or self.configuration['autoDump']:
+            Supporter.debugPrint([f"::serialReadLine:: serial dump [{Supporter.hexCharDump(retVal)}]", f"read/matched data [{retVal}]"])
+
         return retVal
 
 
@@ -172,8 +181,8 @@ class BasicUartInterface(InterfaceBase):
             self.serialReset_input_buffer()
             self.serialReset_output_buffer()
     
-            if dump:
-                Supporter.debugPrint(f"serial dump [{Supporter.hexCharDump(self.receivedData, ' ')}]")
+            if dump or self.configuration['autoDump']:
+                Supporter.debugPrint(f"::flush:: serial dump [{Supporter.hexCharDump(self.receivedData, ' ')}]")
         except Exception as exception:
             self.logger.warning(self, f"Exception caught in flush method: {exception}")
 
@@ -200,8 +209,8 @@ class BasicUartInterface(InterfaceBase):
 
         startTime = Supporter.getTimeStamp()
 
-        if dump:
-            Supporter.debugPrint([f"serial pre dump [{Supporter.hexCharDump(self.receivedData)}]", f"length = [{length}]", f"regex = [{regex}]", f"timeout = [{timeout}]"])
+        if dump or self.configuration['autoDump']:
+            Supporter.debugPrint([f"::serialRead:: serial pre dump [{Supporter.hexCharDump(self.receivedData)}]", f"length = [{length}]", f"regex = [{regex}]", f"timeout = [{timeout}]"])
 
         try:
             while True:
@@ -237,8 +246,8 @@ class BasicUartInterface(InterfaceBase):
             self.logger.warning(self, f"Exception caught in serialRead method: {exception}, re-init serial")
             self.reInitSerial()
 
-        if dump:
-            Supporter.debugPrint([f"serial post dump (after {Supporter.getSecondsSince(startTime):.3f}s) [{Supporter.hexCharDump(self.receivedData)}]", f"read/matched data [{returnData}]"])
+        if dump or self.configuration['autoDump']:
+            Supporter.debugPrint([f"::serialRead:: serial post dump (after {Supporter.getSecondsSince(startTime):.3f}s) [{Supporter.hexCharDump(self.receivedData)}]", f"read/matched data [{returnData}]"])
 
         return returnData
 

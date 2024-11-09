@@ -3,6 +3,7 @@ import datetime
 import json
 from Base.ThreadObject import ThreadObject
 from Base.Supporter import Supporter
+import Logger
 
 
 class EffektaController(ThreadObject):
@@ -123,6 +124,9 @@ class EffektaController(ThreadObject):
                 # from "DeviceStatus2" string take first character because it contains the state of the float mode
                 floatmode = list(EffektaData[name]["DeviceStatus2"])
                 # todo pollen und timeout wenn keine Daten kommen. Es kann sein dass der powerplant die funktion aufruft und der effekta noch keine daten liefert.
+                #       if floatmode[0] == "1":
+                #          ~~~~~~~~~^^^
+                #    IndexError: list index out of range
                 if floatmode[0] == "1":
                     globalEffektaData["FloatingModeOr"] = True
                 # process all other values from the inverters and combine them
@@ -135,8 +139,8 @@ class EffektaController(ThreadObject):
                     globalEffektaData["OutputVoltageHighOr"] = True
                 if EffektaData[name]["ActualMode"] == "F":
                     globalEffektaData["ErrorPresentOr"] = True
-        except:
-            self.logger.error(self, "Wir konnten CombinedEffektaData nicht bilden.")
+        except Exception as ex:
+            Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}")
         return globalEffektaData
 
     def updateChargeValues(self):

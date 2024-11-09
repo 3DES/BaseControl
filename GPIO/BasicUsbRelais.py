@@ -55,6 +55,9 @@ class BasicUsbRelais(ThreadObject):
         elif self.configuration["timeBetweenTests"] < self._MIN_TIME_BETWEEN_TESTS:                     # there is a minimum allowed time between tests
             self.logger.warning(self, f"timeBetweenTests parameter is too short and will be set to {self._MIN_TIME_BETWEEN_TESTS}")
             self.configuration["timeBetweenTests"] = self._MIN_TIME_BETWEEN_TESTS
+        if self.tagsIncluded(["publish"], optional = True, default = False):
+            if type(self.configuration['publish']) != type(True):
+                raise Exception(f"if publish value has been given it must be True or False but not {self.configuration['publish']}, type: {type(self.configuration['publish'])} != {type(True)}")
 
         self.triggerActive = True
         self.executedTestsCounter = 0
@@ -72,9 +75,9 @@ class BasicUsbRelais(ThreadObject):
         watchDogList.sort()                     # sort the list to get alphanumeric order, what will be necessary later on to decide when current watchdog can execute its test
 
         # decide who's the master watchdog, that initiates the test chain
-        MASTER_WATCHDOG_INDEX = 0           # first one in the list will become the master watchdog
-        self.masterWatchDog = (watchDogList[MASTER_WATCHDOG_INDEX] == self.name)          # True/False
-        self.watchDogIndex = -1                                                                 # has to be set to correct value later on!
+        MASTER_WATCHDOG_INDEX = 0                                                       # first one in the list will become the master watchdog
+        self.masterWatchDog = (watchDogList[MASTER_WATCHDOG_INDEX] == self.name)        # True/False
+        self.watchDogIndex = -1                                                         # has to be set to correct value later on!
 
         # check who's the master watchdog and do necessary initial settings
         self.watchDogIndex = watchDogList.index(self.name)                      # get index of current watchdog inside the sorted watchdog list
@@ -94,6 +97,13 @@ class BasicUsbRelais(ThreadObject):
         self.watchDogTestTopic = self.createOutTopic(self.createProjectTopic(self.name), subTopic = subTopic)
         predecessorOutTopic = self.createOutTopic(self.createProjectTopic(watchDogList[self.watchDogPredecessorIndex]), subTopic = subTopic)
         self.mqttSubscribeTopic(predecessorOutTopic, globalSubscription = False, queue = self.mqttWdTestQueue)
+        
+        # if publish has been given accept relay changes from outside!
+        if self.configuration["publish"]:
+            self.mqttSubscribeTopic(self.createInTopicFilter(self.objectTopic), globalSubscription = True)
+
+        self.knownRelayStates = {}      # all relays where a set or clear command has been received for will be stored here for publishing their states to home automation
+        self.knownInputStates = {}      # all relays where a set or clear command has been received for will be stored here for publishing their states to home automation
 
 
     def handleWatchdogTest(self):
@@ -168,11 +178,73 @@ class BasicUsbRelais(ThreadObject):
                     raise Exception(f"{self.watchDogIndex} received watch dog test message without valid key: {predecessorMessageDict}")
 
 
+    def publishIOs(self):
+        publishDict = {}
+        publishDict["inputs"] = self.knownInputStates
+        if self.configuration["publish"]:
+            publishDict["outputs"] = self.knownRelayStates
+        self.logger.debug(self, f"update IO data: {publishDict}")
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), publishDict, globalPublish = False, enableEcho = False)
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), publishDict, globalPublish = True, enableEcho = False)
+
+
     def threadInitMethod(self):
         self.mqttPublish(self.interfaceInTopics[0], "readRelayState", globalPublish = False, enableEcho = False)
         self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(self.configuration["triggerThread"]), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), globalSubscription = False)
         for gpioHandler in self.configuration["gpioHandler"]:
             self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(gpioHandler)), globalSubscription = False)
+
+        # publish inputs
+        inputNames = []
+        if "inputs" in self.configuration:
+            inputNames = [f"Input{i}" for i in range(self.configuration["inputs"])]
+        if "inputMapping" in self.configuration:
+            for inputName in self.configuration["inputMapping"].keys():
+                if not inputName in inputNames:
+                    inputNames.append(inputName)
+        for inputName in inputNames:
+            niceName = f"{self.name} {inputName}"
+            sensorName = inputName
+            if inputName in self.configuration["inputMapping"]:
+                niceName += f" ({self.configuration['inputMapping'][inputName]})"
+                sensorName = self.configuration['inputMapping'][inputName]
+
+            preparedMsg = self.homeAutomation.getDiscoverySensorCmd(deviceName = "", sensorName = sensorName, niceName = niceName, unit = "none", topic = self.createOutTopic(self.getObjectTopic()), subStructure = "inputs", payloadOn = "1", payloadOff = "0")
+            sensorTopic = self.homeAutomation.getDiscoverySensorTopic(deviceName = self.name, sensorName = inputName, readOnly = True)
+            self.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+            self.logger.debug(self, f"discover sensor at topic {sensorTopic}, message {preparedMsg}")
+
+        # publish outputs (= relays) only if publish parameter has been set to True 
+        if self.configuration["publish"]:
+            outputNames = []
+            reverseRelayDict = {}
+            if "outputs" in self.configuration:
+                outputNames = [f"Relay{i}" for i in range(self.configuration["outputs"])]
+                reverseRelayDict = {f"Relay{i}" : f"Relay{i}" for i in range(self.configuration["outputs"])}
+            if "relMapping" in self.configuration:
+                # relMapping can contain a relay list for some relays!
+                for relay in self.configuration["relMapping"].keys():
+                    if type(self.configuration["relMapping"][relay]) == list:
+                        outputList = self.configuration["relMapping"][relay]        # take the defined list
+                    else:
+                        outputList = [self.configuration["relMapping"][relay]]      # create a list with one element
+
+                    for outputName in outputList:
+                        if not outputName in outputNames:
+                            outputNames.append(outputName)
+                        reverseRelayDict[outputName] = relay        # overwrite named relays, all others will get RelayN as name
+
+            for outputName in outputNames:
+                niceName = f"{self.name} {outputName}"
+                sensorName = outputName
+                if outputName != reverseRelayDict[outputName]:
+                    niceName += f" ({reverseRelayDict[outputName]})"
+
+                switchTopic = self.homeAutomation.getDiscoverySwitchTopic(self.name, outputName)
+                preparedMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs", payloadOn = f'{{ "inputs" : {{"{sensorName}" : "1"}} }}', payloadOff = f'{{ "inputs" : {{"{sensorName}" : "0"}} }}', stateOn = '1', stateOff = '0')
+                testMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs")
+                self.mqttPublish(switchTopic, preparedMsg, globalPublish = True, enableEcho = False)
+                self.logger.debug(self, f"discover switch at topic {switchTopic}, message {preparedMsg}")
 
 
     def threadSimmulationSupport(self):
@@ -190,12 +262,13 @@ class BasicUsbRelais(ThreadObject):
             # check if we got a msg from our interface
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
                 if "inputs" in newMqttMessageDict["content"]:
-                    for inputName in list(newMqttMessageDict["content"]["inputs"].keys()):
+                    inputs = newMqttMessageDict["content"]["inputs"]
+                    for inputName in inputs.keys():
                         if inputName in self.configuration["inputMapping"]:
                             # rename key
-                            newMqttMessageDict["content"]["inputs"][self.configuration["inputMapping"][inputName]] = newMqttMessageDict["content"]["inputs"].pop(inputName)
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
+                            inputs[self.configuration["inputMapping"][inputName]] = inputs.pop(inputName)
+                    self.knownInputStates.update(inputs)
+                    self.publishIOs()
                 elif not "triggerWd" in newMqttMessageDict["content"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)
             else:
@@ -210,27 +283,45 @@ class BasicUsbRelais(ThreadObject):
                         self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
                 else:
                     # We only accept gpio commands from gpioHandlers
-                    found = False
+                    relaysFound = False
+                    validHandler = False
                     for threadnames in self.configuration["gpioHandler"]:
-                        if f"/{threadnames}/" in newMqttMessageDict["topic"] and self.gpioCmd in newMqttMessageDict["content"]:
-                            tempRelais = {}
-                            for key in list(self.configuration["relMapping"].keys()):
-                                if key in newMqttMessageDict["content"][self.gpioCmd]:
-                                    found = True
-                                    if type(self.configuration["relMapping"][key]) == list:
-                                        for relais in self.configuration["relMapping"][key]:
-                                            tempRelais.update({relais:newMqttMessageDict["content"][self.gpioCmd][key]})
-                                    else:
-                                        tempRelais.update({self.configuration["relMapping"][key]:newMqttMessageDict["content"][self.gpioCmd][key]})
-                                    if not (newMqttMessageDict["content"][self.gpioCmd][key] == self.REL_OFF or newMqttMessageDict["content"][self.gpioCmd][key] == self.REL_ON):
-                                        raise Exception(f'{self.name} got a wrong value for relay state. Check your code. Relayname was: {key}, value: {newMqttMessageDict["content"][self.gpioCmd][key]}')
-                            if found:
-                                self.mqttPublish(self.interfaceInTopics[0], {"setRelay":tempRelais}, globalPublish = False, enableEcho = False)
-                                break
+                        if f"/{threadnames}/" in newMqttMessageDict["topic"]:
+                            validHandler = True
+                            if self.gpioCmd in newMqttMessageDict["content"]:
+                                # handle all received relay states
+                                tempRelais = {}
+                                for key in list(self.configuration["relMapping"].keys()):
+                                    if key in newMqttMessageDict["content"][self.gpioCmd]:
+                                        relaysFound = True
+                                        if type(self.configuration["relMapping"][key]) == list:
+                                            for relais in self.configuration["relMapping"][key]:
+                                                tempRelais.update({relais : newMqttMessageDict["content"][self.gpioCmd][key]})
+                                        else:
+                                            tempRelais.update({self.configuration["relMapping"][key] : newMqttMessageDict["content"][self.gpioCmd][key]})
+                                        if not (newMqttMessageDict["content"][self.gpioCmd][key] in [self.REL_OFF, self.REL_ON]):
+                                            raise Exception(f'{self.name} got a wrong value for relay state. Check your code. Relayname was: {key}, value: {newMqttMessageDict["content"][self.gpioCmd][key]}')
+                                
+                                # since gpioHandlers usually publish more than just our relays here publish relay states only if there were some in the received message
+                                if relaysFound:
+                                    self.mqttPublish(self.interfaceInTopics[0], {"setRelay" : tempRelais}, globalPublish = False, enableEcho = False)
+                                    self.knownRelayStates.update(tempRelais)
+                                    self.publishIOs()
+                                    break
+                    if not validHandler:
+                        if self.configuration["publish"] and (newMqttMessageDict["topic"] == self.createInTopic(self.objectTopic)) and ("content" in newMqttMessageDict) and ("inputs" in newMqttMessageDict["content"]):
+                            # because of publish we accept relay changes on our input topic, too! In that case the names from relMapping are not used since they are only known by our default handlers, so accept Relay0..n instead
+                            self.mqttPublish(self.interfaceInTopics[0], {"setRelay" : newMqttMessageDict["content"]["inputs"]}, globalPublish = False, enableEcho = False)
+                            self.knownRelayStates.update(newMqttMessageDict["content"]["inputs"])
+                            self.publishIOs()
+                            self.logger.debug(self, f"got message from not registered handler what is OK since 'publish' configuration has been set to True: {newMqttMessageDict}")
+                        else:
+                            raise Exception(f'{self.name} got message from unknown handler: {newMqttMessageDict}\nvalid handlers: {self.configuration["gpioHandler"]}')
+                        
 
         if self.timer(name = "timerStateReq", timeout = 60):
-            self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readRelayState"}, globalPublish = False, enableEcho = False)
-            self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readInputState"}, globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.interfaceInTopics[0], {"cmd" : "readRelayState"}, globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.interfaceInTopics[0], {"cmd" : "readInputState"}, globalPublish = False, enableEcho = False)
 
         self.handleWatchdogTest()
 

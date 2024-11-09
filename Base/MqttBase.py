@@ -594,15 +594,25 @@ class MqttBase(Base.Base):
         return topic
 
 
-    def mqttDiscoveryText(self, textField, commandTopic : str, commandTemplate : str, senderName : str = None) -> str:
+    def mqttDiscoveryText(self, textField, commandTopic : str = None, commandTemplate : str = None, stateTopic : str = None, valueTemplate : str = None, senderName : str = None) -> str:
         """
         textField: name of the text filed that has to be discovered
         ... @todo
         """
         senderObj = Supporter.getCaller()      # get caller object
-##        (textField = "DEBUG", commandTopic = self.createInTopicFilter(self.objectTopic), commandTemplate = '{ "variable" : "{{ value }}" }')
-##xxxxxx            mosquitto_pub -t 'homeassistant/text/AccuTester_DEBUG_VariableName/config' -m '{"name" : "hallo", "command_topic" : "AccuTester/DEBUG/in", "command_template":"{ \"variable\" : \"{{ value }}\" }"}' -h homeassistant -u pi -P raspberry
-        preparedMsg = f'{{ "name" : "{textField}", "command_topic" : "{commandTopic}", "command_template" : "{commandTemplate}" }}'
+
+        preparedMsg = {"name" : textField}
+        if commandTopic is not None:
+            preparedMsg["command_topic"] = commandTopic
+        if commandTemplate is not None:
+            preparedMsg["command_template"] = commandTemplate
+        if stateTopic is not None:
+            preparedMsg["state_topic"] = stateTopic
+        if valueTemplate is not None:
+            preparedMsg["value_template"] = valueTemplate
+        #Supporter.debugPrint(f"{preparedMsg}", color = "LIGHTRED", borderSize = 5)
+        #mosquitto_pub -t 'homeassistant/text/AccuTester_DEBUG_VariableName/config' -m '{"name" : "hallo", "command_topic" : "AccuTester/DEBUG/in", "command_template":"{ \"variable\" : \"{{ value }}\" }"}' -h homeassistant -u pi -P raspberry
+
         sensorTopic = self.homeAutomation.getDiscoveryTextTopic(senderName, textField)
         self.logger.debug(self, f"discover text message prepared: topic = {sensorTopic} content = {preparedMsg}")
         senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
@@ -624,7 +634,7 @@ class MqttBase(Base.Base):
         senderObj.mqttPublish(sensorTopic, "", globalPublish = True, enableEcho = False)
 
 
-    def mqttDiscoveryInputNumberSlider(self, sensors, ignoreKeys : list = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None, stateTopic : str = None):
+    def mqttDiscoveryInputNumberSlider(self, sensors, ignoreKeys : list = None, nameDict : dict = None, minValDict : dict = None, maxValDict : dict = None, stateTopics : dict = None, valueTemplates : dict = None):
         """
         sensors: dict oder List der Slider die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
@@ -650,9 +660,9 @@ class MqttBase(Base.Base):
                     minVal = minValDict[key]
                 if (maxValDict is not None) and (key in maxValDict):
                     maxVal = maxValDict[key]
-                preparedMsg = self.homeAutomation.getDiscoveryInputNumberSliderCmd(senderObj.name, key, niceName, minVal, maxVal)
-                if stateTopic is not None:
-                    preparedMsg["state_topic"] = stateTopic 
+                stateTopic    = stateTopics[key]    if stateTopics    and key in stateTopics    else None
+                valueTemplate = valueTemplates[key] if valueTemplates and key in valueTemplates else None
+                preparedMsg = self.homeAutomation.getDiscoveryInputNumberSliderCmd(senderObj.name, key, niceName, minVal, maxVal, stateTopic = stateTopic , valueTemplate = valueTemplate)
                 sensorTopic = self.homeAutomation.getDiscoveryInputNumberSliderTopic(senderObj.name, key)
                 senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 

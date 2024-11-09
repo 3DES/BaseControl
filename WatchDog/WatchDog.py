@@ -167,7 +167,7 @@ class WatchDog(ThreadObject):
                 # still waiting for some notification (show message every 5 seconds to inform user why watchdog is not switched ON)
                 if self.timer(name = "waitingForMonitoredThreads", timeout = 5, firstTimeTrue = True):
                     missedThreads = self.searchMissedThreads()
-                    message = f"waiting for monitored threads, still waiting for {int(self.watchDogLastInformedInitTime - Supporter.getTimeStamp())} seconds\nmissing {len(missedThreads)} threads: {', '.join(missedThreads)}"
+                    message = f"waiting for monitored threads, still waiting for {int(self.watchDogLastInformedInitTime - Supporter.getTimeStamp())} seconds, missing {len(missedThreads)} threads: {', '.join(missedThreads)}"
                     Supporter.debugPrint(message)
                     self.logger.debug(self, message)
             else:

@@ -240,7 +240,21 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         return os.path.join(os.getcwd(), "Firmware", self.configuration["firmware"])
 
     def runAvrDude(self):
-        return subprocess.run([self.configuration["avrdudePath"], '-c', 'arduino', '-p', 'm328p', '-P', self.configuration["interface"], '-b', '115200', '-U', fr'flash:w:{self.getFirmwarePath()}:a'], capture_output=True)
+        parameterList = [
+            self.configuration["avrdudePath"],
+            '-c',
+            'arduino',
+            '-p',
+            'm328p',
+            '-P',
+            self.configuration["interface"],
+            '-b',
+            '115200',
+            '-U',
+            fr'flash:w:{self.getFirmwarePath()}:a'
+        ]
+        self.logger.info(f"execute: {' '.join(parameterList)}")
+        return subprocess.run(parameterList, capture_output=True)
 
     def getOurVersion(self):
         # Coding in .hex file MHSWMHSW*MHSWMHSW, where * is name of the firmware

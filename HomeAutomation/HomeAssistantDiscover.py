@@ -32,12 +32,14 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         return sensorName.replace(".", "")
 
     @classmethod
-    def _getValueTemplateInt(cls, name) -> str:
-        return r"{{ value_json.%s | float|round(2) }}" %name
+    def _getValueTemplateInt(cls, name : str, subStructure : str = None) -> str:
+        valueTemplate = ((subStructure + ".") if subStructure is not None else "") + name
+        return r"{{ value_json.%s | float|round(2) }}" %valueTemplate
 
     @classmethod
-    def _getValueTemplateNonInt(cls, name) -> str:
-        return r"{{ value_json.%s }}" %name
+    def _getValueTemplateNonInt(cls, name : str, subStructure : str = None) -> str:
+        valueTemplate = ((subStructure + ".") if subStructure is not None else "") + name
+        return r"{{ value_json.%s }}" %valueTemplate
 
     @classmethod
     def _getCmdTemplate(cls, name) -> str:
@@ -73,10 +75,6 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
 
     @classmethod
-    def getDiscoverySensorTopic(cls, deviceName : str, sensorName : str) -> str:
-        return f'homeassistant/sensor/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config'
-
-    @classmethod
     def getDiscoveryTextTopic(cls, deviceName : str, sensorName : str) -> str:
         textTopic = f'homeassistant/text/{ThreadObject.get_projectName()}_{deviceName}'
         if sensorName is not None:
@@ -84,8 +82,14 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         textTopic += '/config'
         return textTopic
 
+
     @classmethod
-    def getDiscoverySensorCmd(cls, deviceName : str, sensorName : str, niceName : str, unit : str, topic : str) -> dict:
+    def getDiscoverySensorTopic(cls, deviceName : str, sensorName : str, readOnly : bool = False) -> str:
+        return f'homeassistant/{"sensor" if not readOnly else "binary_sensor"}/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config'
+
+
+    @classmethod
+    def getDiscoverySensorCmd(cls, deviceName : str, sensorName : str, niceName : str, unit : str, topic : str, subStructure : str = None, payloadOff = None, payloadOn = None) -> dict:
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/sensor/garden/config"
@@ -119,13 +123,16 @@ class HomeAssistantDiscover(BaseHomeAutomation):
                 del templateMsg["unit_of_measurement"]
 
         # we assume that every value with unit is a int or float, and we have to use _getValueTemplateInt()
-        if "unit_of_measurement" in templateMsg:
-            if len(templateMsg["unit_of_measurement"]):
-                templateMsg["value_template"] = cls._getValueTemplateInt(sensorName)
-            else:
-                templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
+        if ("unit_of_measurement" in templateMsg) and len(templateMsg["unit_of_measurement"]):
+            templateMsg["value_template"] = cls._getValueTemplateInt(sensorName, subStructure)
         else:
-                templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
+            templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName, subStructure)
+
+        if payloadOn is not None:
+            templateMsg["payload_on"] = payloadOn
+
+        if payloadOff is not None:
+            templateMsg["payload_off"] = payloadOff
 
         return templateMsg
 
@@ -169,7 +176,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         return f"homeassistant/number/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
-    def getDiscoveryInputNumberSliderCmd(cls,  deviceName : str, sensorName : str, niceName : str = "", minVal = 0, maxVal = 100) -> dict:
+    def getDiscoveryInputNumberSliderCmd(cls,  deviceName : str, sensorName : str, niceName : str = "", minVal = 0, maxVal = 100, stateTopic : str = None, valueTemplate : str = None) -> dict:
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/number/garden/config"
@@ -186,7 +193,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         maxVal: dict Hier koennen einzelne keys mit dem maximal Slider Wert drin stehen. standard = 100
         -t "homeassistant/number/slider1/config" -m '{"name": "Slider Test", "command_topic": "testSlider/state", "min":0, "max":100, "mode":"slider", "command_template": "{\"temperature\": {{ value }} }"}'
         """
-        templateMsg = {"name": "", "command_topic":"", "min":0, "max":100, "mode":"slider", "command_template":""}
+        templateMsg = {"mode":"slider"}
 
         templateMsg["command_topic"] = ThreadObject.createInTopic(ThreadObject.createProjectTopic(deviceName))
         templateMsg["command_template"] = cls._getCmdTemplate(sensorName)
@@ -197,7 +204,11 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         templateMsg["name"] = cls._addPrefix(templateMsg["name"])
         templateMsg["min"] = minVal
         templateMsg["max"] = maxVal
-            
+        if stateTopic is not None:
+            templateMsg["state_topic"] = stateTopic
+        if valueTemplate is not None:
+            templateMsg["value_template"] = valueTemplate
+
         return templateMsg
 
 
@@ -206,7 +217,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         return f"homeassistant/switch/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
 
     @classmethod
-    def getDiscoverySwitchCmd(cls,  deviceName : str, sensorName : str, niceName : str = "") -> dict:
+    def getDiscoverySwitchCmd(cls,  deviceName : str, sensorName : str, niceName : str = "", subStructure : str = None, payloadOff = None, payloadOn = None, stateOff = None, stateOn = None, icon = None) -> dict:
         """
         https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
         topic "homeassistant/switch/garden/config"
@@ -229,9 +240,29 @@ class HomeAssistantDiscover(BaseHomeAutomation):
         else:
             templateMsg["name"] = cls._getFrindlyName(deviceName, sensorName)
         templateMsg["name"] = cls._addPrefix(templateMsg["name"])
-        templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName)
-        templateMsg["payload_on"] = cls._getPayloadOn(sensorName)
-        templateMsg["payload_off"] = cls._getPayloadOff(sensorName)
+        templateMsg["value_template"] = cls._getValueTemplateNonInt(sensorName, subStructure)
+
+        if payloadOn is not None:
+            templateMsg["payload_on"] = payloadOn
+            if stateOn is not None:
+                templateMsg["state_on"] = stateOn
+            else:
+                templateMsg["state_on"] = payloadOn
+        else:
+            templateMsg["payload_on"] = cls._getPayloadOn(sensorName)
+
+        if payloadOff is not None:
+            templateMsg["payload_off"] = payloadOff
+            if stateOn is not None:
+                templateMsg["state_off"] = stateOff
+            else:
+                templateMsg["state_off"] = payloadOff
+        else:
+            templateMsg["payload_off"] = cls._getPayloadOff(sensorName)
+
+        if icon is not None:
+            templateMsg["icon"] = icon
+
         return templateMsg
 
 

@@ -82,7 +82,6 @@ class Debugger(ThreadObject):
 
         if publish:
             self.mqttPublish(debugVariable["topic"], {debugVariable["homeAutomationName"] : debugVariable["content"]}, globalPublish = True, enableEcho = False)
-            Supporter.debugPrint(f"DEBUG publish at topic {debugVariable['topic']}, content {debugVariable['homeAutomationName']}:{debugVariable['content']}")
 
 
     def debugMessageHandler(self, message : dict):
@@ -252,17 +251,19 @@ class Debugger(ThreadObject):
 
         inTopic = self.createInTopic(self.objectTopic)
         self.outTopic = self.createOutTopic(self.objectTopic)
-        self.homeAutomation.mqttDiscoveryText(textField = "Debugger Interface", commandTopic = inTopic, commandTemplate = '{ \\"variable\\" : \\"{{ value }}\\" }')
-        self.homeAutomation.mqttDiscoveryText(textField = "Log Filter",         commandTopic = inTopic, commandTemplate = '{ \\"LogFilter\\" : \\"{{ value }}\\" }')
-        self.homeAutomation.mqttDiscoveryText(textField = "Print Log Filter",   commandTopic = inTopic, commandTemplate = '{ \\"PrintLogFilter\\" : \\"{{ value }}\\" }')
+        self.homeAutomation.mqttDiscoveryText(textField = "Debugger Interface", commandTopic = inTopic, commandTemplate = '{ "variable" : "{{ value }}" }')
 
+        # set up logger interface into home automation
+        self.homeAutomation.mqttDiscoveryText(textField = "Log Filter",         commandTopic = inTopic, commandTemplate = '{ "LogFilter" : "{{ value }}" }',      stateTopic = self.outTopic, valueTemplate = "{{ value_json.LogFilter }}")
+        self.homeAutomation.mqttDiscoveryText(textField = "Print Log Filter",   commandTopic = inTopic, commandTemplate = '{ "PrintLogFilter" : "{{ value }}" }', stateTopic = self.outTopic, valueTemplate = "{{ value_json.PrintLogFilter }}")
         self.sensorValues = {"LogLevel" : Logger.get_logLevel().value, "PrintLogLevel" : Logger.get_printLogLevel().value}
         for sensor in sorted(self.sensorValues.keys()):
-            self.homeAutomation.mqttDiscoveryInputNumberSlider(sensors = [sensor], maxValDict = {sensor : 5})
+            valueTemplate = "{{ value_json." + sensor + " }}"
+            #Supporter.debugPrint(f"{valueTemplate}", color = "LIGHTRED", borderSize = 10)
+            self.homeAutomation.mqttDiscoveryInputNumberSlider(sensors = [sensor], maxValDict = {sensor : 5}, stateTopics = {sensor : self.outTopic}, valueTemplates = {sensor : valueTemplate})
         self.sensorValues["LogFilter"] = Logger.get_logFilter()
         self.sensorValues["PrintLogFilter"] = Logger.get_printLogFilter()
-        self.mqttPublish(self.outTopic, self.sensorValues, globalPublish = True, enableEcho = False)
-        Supporter.debugPrint(f"published : {self.sensorValues}", color = "LIGHTRED", borderSize = 5)
+        self.mqttPublish(self.outTopic, self.sensorValues, globalPublish = True, enableEcho = False)    # publish current values
 
 
     def threadMethod(self):
