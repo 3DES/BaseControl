@@ -55,9 +55,7 @@ class BasicUsbRelais(ThreadObject):
         elif self.configuration["timeBetweenTests"] < self._MIN_TIME_BETWEEN_TESTS:                     # there is a minimum allowed time between tests
             self.logger.warning(self, f"timeBetweenTests parameter is too short and will be set to {self._MIN_TIME_BETWEEN_TESTS}")
             self.configuration["timeBetweenTests"] = self._MIN_TIME_BETWEEN_TESTS
-        if self.tagsIncluded(["publish"], optional = True, default = False):
-            if type(self.configuration['publish']) != type(True):
-                raise Exception(f"if publish value has been given it must be True or False but not {self.configuration['publish']}, type: {type(self.configuration['publish'])} != {type(True)}")
+        self.tagsIncluded(["publish"], optional = True, default = False, valueType = type(True))
 
         self.triggerActive = True
         self.executedTestsCounter = 0
@@ -102,8 +100,8 @@ class BasicUsbRelais(ThreadObject):
         if self.configuration["publish"]:
             self.mqttSubscribeTopic(self.createInTopicFilter(self.objectTopic), globalSubscription = True)
 
-        self.knownRelayStates = {}      # all relays where a set or clear command has been received for will be stored here for publishing their states to home automation
-        self.knownInputStates = {}      # all relays where a set or clear command has been received for will be stored here for publishing their states to home automation
+        self.knownRelayStates = {}      # all relays for which a set or clear command has been received will be stored here for publishing their states to home automation
+        self.knownInputStates = {}      # all relays for which a set or clear command has been received will be stored here for publishing their states to home automation
 
 
     def handleWatchdogTest(self):
@@ -263,11 +261,15 @@ class BasicUsbRelais(ThreadObject):
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
                 if "inputs" in newMqttMessageDict["content"]:
                     inputs = newMqttMessageDict["content"]["inputs"]
+                    namedInputs = {}
                     for inputName in inputs.keys():
                         if inputName in self.configuration["inputMapping"]:
-                            # rename key
-                            inputs[self.configuration["inputMapping"][inputName]] = inputs.pop(inputName)
-                    self.knownInputStates.update(inputs)
+                            # rename key since input has a defined name (i.e. Input0 is e.g. watchDogState)
+                            namedInputs[self.configuration["inputMapping"][inputName]] = inputs[inputName]
+                        else:
+                            # take default input name since input has no defined name (i.e. Input1 is Input1)
+                            namedInputs[inputName] = inputs[inputName]
+                    self.knownInputStates.update(namedInputs)       # set or update new input states
                     self.publishIOs()
                 elif not "triggerWd" in newMqttMessageDict["content"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"], globalPublish = True, enableEcho = False)

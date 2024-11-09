@@ -42,7 +42,7 @@ class Base():
         return Base._SIMULATE
 
 
-    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None, default = None) -> bool:
+    def tagsIncluded(self, tagNames : list, intIfy : bool = False, optional : bool = False, configuration : dict = None, default = None, valueType = None) -> bool:
         '''
         Checks if given parameters are contained in task configuration
         
@@ -69,8 +69,12 @@ class Base():
                 if len(tagNames) == 1:
                     configuration[tagName] = default
                 success = False         # remember there was at least one missing element
-            elif intIfy:
-                configuration[tagName] = int(configuration[tagName])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
+            else:
+                if intIfy:
+                    configuration[tagName] = int(configuration[tagName])                # this will ensure that value contains a valid int even if it has been given as string (what is common in json!)
+                if valueType is not None:
+                    if valueType != type(configuration[tagName]):
+                        raise Exception(f"element {tagName} is not of type {valueType} but of type {type(configuration[tagName])}")
 
         return success
 

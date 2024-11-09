@@ -64,7 +64,7 @@ class Logger(ThreadBase):
     __logQueue_always_use_getters_and_setters       = None                          # ensures Logger is a "singleton"
     __logLevel_always_use_getters_and_setters       = LOG_LEVEL.DEBUG               # default is log everything
     __printLogLevel_always_use_getters_and_setters  = LOG_LEVEL.NONE                # default is print nothing
-    __logBuffer_always_use_getters_and_setters      = collections.deque([], 5000)   # length of 5000 elements
+    __logBuffer_always_use_getters_and_setters      = collections.deque([], 10000)  # length of 10000 elements
     __preLogBuffer_always_use_getters_and_setters   = []                            # list to collect all log messages created before logger has been started up (they should be printed too for the case the logger will never come up!), if the logger comes up it will log all these messages first!
     __logFilter_always_use_getters_and_setters      = r""                           # filter regex for what logs will be logged
     __printLogFilter_always_use_getters_and_setters = r""                           # filter regex for what logs will be printed (what is not logged cannnot be printed, so log filter go first!)

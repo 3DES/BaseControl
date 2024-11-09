@@ -51,12 +51,13 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
         else:
             if matches := re.search(b"(?P<block>.+?Checksum\t.)(?P<remaining>\r\n.*)", self.data, re.DOTALL):
                 currentBlock = matches.group("block")
-
+                self.data = matches.group("remaining")      # remove matched block from data
+                
                 # calculate checksum (simple BCC -> 0x00 - "sum of all elements including lead-in \r\n but exclusive checksum")
                 # the following lines show how this works:  
                 #     data=b'\r\nH1\t-46788\r\nH2\t-445\r\nH3\t0\r\nH4\t0\r\nH5\t0\r\nH6\t-76923\r\nH7\t5610\r\nH8\t56605\r\nH9\t2225\r\nH10\t0\r\nH11\t17\r\nH12\t0\r\nH15\t0\r\nH16\t0\r\nH17\t394\r\nH18\t2478\r\nChecksum\t\x82'
                 #     summ = 0
-                #     for char in a:
+                #     for char in data:
                 #         summ += int(char)
                 #     # empty line to paste this directly into the interpreter
                 #     summ &= 0xFF
@@ -68,7 +69,6 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
 
                 # result must be zero if block is valid since last element is checksum and 0x00 - "sum of all elements including lead-in \r\n but exclusive checksum") + checksum is 0x00
                 if (calculatedChecksum == 0x00):
-                    self.data = matches.group("remaining")
                     for key in self.MATCHED_KEYS:
                         # a key always consists of \r\n as lead-in, the key itself, a \t and a value, the next \r\n already belongs to the next key
                         matchString = bytes(f"\r\n{key}\t(?P<value>[^\r]+)", "utf-8")
@@ -183,8 +183,9 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
 
         if self.prepareHomeAutomation():
             #Supporter.debugPrint(f"{self.homeAutomationValues}", color = "LIGHTRED")
+            self.logger.warning(self, f"read Victron values {self.homeAutomationValues}")
             self.publishHomeAutomation()
 
 
     def threadBreak(self):
-        time.sleep(1)
+        time.sleep(5)

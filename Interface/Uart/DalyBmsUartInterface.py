@@ -4,6 +4,7 @@ import math
 from Interface.Uart.BasicUartInterface import BasicUartInterface
 from Base.Supporter import Supporter
 import colorama
+from _operator import index
 
 
 class DalyBmsUartInterface(BasicUartInterface):
@@ -14,7 +15,7 @@ class DalyBmsUartInterface(BasicUartInterface):
     '''
 
 
-    _ERROR_REPEATS = 40         # in case of communication error 20 repeats will be done before an exception is thrown
+    _ERROR_REPEATS = 10         # in case of communication error 20 repeats will be done before an exception is thrown
 
 
 
@@ -98,7 +99,7 @@ class DalyBmsUartInterface(BasicUartInterface):
     }
 
 
-    WARNING_THRESHOLD = 3
+    WARNING_THRESHOLD = 10
 
 
     def __init__(self, threadName : str, configuration : dict):
@@ -162,7 +163,7 @@ class DalyBmsUartInterface(BasicUartInterface):
             if command not in self.readRequestFailed:
                 self.readRequestFailed[command] = 0
             self.readRequestFailed[command] += 1
-            
+
             # there are a lot of failed communications so only show a warning if three or more in a row failed, otherwise show an info message
             if self.readRequestFailed[command] >= self.WARNING_THRESHOLD:
                 self.logger.warning(self, f'command [{command}] failed {self.readRequestFailed[command]} times')
@@ -545,6 +546,22 @@ class DalyBmsUartInterface(BasicUartInterface):
         # 0001000002006c44
 
 
+    def keyErrorsToStr(self, errors : dict) -> str:
+        return ", ".join(f"{key} : {errors[key]}" for key in sorted(errors))
+
+
+    def threadInitMethod(self):
+        super().threadInitMethod()
+        self.values = {}
+        self.index  = 0
+        self.message = None
+        self.keyErrors = {}
+        self.turnStartTime = Supporter.getTimeStamp()
+        self.maxTurnTime = 0
+        self.REPEAT_TIMEOUT = 30
+        self.OVERALL_TIMEOUT = 60 * 5
+
+
     def threadMethod(self):
         keys = [
             "status",
@@ -645,126 +662,148 @@ class DalyBmsUartInterface(BasicUartInterface):
             ],
         }
 
-        values = {}
+        while self.index < len(keys):
+            key = keys[self.index]      # next key to be read from daly BMS
+            result = methods[key]()     # try to read values for current keys
+            if (result == False):       # YES, compare explicitly with False here, since it could also be an empty list what has to be handled differently!!!
+                self.logger.debug(self, f"daly BMS data request failed for {key}")
+                self.keyErrors[key] = 1 if key not in self.keyErrors else (self.keyErrors[key] + 1)
+                #Supporter.debugPrint(f"reading key {key} failed ({self.keyErrorsToStr(self.keyErrors)})", color = "LIGHTRED", borderSize = 5)
+                break       # stop reading values from BMS and give the BMS some time to recreate
+            else:
+                self.values[key] = result
+                self.index += 1
+                #if len(self.keyErrors.keys()):
+                #    Supporter.debugPrint(f"reading key {key} succeeded {result} ({self.keyErrorsToStr(self.keyErrors)})", color = "LIGHTYELLOW", borderSize = 5)
+                #else:
+                #    Supporter.debugPrint(f"reading key {key} succeeded {result}", color = "LIGHTGREEN", borderSize = 5)
 
-        for key in keys:
-            success = False
-            self.logger.debug(self, f"check: {key}")
-            for repeat in range(self._ERROR_REPEATS):
-                result = methods[key]()
-                time.sleep(.2)      # give BMS a bit more time between the reads to lower errros
-                self.logger.debug(self, f"repeat: {repeat}, cmd: {key}, result: {result}")
+        if self.index >= len(keys):
+            # status should be the first one to get number of cells and temp sensors
+            #self.logger.debug(self, f"status:       " + str(self.values["status"]))
+            #self.logger.debug(self, f"voltages:     " + str(self.values["cell_voltages"]))
+            #self.logger.debug(self, f"mosfet:       " + str(self.values["mosfet_status"]))
+            #self.logger.debug(self, f"temperatures: " + str(self.values["temperature_range"]))
+            #self.logger.debug(self, f"balancing:    " + str(self.values["balancing_status"]))
+            #self.logger.debug(self, f"errors:       " + str(self.values["errors"]))
 
-                # since result can be empty as well what means OK we have explicitly to check for False!!!
-                if (result == False):       # YES, compare explicitly with False here, since it could also be an empty list what has to be handled differently!!!
-                    self.logger.debug(self, f"request failed once: {result} == False")
-                else:
-                    values[key] = result
-                    success = True
-                    break
-            if not success:
-                raise Exception(f"too many errors for command [{key}] in [{self.name}]")
+            # take min and max values from BMS
+            vMin = self.values["cell_voltage_range"]["lowest_voltage"]
+            vMax = self.values["cell_voltage_range"]["highest_voltage"]
 
-        # status should be the first one to get number of cells and temp sensors
-        #self.logger.debug(self, f"status:       " + str(values["status"]))
-        #self.logger.debug(self, f"voltages:     " + str(values["cell_voltages"]))
-        #self.logger.debug(self, f"mosfet:       " + str(values["mosfet_status"]))
-        #self.logger.debug(self, f"temperatures: " + str(values["temperature_range"]))
-        #self.logger.debug(self, f"balancing:    " + str(values["balancing_status"]))
-        #self.logger.debug(self, f"errors:       " + str(values["errors"]))
+            # now check if voltage list has a value less or larger than min/max value
+            voltageList = []
 
-        # take min and max values from BMS
-        vMin = values["cell_voltage_range"]["lowest_voltage"]
-        vMax = values["cell_voltage_range"]["highest_voltage"]
+            # @todo folgendes if dient zur Fehlersuche, sobalt Fehler gefunden ist, kann das raus! Gesuchter Fehler liegt in Zeile >>>if (not "cell_voltages" in values) or not len(values["cell_voltages"]):<<< 
+            #         File "/share/PowerPlant/Base/ThreadBase.py", line 178, in threadLoop
+            #           self.threadMethod()             # execute working method
+            #         File "/share/PowerPlant/Interface/Uart/DalyBmsUartInterface.py", line 635, in threadMethod
+            #           if (not "cell_voltages" in values) or not len(values["cell_voltages"]):
+            #       TypeError: object of type 'NoneType' has no len()
+            #        (ThreadBase.py:197)
+            # --> siehe fehler_DalyBmsUartInterface_2.txt
+            if (not "cell_voltages" in self.values):
+                message = f"values = {self.values}, type is {type(self.values)}"
+                Supporter.debugPrint(message, color = "BLUE")
+                self.logger.error(self, message)
 
-        # now check if voltage list has a value less or larger than min/max value
-        voltageList = []
-        
-        # @todo folgendes if dient zur Fehlersuche, sobalt Fehler gefunden ist, kann das raus! Gesuchter Fehler liegt in Zeile >>>if (not "cell_voltages" in values) or not len(values["cell_voltages"]):<<< 
-        #         File "/share/PowerPlant/Base/ThreadBase.py", line 178, in threadLoop
-        #           self.threadMethod()             # execute working method
-        #         File "/share/PowerPlant/Interface/Uart/DalyBmsUartInterface.py", line 635, in threadMethod
-        #           if (not "cell_voltages" in values) or not len(values["cell_voltages"]):
-        #       TypeError: object of type 'NoneType' has no len()
-        #        (ThreadBase.py:197)
-        # --> siehe fehler_DalyBmsUartInterface_2.txt
-        if (not "cell_voltages" in values):
-            message = f"values = {values}, type is {type(values)}"
-            Supporter.debugPrint(message, color = "BLUE")
-            self.logger.error(self, message)
-
-        if (not "cell_voltages" in values) or not len(values["cell_voltages"]):
-            self.logger.error(self, f"received invalid values without \"cell_voltages\" element: {values}")
-        for cellNumber, cellVoltage in values["cell_voltages"].items():
-            # that a single cell voltage is lower/higher than the overall min/max voltage value is common and happens because of different voltage read times!
-            if cellVoltage < vMin:
-                #self.logger.info(self, f"cell {cellNumber} has lower voltage {cellVoltage} as vMin mentioned by daly bms {vMin}")
-                vMin = cellVoltage
-            elif cellVoltage > vMax:
-                #self.logger.info(self, f"cell {cellNumber} has higher voltage {cellVoltage} as vMax mentioned by daly bms {vMax}")
-                vMax = cellVoltage
-            voltageList.append(cellVoltage)
+            if (not "cell_voltages" in self.values) or not len(self.values["cell_voltages"]):
+                self.logger.error(self, f"received invalid values without \"cell_voltages\" element: {self.values}")
+            for cellNumber, cellVoltage in self.values["cell_voltages"].items():
+                # that a single cell voltage is lower/higher than the overall min/max voltage value is common and happens because of different voltage read times!
+                if cellVoltage < vMin:
+                    #self.logger.info(self, f"cell {cellNumber} has lower voltage {cellVoltage} as vMin mentioned by daly bms {vMin}")
+                    vMin = cellVoltage
+                elif cellVoltage > vMax:
+                    #self.logger.info(self, f"cell {cellNumber} has higher voltage {cellVoltage} as vMax mentioned by daly bms {vMax}")
+                    vMax = cellVoltage
+                voltageList.append(cellVoltage)
 
 
-        errorInjectionTest = 0#0 # 2, 3, ..., 8
-        errorInjectionInterface = "BmsInterfaceAccu1"
-        #errorInjectionInterface = "BmsInterfaceAccu2"
-        if errorInjectionTest:
-            if self.name == errorInjectionInterface:
-                if self.timer("errorInjection", timeout = 10, autoReset = False):
-                    extraText = ""
-                    overVoltage = 3.67      # accumulator dependent! should be larger than vMax parameter for BMS
-                    underVoltage = 2.78     # accumulator dependent! should be smaller than vMin parameter for BMS
-                    # undervoltage tests
-                    if errorInjectionTest == 1:
-                        vMin = underVoltage
-                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
-                    elif errorInjectionTest == 2:
-                        voltageList[0]  = underVoltage
-                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
-                    elif errorInjectionTest == 3:
-                        voltageList[3]  = underVoltage
-                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
-                    elif errorInjectionTest == 4:
-                        voltageList[-1] = underVoltage
-                        extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
-                    # overvoltage tests
-                    elif errorInjectionTest == 5:
-                        vMax = overVoltage
-                        extraText = "voltage too high should react within 10 seconds"
-                    elif errorInjectionTest == 6:
-                        voltageList[0]  = overVoltage
-                        extraText = "voltage too high should react within 10 seconds"
-                    elif errorInjectionTest == 7:
-                        voltageList[3]  = overVoltage
-                        extraText = "voltage too high should react within 10 seconds"
-                    elif errorInjectionTest == 8:
-                        voltageList[-1] = overVoltage
-                        extraText = "voltage too high should react within 10 seconds"
+            errorInjectionTest = 0  # 0, 1, 2, 3, ..., 8
+            errorInjectionInterface = "BmsInterfaceAccu1"
+            #errorInjectionInterface = "BmsInterfaceAccu2"
+            if errorInjectionTest:
+                if self.name == errorInjectionInterface:
+                    if self.timer("errorInjection", timeout = 10, autoReset = False):
+                        extraText = ""
+                        overVoltage = 3.67      # accumulator dependent! should be larger than vMax parameter for BMS
+                        underVoltage = 2.78     # accumulator dependent! should be smaller than vMin parameter for BMS
+                        # undervoltage tests
+                        if errorInjectionTest == 1:
+                            vMin = underVoltage
+                            extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
+                        elif errorInjectionTest == 2:
+                            voltageList[0]  = underVoltage
+                            extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
+                        elif errorInjectionTest == 3:
+                            voltageList[3]  = underVoltage
+                            extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
+                        elif errorInjectionTest == 4:
+                            voltageList[-1] = underVoltage
+                            extraText = "voltage too low should react within 60 seconds, or whatever is parametrized as vMinTimer for BMS!"
+                        # overvoltage tests
+                        elif errorInjectionTest == 5:
+                            vMax = overVoltage
+                            extraText = "voltage too high should react within 10 seconds"
+                        elif errorInjectionTest == 6:
+                            voltageList[0]  = overVoltage
+                            extraText = "voltage too high should react within 10 seconds"
+                        elif errorInjectionTest == 7:
+                            voltageList[3]  = overVoltage
+                            extraText = "voltage too high should react within 10 seconds"
+                        elif errorInjectionTest == 8:
+                            voltageList[-1] = overVoltage
+                            extraText = "voltage too high should react within 10 seconds"
 
-                    Supporter.debugPrint(f"ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds" + (", " + extraText if len(extraText) else ""), color = f"{colorama.Fore.RED}")
+                        Supporter.debugPrint(f"ERROR [{errorInjectionTest}] injected for {int(-self.timer('errorInjection', timeout = 10, autoReset = False, remainingTime = True))} seconds" + (", " + extraText if len(extraText) else ""), color = f"{colorama.Fore.RED}")
 
-        # @TODO temperaturen auswerten!!!
+            # @TODO temperaturen auswerten!!!
 
-        if ("errors" in values) and values["errors"]:
-            for errorByte, errorBit in values["errors"]:
-                if errorHandlers[errorByte][errorBit] is not None:
-                    errorHandlers[errorByte][errorBit](values, self.ERROR_CODES[errorByte][errorBit], errorByte, errorBit, f"voltages: {voltageList}")
+            if ("errors" in self.values) and self.values["errors"]:
+                for errorByte, errorBit in self.values["errors"]:
+                    if errorHandlers[errorByte][errorBit] is not None:
+                        errorHandlers[errorByte][errorBit](self.values, self.ERROR_CODES[errorByte][errorBit], errorByte, errorBit, f"voltages: {voltageList}")
 
-        chargingOk = values["mosfet_status"]["charging_mosfet"]
-        dischargingOk = values["mosfet_status"]["discharging_mosfet"]
+            chargingOk = self.values["mosfet_status"]["charging_mosfet"]
+            dischargingOk = self.values["mosfet_status"]["discharging_mosfet"]
 
-        message = {"toggleIfMsgSeen" : self.toggle, "Vmin" : vMin, "Vmax" : vMax, "VoltageList" : voltageList, "BmsEntladeFreigabe" : dischargingOk, "BmsLadeFreigabe" : chargingOk}
-        if "temperatures" in values:
-            message["TemperatureMin"] = values["temperature_range"]["lowest_temperature"]
-            message["TemperatureMax"] = values["temperature_range"]["highest_temperature"]
+            self.message = {"toggleIfMsgSeen" : self.toggle, "Vmin" : vMin, "Vmax" : vMax, "VoltageList" : voltageList, "BmsEntladeFreigabe" : dischargingOk, "BmsLadeFreigabe" : chargingOk}
+            if "temperatures" in self.values:
+                self.message["TemperatureMin"] = self.values["temperature_range"]["lowest_temperature"]
+                self.message["TemperatureMax"] = self.values["temperature_range"]["highest_temperature"]
 
-        self.toggle = not self.toggle       # toggle our toggle bit, if we are here all values have been read successfully!
+            self.toggle = not self.toggle       # toggle our toggle bit, if we are here all values have been read successfully!
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.message, globalPublish = False)
 
-        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False)
+            timeNeeded = int(Supporter.getSecondsSince(timeStamp = self.turnStartTime))
+            if self.maxTurnTime < timeNeeded:
+                self.maxTurnTime = timeNeeded
+            #Supporter.debugPrint(str(self.values), color = "LIGHTRED")
 
-        self.logger.debug(self, str(message))
-        #Supporter.debugPrint(str(values), color = "LIGHTRED")
+            if len(self.keyErrors.keys()):
+                self.logger.info(self, f"turn took {timeNeeded} seconds (max: {self.maxTurnTime}): {self.message}, errors while reading daly BMS values: {self.keyErrorsToStr(self.keyErrors)}")
+                self.keyErrors = {}
+            else:
+                self.logger.info(self, f"turn took {timeNeeded} seconds (max: {self.maxTurnTime}): {self.message}, no errors while reading daly BMS")
+
+            self.values = {}        # clear values for next turn
+            self.index  = 0         # reset key index for next turn
+            self.turnStartTime = Supporter.getTimeStamp()
+
+            # message sent so remove all timeout timers
+            self.timerRemove("overalLReadTimeout", exception = False)
+            self.timer("repeatMessageTimeout", timeout = self.REPEAT_TIMEOUT, autoReset = True, reSetup = True)
+        else:
+            # if daly values reading took more than 30 seconds an old message is repeated to prevent watchdog from being cleared, if values reading failed for 5 minutes an exception will be thrown instead! 
+            if self.message is not None and self.timer("repeatMessageTimeout", timeout = self.REPEAT_TIMEOUT, autoReset = True):
+                self.message["toggleIfMsgSeen"] = self.toggle
+                self.toggle = not self.toggle       # toggle the toggle bit even if message is repeated since otherwise BMS doesn't accept it as new message
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.message, globalPublish = False)
+                self.logger.info(self, f"message repeated since not all daly BMS values read within {self.REPEAT_TIMEOUT} seconds: {self.message}, errors while reading daly BMS values: {self.keyErrorsToStr(self.keyErrors)}")
+
+        if self.timer("overalLReadTimeout", timeout = self.OVERALL_TIMEOUT, autoReset = False):
+            raise Exception(f"daly values not read within {self.OVERALL_TIMEOUT} seconds, errors while reading daly BMS values: {self.keyErrorsToStr(self.keyErrors)}")
 
 
     def threadBreak(self):

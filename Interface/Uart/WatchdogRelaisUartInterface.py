@@ -344,6 +344,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         return result
 
     def triggerWdRelay(self):
+        self.logger.info(self,f'trigger watchdog')
         self.wdEverTriggered = True
         retval = self.sendRequest("W", "1")
         if not retval == "1":

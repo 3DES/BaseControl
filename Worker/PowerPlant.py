@@ -293,7 +293,7 @@ class PowerPlant(Worker):
             for relay in expectedStates:
                 if self.localRelaisData[BasicUsbRelais.gpioCmd][relay] != expectedStates[relay]:
                     checkResult = False
-                    self.logger.error(self, f"Relay {relay} is in state {self.localRelaisData[BasicUsbRelais.gpioCmd][relay]} but expected state is {expectedStates[relay]}")
+                    self.logger.error(self, f"Relay {relay} is in state {self.localRelaisData[BasicUsbRelais.gpioCmd][relay]} but expected state is {expectedStates[relay]}, callstack: {Supporter.getCallStack()}")
                     self.localRelaisData[BasicUsbRelais.gpioCmd][relay] = expectedStates[relay]
                     contentChanged = True
 
@@ -323,9 +323,9 @@ class PowerPlant(Worker):
         }
         self.modifyRelaisData(
             {
-                self.REL_NETZ_AUS : self.AUS,   # initially all relays are OFF: - grid is enabled
-                self.REL_PV_AUS   : self.AUS,   #                               - inverters are enabled
-                self.REL_WR_1     : self.AUS    #                               - inverter output voltages are disabled
+                self.REL_NETZ_AUS : self.AUS,               # initially all relays are OFF: - grid is enabled
+                self.REL_PV_AUS   : self.REL_PV_AUS_open,   #                               - inverters are enabled
+                self.REL_WR_1     : self.AUS                #                               - inverter output voltages are disabled
             },
             expectedStates = {}                 # no expected states during initialization
         )
@@ -338,34 +338,34 @@ class PowerPlant(Worker):
         ====================================================================================================
         startup                  || REL_NETZ_AUS | REL_PV_AUS | REL_WR_1 ||
         -------------------------++--------------+------------+----------++------------------------------------
-                                 || OFF          | OFF        | OFF      || inverters are off, grid is active because hardware reasons but will be swich over to inverter mode whenever grid voltage is lost
+                                 || OFF          | CLOSED     | OFF      || inverters are off, grid is active because hardware reasons but will be swich over to inverter mode whenever grid voltage is lost
         ====================================================================================================
 
         ====================================================================================================
         schalteRelaisAufInverter || REL_NETZ_AUS | REL_PV_AUS | REL_WR_1 ||
         -------------------------++--------------+------------+----------++------------------------------------
-        initially                || OFF          | OFF        | OFF      || = grid mode
-        STATE_0                  || OFF          | ON  <<<    | ON  <<<  || disable inverters, enable inverters output voltages, this prevents the system from switching over to inverter mode
-        STATE_2                  || OFF          | OFF <<<    | ON       || as soon as inverter output voltages are stable switch utility relay over to inverter mode
+        initially                || OFF          | CLOSED     | OFF      || = grid mode
+        STATE_0                  || OFF          | OPEN   <<< | ON  <<<  || disable inverters, enable inverters output voltages, this prevents the system from switching over to inverter mode
+        STATE_2                  || OFF          | CLOSED <<< | ON       || as soon as inverter output voltages are stable switch utility relay over to inverter mode
         ====================================================================================================
 
         ====================================================================================================
         schalteRelaisAufInverter || REL_NETZ_AUS | REL_PV_AUS | REL_WR_1 ||
         error case               ||              |            |          ||
         -------------------------++--------------+------------+----------++------------------------------------
-        initially                || OFF          | OFF        | OFF      || = grid mode
-        STATE_0                  || OFF          | ON  <<<    | ON  <<<  || disable inverters, enable inverters output voltages, this prevents the system from switching over to inverter mode
-        STATE_1                  || OFF          | ON         | OFF <<<  || disable inverter output voltages again since at least one inverter output voltage hasn't ever seen
-        STATE_3                  || OFF          | OFF <<<    | OFF      || back in "startup" state because of output voltage error
+        initially                || OFF          | CLOSED     | OFF      || = grid mode
+        STATE_0                  || OFF          | OPEN   <<< | ON  <<<  || disable inverters, enable inverters output voltages, this prevents the system from switching over to inverter mode
+        STATE_1                  || OFF          | OPEN       | OFF <<<  || disable inverter output voltages again since at least one inverter output voltage hasn't ever seen
+        STATE_3                  || OFF          | CLOSED <<< | OFF      || back in "startup" state because of output voltage error
         ====================================================================================================
 
         ====================================================================================================
         schalteRelaisAufNetz     || REL_NETZ_AUS | REL_PV_AUS | REL_WR_1 ||
         -------------------------++--------------+------------+----------++------------------------------------
-        initially                || OFF          | OFF        | ON       || = inverter mode
-        STATE_0                  || OFF          | ON  <<<    | ON       || disable inverters what leads to automatic back switch to grid mode of the utility relay
-        STATE_1                  || OFF          | ON         | OFF <<<  || switch inverter output voltages off now
-        STATE_2                  || OFF          | OFF <<<    | OFF      || back in "startup" state
+        initially                || OFF          | CLOSED     | ON       || = inverter mode
+        STATE_0                  || OFF          | OPEN   <<< | ON       || disable inverters what leads to automatic back switch to grid mode of the utility relay
+        STATE_1                  || OFF          | OPEN       | OFF <<<  || switch inverter output voltages off now
+        STATE_2                  || OFF          | CLOSED <<< | OFF      || back in "startup" state
         ====================================================================================================
         '''
         # Init some timouts and constants
@@ -409,11 +409,11 @@ class PowerPlant(Worker):
                 self.publishAndLog(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Netz.")
                 self.modifyRelaisData(
                     {
-                        self.REL_PV_AUS   : self.EIN,       # inverters get disabled now
+                        self.REL_PV_AUS   : self.REL_PV_AUS_open,       # inverters get disabled now
                     },
                     expectedStates = {
                         self.REL_NETZ_AUS : self.AUS,
-                        self.REL_PV_AUS   : self.AUS,
+                        self.REL_PV_AUS   : self.REL_PV_AUS_closed,
                         self.REL_WR_1     : self.EIN,
                     }
                 )
@@ -430,7 +430,7 @@ class PowerPlant(Worker):
                         },
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
-                            self.REL_PV_AUS   : self.EIN,
+                            self.REL_PV_AUS   : self.REL_PV_AUS_open,
                             self.REL_WR_1     : self.EIN,
                         }
                     )
@@ -450,11 +450,11 @@ class PowerPlant(Worker):
                     else:
                         self.modifyRelaisData(
                             {
-                                self.REL_PV_AUS   : self.AUS,
+                                self.REL_PV_AUS   : self.REL_PV_AUS_closed,
                             },
                             expectedStates = {
                                 self.REL_NETZ_AUS : self.AUS,
-                                self.REL_PV_AUS   : self.EIN,
+                                self.REL_PV_AUS   : self.REL_PV_AUS_open,
                                 self.REL_WR_1     : self.AUS,
                             }
                         )
@@ -478,7 +478,7 @@ class PowerPlant(Worker):
                         # all these states are already expected but sth. is wrong and inverter output voltages are on, so try to switch off again
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
-                            self.REL_PV_AUS   : self.AUS,
+                            self.REL_PV_AUS   : self.REL_PV_AUS_closed,
                             self.REL_WR_1     : self.AUS,       # this should lead to a switch over to grid mode
                         }
                     )
@@ -497,12 +497,12 @@ class PowerPlant(Worker):
                     # grid mode has to be active, inverter mode has to be inactive, switch on inverter output voltages
                     self.modifyRelaisData(
                         {
-                            self.REL_PV_AUS   : self.EIN,       # disable inverters, stay in grid mode
-                            self.REL_WR_1     : self.EIN,       # enable inverter output voltages
+                            self.REL_PV_AUS   : self.REL_PV_AUS_open,   # disable inverters, stay in grid mode
+                            self.REL_WR_1     : self.EIN,               # enable inverter output voltages
                         },
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
-                            self.REL_PV_AUS   : self.AUS,
+                            self.REL_PV_AUS   : self.REL_PV_AUS_open,
                             self.REL_WR_1     : self.AUS,
                         }
                     )
@@ -520,7 +520,7 @@ class PowerPlant(Worker):
                         },
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
-                            self.REL_PV_AUS   : self.EIN,
+                            self.REL_PV_AUS   : self.REL_PV_AUS_open,
                             self.REL_WR_1     : self.EIN,
                         }
                     )
@@ -534,11 +534,11 @@ class PowerPlant(Worker):
                 if self.timer(name = "waitForOut", timeout = 10, removeOnTimeout = True):
                     self.modifyRelaisData(
                         {
-                            self.REL_PV_AUS   : self.AUS,       # enable inverters what makes utility relay switch over to inverter mode since inverter output voltages are up
+                            self.REL_PV_AUS   : self.REL_PV_AUS_closed,       # enable inverters what makes utility relay switch over to inverter mode since inverter output voltages are up
                         },
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
-                            self.REL_PV_AUS   : self.EIN,
+                            self.REL_PV_AUS   : self.REL_PV_AUS_open,
                             self.REL_WR_1     : self.EIN,
                         }
                     )
@@ -550,11 +550,11 @@ class PowerPlant(Worker):
                 if self.timer(name = "waitForOut", timeout = outputVoltageLowTimer, removeOnTimeout = True):
                     self.modifyRelaisData(
                         {
-                            self.REL_PV_AUS   : self.AUS,       # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
+                            self.REL_PV_AUS   : self.REL_PV_AUS_closed,       # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
                         },
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
-                            self.REL_PV_AUS   : self.EIN,
+                            self.REL_PV_AUS   : self.REL_PV_AUS_open,
                             self.REL_WR_1     : self.AUS,
                         }
                     )
@@ -571,8 +571,8 @@ class PowerPlant(Worker):
                 self.modifyRelaisData(
                     {
                         self.REL_NETZ_AUS : self.AUS,
-                        self.REL_PV_AUS   : self.AUS,
-                        self.REL_WR_1   : self.EIN,       # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
+                        self.REL_PV_AUS   : self.REL_PV_AUS_closed,
+                        self.REL_WR_1     : self.EIN,           # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
                     },
                 )
                 # todo Parameter ??? Diese werden normalerweise vom threadMethod geschrieben
@@ -976,10 +976,21 @@ class PowerPlant(Worker):
         self.TRANSFER_TO_INVERTER = "transferToInverter"
         self.TRANSFER_TO_NETZ     = "transferToNetz"
         self.REL_WR_1     = "relWr"
-        self.REL_PV_AUS   = "relPvAus"
         self.REL_NETZ_AUS = "relNetzAus"
         self.EIN = BasicUsbRelais.REL_ON
         self.AUS = BasicUsbRelais.REL_OFF
+
+        self.tagsIncluded(["REL_PV_AUS_NC"], optional = True, default = True)
+        if self.configuration['REL_PV_AUS_NC'] == True:
+            # "REL_PV_AUS_NC"
+            self.REL_PV_AUS_closed = self.AUS
+            self.REL_PV_AUS_open   = self.EIN
+            self.REL_PV_AUS        = "relPvAus"
+        else:
+            # "REL_PV_AUS_NO"
+            self.REL_PV_AUS_closed = self.EIN
+            self.REL_PV_AUS_open   = self.AUS
+            self.REL_PV_AUS        = "relPvEin"
 
         # init TransferRelais to switch all Relais to initial position
         self.initTransferRelais()

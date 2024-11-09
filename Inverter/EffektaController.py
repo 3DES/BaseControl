@@ -119,8 +119,11 @@ class EffektaController(ThreadObject):
         given data is a dict with one or more Effektas {"effekta_A":{Data}, "effekta_B":{Data}}
         """
         globalEffektaData = {"FloatingModeOr" : False, "OutputVoltageHighOr" : False, "InputVoltageAnd" : True, "OutputVoltageHighAnd" : True, "OutputVoltageLowAnd" : True, "ErrorPresentOr" : False}
+        currentHandledKey = None
+        floatmode = None
         try:
             for name in list(EffektaData.keys()):
+                currentHandledKey = name
                 # from "DeviceStatus2" string take first character because it contains the state of the float mode
                 floatmode = list(EffektaData[name]["DeviceStatus2"])
                 # todo pollen und timeout wenn keine Daten kommen. Es kann sein dass der powerplant die funktion aufruft und der effekta noch keine daten liefert.
@@ -140,7 +143,7 @@ class EffektaController(ThreadObject):
                 if EffektaData[name]["ActualMode"] == "F":
                     globalEffektaData["ErrorPresentOr"] = True
         except Exception as ex:
-            Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}")
+            Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentHandledKey}, floatmode:{floatmode}")
         return globalEffektaData
 
     def updateChargeValues(self):
@@ -158,6 +161,31 @@ class EffektaController(ThreadObject):
         self.homeAutomation.mqttDiscoverySensor(self.EffektaData["EffektaWerte"])
         self.homeAutomation.mqttDiscoverySwitch(["OverloadUtility"], onCmd = json.dumps(self.getSetValueDict("PEb", extern = True)), offCmd = json.dumps(self.getSetValueDict("PDb", extern = True)))
         self.initialMqttSend = True
+        self.queryIndex = 0
+        self.queries = [
+            "QMUCHGCR",      # should be the first entry!
+            "QPI",
+            "QID",
+            "QVFW",
+            "QVFW2",
+            #"QVFW3",        # seems to be empty
+            #"QVFW4",        # seems to be empty
+            "QPIRI",
+            "QFLAG",
+            #"QPIGS",        # read every 20ms by default
+            #"QPIGS2",       # seems to be empty
+            #"QPGSn",        # do we need this?
+            #"QP2GSn",       # do we need this?
+            #"QMOD",         # read every 20ms by default
+            "QPIWS",
+            "QDI",
+            "QMCHGCR",
+            #"QMSCHGCR",     # seems to be empty
+            "QBOOT",
+            "QOPM",
+            #"QCST",         # seems to be empty
+            #"QCVT"          # seems to be empty
+        ]
 
     def threadMethod(self):
         '''
@@ -179,13 +207,14 @@ class EffektaController(ThreadObject):
         # tempDailyDischarge = 0.0
         # tempDailyCharge = 0.0
 
-        if self.timer(name = "queryTimer", timeout = effekta_Query_Cycle, autoReset = True):        # @todo firstTimeTrue = True ?
+        if self.timer(name = "queryTimer", timeout = effekta_Query_Cycle, autoReset = True, firstTimeTrue = True):
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QPIGS"), globalPublish = False, enableEcho = False)
-            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QID"),   globalPublish = False, enableEcho = False)
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMOD"),  globalPublish = False, enableEcho = False)
-            if not self.valideChargeValues:
-                # If valideChargeValues is empty we send a query and fill it if effekta answers
-                self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
+
+            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict(self.queries[self.queryIndex]),   globalPublish = False, enableEcho = False)
+            self.queryIndex += 1
+            if self.queryIndex >= len(self.queries):
+                self.queryIndex = 0
 
         self.sendeGlobalMqtt = False
 
@@ -220,8 +249,9 @@ class EffektaController(ThreadObject):
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"], globalPublish = True, enableEcho = False)
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
-                        # get setable charge values
-                        self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].split()
+                        if not self.valideChargeValues:
+                            # If valideChargeValues is empty we fill it with effekta answers
+                            self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].split()
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
                             self.sendeGlobalMqtt = True
@@ -259,6 +289,8 @@ class EffektaController(ThreadObject):
 
                         self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
                         self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
+                    else:
+                        self.logger.logger.logger.warning(self, f"unhandled Effekta message: {newMqttMessageDict['content']}")
 
 
         now = datetime.datetime.now()

@@ -259,7 +259,6 @@ class Debugger(ThreadObject):
         self.sensorValues = {"LogLevel" : Logger.get_logLevel().value, "PrintLogLevel" : Logger.get_printLogLevel().value}
         for sensor in sorted(self.sensorValues.keys()):
             valueTemplate = "{{ value_json." + sensor + " }}"
-            #Supporter.debugPrint(f"{valueTemplate}", color = "LIGHTRED", borderSize = 10)
             self.homeAutomation.mqttDiscoveryInputNumberSlider(sensors = [sensor], maxValDict = {sensor : 5}, stateTopics = {sensor : self.outTopic}, valueTemplates = {sensor : valueTemplate})
         self.sensorValues["LogFilter"] = Logger.get_logFilter()
         self.sensorValues["PrintLogFilter"] = Logger.get_printLogFilter()

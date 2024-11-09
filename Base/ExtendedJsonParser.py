@@ -2,6 +2,7 @@
 from ply import lex
 import ply.yacc as yacc
 import re
+import copy
 
 class ExtendedJsonParser(object):
     HIDE_STRING = "##########"
@@ -283,7 +284,7 @@ class ExtendedJsonParser(object):
     def parse(self, extendedJsonString : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         self.combineDicts = combineDicts
         self.protectRegex = re.compile("{0}".format(protectRegex))
-        return self.parser.parse(extendedJsonString)
+        return copy.deepcopy(self.parser.parse(extendedJsonString, lexer = self.lexer))
 
     def parseFile(self, fileName : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         self.fileName = fileName

@@ -161,7 +161,7 @@ class BasicBms(ThreadObject):
             else:
                 # add a false to the list if there is no alive info from bms (used for initial state)
                 toggleList.append(False)
-        
+
         # if all toggle bits have been seen toggling publish 
         if all(toggleList):
             if self.allDevicesPresent():
@@ -241,8 +241,7 @@ class BasicBms(ThreadObject):
 
                     if self.timer(name = "timerVmin", timeout = self.configuration["parameters"]["vMinTimer"]):
                         self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = False
-                        self.clearWatchdog(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmin']}V fall below specified voltage of {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
-                        raise Exception(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmin']}V fall below specified voltage of {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
+                        self.clearWatchdog(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmin']}V fell below specified voltage of {self.configuration['parameters']['vMin']}V for {self.configuration['parameters']['vMinTimer']}s.")
                 else:
                     self.globalBmsWerte["calc"]["VminOk"] = True
                     self.globalBmsWerte["calc"]["BmsEntladeFreigabe"] = True
@@ -260,11 +259,10 @@ class BasicBms(ThreadObject):
                 if self.globalBmsWerte["merged"]["Vmax"] > self.configuration["parameters"]["vMax"]:
                     self.globalBmsWerte["calc"]["VmaxOk"] = False
 
-                    vMaxTimer = 10      # hard coded timeout value for vMax of 10 seconds, should not be changed!
-                    if self.timer(name = "timerVmax", timeout = vMaxTimer):
+                    V_MAX_TIMER = 10      # hard coded timeout value for vMax of 10 seconds, should not be changed!
+                    if self.timer(name = "timerVmax", timeout = V_MAX_TIMER):
                         self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = False
-                        self.clearWatchdog(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmax']}V exceeds specified voltage of {self.configuration['parameters']['vMax']}V for {vMaxTimer}s.")
-                        raise Exception(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmax']}V exceeds specified voltage of {self.configuration['parameters']['vMax']}V for {vMaxTimer}s.")
+                        self.clearWatchdog(f"Any CellVoltage of {self.globalBmsWerte['merged']['Vmax']}V exceeds specified voltage of {self.configuration['parameters']['vMax']}V for {V_MAX_TIMER}s.")
                 else:
                     self.globalBmsWerte["calc"]["VmaxOk"] = True
                     self.globalBmsWerte["calc"]["BmsLadeFreigabe"] = True
