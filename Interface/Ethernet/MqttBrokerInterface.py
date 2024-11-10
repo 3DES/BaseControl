@@ -1,8 +1,10 @@
 import time
 import paho.mqtt.client as mqtt
+import json
 
 from Base.InterfaceBase import InterfaceBase
 from Base.Supporter import Supporter
+from MqttBridge.MqttBridge import MqttBridge
 
 
 class MqttBrokerInterface(InterfaceBase):
@@ -19,12 +21,12 @@ class MqttBrokerInterface(InterfaceBase):
         '''
         super().__init__(threadName, configuration)
         self.tagsIncluded(["user", "password", "server", "port", "sendRetained"])
+        self.tagsIncluded(["internalBridge"], optional = True, default = "MqttBridge")
 
     def connectMqtt(self):
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
-        self.dontCareList = {}
         self.logger.info(self, f"{self.name}: Try to establish MQTT connection")
         self.client.username_pw_set(self.configuration["user"], self.configuration["password"])
 
@@ -56,14 +58,9 @@ class MqttBrokerInterface(InterfaceBase):
         tempMsg = str(Supporter.decode(msg.payload))
 
         self.logger.debug(self, f"MQTT message received: {tempMsg} from {tempTopic}")
-        # if topic and msg is in dontCareList we will ignore the msg
-        # we have to check first if topic is in the list
-        if (tempTopic in self.dontCareList) and (self.dontCareList[tempTopic] == tempMsg):
-            del self.dontCareList[tempTopic]
-            #Supporter.debugPrint(f"ON_MESSAGE ignored: {tempTopic}, {tempMsg}", color = "RED")
-        else:
-            self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
-            #Supporter.debugPrint(f"ON_MESSAGE: {tempTopic}, {tempMsg}", color = "RED")
+
+        self.mqttPublish(tempTopic, tempMsg, globalPublish = True, enableEcho = False)
+        #Supporter.debugPrint(f"ON_MESSAGE: {tempTopic}, {tempMsg}", color = "RED")
 
     def handleQueueOverflow(self):
         # if there was no on_connect so far and our mqttRxQueue is filled up at a level of 90% we will try to clear the loop at least even if messages get lost
@@ -77,6 +74,8 @@ class MqttBrokerInterface(InterfaceBase):
             self.logger.error(self, "MQTT RX queue was quiet full. We loss Messages!")
 
     def threadInitMethod(self):
+        self.BridgeTopic = self.createOutTopic(self.createProjectTopic(self.configuration["internalBridge"]))
+
         # subscribe internally global to get all global msg
         self.mqttSubscribeTopic("#", globalSubscription = True)
 
@@ -98,27 +97,28 @@ class MqttBrokerInterface(InterfaceBase):
 
 
     def threadMethod(self):
-        if self.timerExists(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME):
-            if self.timer(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, oneShot = True):
-                # (re-)subscribe to projectName/# 
-                self.client.subscribe(f"{self.get_projectName()}/#")
 
         self.handleQueueOverflow()
 
         if self.InitialConnected:
             while not self.mqttRxQueue.empty():
-                newMqttMessageDict = self.mqttRxQueue.get(block = False)      # read a message
+                newMqttMessageDict = self.readMqttQueue(error = False)
     
                 # If messageType == Publish we have to publish The Data to MQTT Broker
                 if newMqttMessageDict["global"]:
                     self.logger.debug(self, " received global queue message :" + str(newMqttMessageDict))
                     try:
-                        self.client.publish(newMqttMessageDict["topic"], newMqttMessageDict["content"], retain = self.configuration["sendRetained"])
-                        # we remember the msg to ignore incomming own msg
-                        self.dontCareList[newMqttMessageDict["topic"]] = newMqttMessageDict["content"]
+                        self.client.publish(newMqttMessageDict["topic"], json.dumps(newMqttMessageDict["content"]), retain = self.configuration["sendRetained"])
                         #Supporter.debugPrint(f"PUBLISH: {newMqttMessageDict['topic']}, {newMqttMessageDict['content']}", color = "RED")
                     except:
-                        self.logger.error(self, "Could not send MQTT msg to broker: "  + str(newMqttMessageDict))
+                        self.logger.error(self, f"Could not send MQTT msg to broker: {str(newMqttMessageDict)}")
+                elif newMqttMessageDict["topic"] == self.BridgeTopic:
+                    if MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE in newMqttMessageDict["content"]:
+                        self.client.unsubscribe(newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE])
+                        self.logger.info(self, f'Unsubscribed locally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE]}')
+                    elif MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE in newMqttMessageDict["content"]:
+                        self.client.subscribe(newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE])
+                        self.logger.info(self, f'Subscribed globally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE]}')
                 elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):
                     # check here msg for class Mosquitto
                     self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
