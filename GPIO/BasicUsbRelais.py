@@ -56,7 +56,6 @@ class BasicUsbRelais(ThreadObject):
             self.logger.warning(self, f"timeBetweenTests parameter is too short and will be set to {self._MIN_TIME_BETWEEN_TESTS}")
             self.configuration["timeBetweenTests"] = self._MIN_TIME_BETWEEN_TESTS
         self.tagsIncluded(["publish"], optional = True, default = False, valueType = type(True))
-        Supporter.debugPrint(f"publish is {self.configuration['publish']}", color = "LIGHTRED", borderSize = 5)
         self.triggerActive = True
         self.executedTestsCounter = 0
 
