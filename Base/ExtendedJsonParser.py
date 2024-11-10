@@ -309,6 +309,7 @@ if __name__ == '__main__':
             "3" : [ "g", "h" , { "i" : "j" } ],  # foo
             "4" : False,
             "5" : falsE,
+            "P" : "C:\\Program Files (x86)\AVRDUDESS\avrDude.exe"
         },
     }
     '''
