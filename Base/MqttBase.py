@@ -75,14 +75,42 @@ class MqttBase(Base.Base):
         cls._illegal_call()
 
 
-    @classmethod
-    def mqttLock(cls):
-        MqttBase._MqttBase__mqttLock_always_use_getters_and_setters.acquire()
+    def mqttLocked(self):
+        '''
+        To test if the caller is the one that got the lock
+        '''
+        if not hasattr(self, '_semaphoreLocked'):
+            self._semaphoreLocked = False
+        return self._semaphoreLocked
+
+
+    def mqttLock(self):
+        '''
+        To get the publish lock (reader/writer semaphore so that all writers are stopped when the reader wants to read)
+        '''
+        self._semaphore(True)
+        self._semaphoreLocked = True
+
+
+    def mqttUnlock(self):
+        '''
+        To release the publish lock (reader/writer semaphore so that all writers are stopped when the reader wants to read)
+        '''
+        self._semaphore(False)
+        self._semaphoreLocked = False
 
 
     @classmethod
-    def mqttUnlock(cls):
-        MqttBase._MqttBase__mqttLock_always_use_getters_and_setters.release()
+    def _semaphore(cls, lock : bool):
+        '''
+        the lock semaphore itself (reader/writer semaphore so that all writers are stopped when the reader wants to read)
+        '''
+        if lock:
+            # try to get the semaphore, otherwise block
+            MqttBase._MqttBase__mqttLock_always_use_getters_and_setters.acquire()
+        else:
+            # release the semaphore again
+            MqttBase._MqttBase__mqttLock_always_use_getters_and_setters.release()
 
 
     @classmethod
@@ -494,7 +522,7 @@ class MqttBase(Base.Base):
         self.mqttSendPackage(MqttBase.MQTT_TYPE.DISCONNECT)
 
 
-    def mqttPublish(self, topic : str, content, globalPublish : bool = True, enableEcho : bool = False):
+    def mqttPublish(self, topic : str, content, globalPublish : bool = True, enableEcho : bool = False, lock : bool = True):
         '''
         Publish some message locally or globally
         If content is a dict, it's dumped to a string
@@ -509,7 +537,8 @@ class MqttBase(Base.Base):
             
         self.mqttSendPackage(messageType,
                              topic = topic,
-                             content = content)
+                             content = content,
+                             lock = lock)
 
 
     def watchDogTimeRemaining(self):
@@ -714,7 +743,7 @@ class MqttBase(Base.Base):
                     senderObj.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
 
 
-    def mqttSendPackage(self, mqttCommand : MQTT_TYPE, topic : str = None, content = None, incocnito : str = None):
+    def mqttSendPackage(self, mqttCommand : MQTT_TYPE, topic : str = None, content = None, incocnito : str = None, lock : bool = True):
         '''
         Universal send method to send all types of supported mqtt messages
         '''
@@ -736,9 +765,13 @@ class MqttBase(Base.Base):
                 if not self.validateTopic(topic):
                     raise Exception(self.name + " tried to send invalid topic : " + str(mqttMessageDict)) 
 
-            # barrier so all writers can be blocked by the one reader
-            self.mqttLock()
-            self.mqttUnlock()
+            if lock == self.mqttLocked():
+                raise Exception(f"locking error: lock == mqttLocked() == {lock}, but they shouldn't be equal!")
+
+            if lock:
+                # barrier so all writers can be blocked by the one reader
+                self.mqttLock()
+                self.mqttUnlock()
             self.get_mqttTxQueue().put(mqttMessageDict, block = False)
         else:
             raise Exception(self.name + " tried to send invalid mqtt type: " + str(mqttMessageDict)) 

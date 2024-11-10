@@ -20,6 +20,10 @@ class MqttBridge(ThreadObject):
     __globalSubscribers_always_use_getters_and_setters = {}         # all subscriptions for global messages (all received from an external broker will be sent to these subscribers)
 
 
+    GLOBAL_SUBSCRIBER_MESSAGE = "SUBSCRIBE"
+    GLOBAL_UNSUBSCRIBER_MESSAGE = "UNSUBSCRIBE"
+
+
     @classmethod
     def setup_mqttListeners(cls):
         '''
@@ -115,6 +119,11 @@ class MqttBridge(ThreadObject):
                 "topicFilter": topicFilterLevels,
                 "queue"      : queue,
             })
+
+            # global subscribtions have to be sent out to MqttBridge out topic so that e.g. MqttBrokerInterface gets them and can subscribe by external mqtt server (usually mosquitto)
+            if globalSubscription:
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {self.GLOBAL_SUBSCRIBER_MESSAGE : topicFilter}, globalPublish = False, enableEcho = False, lock = False)
+            
             self.logger.info(self, Supporter.encloseString(subscriber) + " subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))
         else:
             self.logger.warning(self, Supporter.encloseString(subscriber) + " already subscribed " + ("globally" if globalSubscription else "locally") + " for " + Supporter.encloseString(topicFilter))            
@@ -141,7 +150,7 @@ class MqttBridge(ThreadObject):
                 if not len(subscriptions[subscriber]):
                     del(subscriptions[subscriber])
             return unsubscribed
-            
+
         if subscriber not in self.get_mqttListeners():
             raise Exception("un-subscriber is not a registered MQTT listener : " + str(subscriber))
 
@@ -163,6 +172,10 @@ class MqttBridge(ThreadObject):
                     unsubscribeText += " and "
                 unsubscribeText += "locally"
             self.logger.info(self, f"{Supporter.encloseString(subscriber)} unsubscribed {unsubscribeText} from {Supporter.encloseString(topicFilter)}")
+
+        # global un-subscribtions have to be sent out to MqttBridge out topic so that e.g. MqttBrokerInterface gets them and can un-subscribe by external mqtt server (usually mosquitto)
+        if unsubscribedGlobally:
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {self.GLOBAL_UNSUBSCRIBER_MESSAGE : topicFilter}, globalPublish = False, enableEcho = False, lock = False)
 
 
     def disconnect_subscriber(self, subscriber : str):
