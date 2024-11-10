@@ -56,7 +56,7 @@ class BasicUsbRelais(ThreadObject):
             self.logger.warning(self, f"timeBetweenTests parameter is too short and will be set to {self._MIN_TIME_BETWEEN_TESTS}")
             self.configuration["timeBetweenTests"] = self._MIN_TIME_BETWEEN_TESTS
         self.tagsIncluded(["publish"], optional = True, default = False, valueType = type(True))
-
+        Supporter.debugPrint(f"publish is {self.configuration['publish']}", color = "LIGHTRED", borderSize = 5)
         self.triggerActive = True
         self.executedTestsCounter = 0
 
@@ -213,36 +213,39 @@ class BasicUsbRelais(ThreadObject):
             self.logger.debug(self, f"discover sensor at topic {sensorTopic}, message {preparedMsg}")
 
         # publish outputs (= relays) only if publish parameter has been set to True 
-        if self.configuration["publish"]:
-            outputNames = []
-            reverseRelayDict = {}
-            if "outputs" in self.configuration:
-                outputNames = [f"Relay{i}" for i in range(self.configuration["outputs"])]
-                reverseRelayDict = {f"Relay{i}" : f"Relay{i}" for i in range(self.configuration["outputs"])}
-            if "relMapping" in self.configuration:
-                # relMapping can contain a relay list for some relays!
-                for relay in self.configuration["relMapping"].keys():
-                    if type(self.configuration["relMapping"][relay]) == list:
-                        outputList = self.configuration["relMapping"][relay]        # take the defined list
-                    else:
-                        outputList = [self.configuration["relMapping"][relay]]      # create a list with one element
+        outputNames = []
+        reverseRelayDict = {}
+        if "outputs" in self.configuration:
+            outputNames = [f"Relay{i}" for i in range(self.configuration["outputs"])]
+            reverseRelayDict = {f"Relay{i}" : f"Relay{i}" for i in range(self.configuration["outputs"])}
+        if "relMapping" in self.configuration:
+            # relMapping can contain a relay list for some relays!
+            for relay in self.configuration["relMapping"].keys():
+                if type(self.configuration["relMapping"][relay]) == list:
+                    outputList = self.configuration["relMapping"][relay]        # take the defined list
+                else:
+                    outputList = [self.configuration["relMapping"][relay]]      # create a list with one element
 
-                    for outputName in outputList:
-                        if not outputName in outputNames:
-                            outputNames.append(outputName)
-                        reverseRelayDict[outputName] = relay        # overwrite named relays, all others will get RelayN as name
+                for outputName in outputList:
+                    if not outputName in outputNames:
+                        outputNames.append(outputName)
+                    reverseRelayDict[outputName] = relay        # overwrite named relays, all others will get RelayN as name
 
-            for outputName in outputNames:
-                niceName = f"{self.name} {outputName}"
-                sensorName = outputName
-                if outputName != reverseRelayDict[outputName]:
-                    niceName += f" ({reverseRelayDict[outputName]})"
+        for outputName in outputNames:
+            niceName = f"{self.name} {outputName}"
+            sensorName = outputName
+            if outputName != reverseRelayDict[outputName]:
+                niceName += f" ({reverseRelayDict[outputName]})"
 
-                switchTopic = self.homeAutomation.getDiscoverySwitchTopic(self.name, outputName)
-                preparedMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs", payloadOn = f'{{ "inputs" : {{"{sensorName}" : "1"}} }}', payloadOff = f'{{ "inputs" : {{"{sensorName}" : "0"}} }}', stateOn = '1', stateOff = '0')
-                testMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs")
+            switchTopic = self.homeAutomation.getDiscoverySwitchTopic(self.name, outputName)
+            preparedMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs", payloadOn = f'{{ "inputs" : {{"{sensorName}" : "1"}} }}', payloadOff = f'{{ "inputs" : {{"{sensorName}" : "0"}} }}', stateOn = '1', stateOff = '0')
+            testMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs")
+            if self.configuration["publish"]:
                 self.mqttPublish(switchTopic, preparedMsg, globalPublish = True, enableEcho = False)
                 self.logger.debug(self, f"discover switch at topic {switchTopic}, message {preparedMsg}")
+            else:
+                self.mqttPublish(switchTopic, "", globalPublish = True, enableEcho = False)
+                self.logger.debug(self, f"un-discover switch at topic {switchTopic}")
 
 
     def threadSimmulationSupport(self):
