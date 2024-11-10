@@ -67,7 +67,7 @@ class Logger(ThreadBase):
     __logBuffer_always_use_getters_and_setters      = collections.deque([], 10000)  # length of 10000 elements
     __preLogBuffer_always_use_getters_and_setters   = []                            # list to collect all log messages created before logger has been started up (they should be printed too for the case the logger will never come up!), if the logger comes up it will log all these messages first!
     __logFilter_always_use_getters_and_setters      = r""                           # filter regex for what logs will be logged
-    __printLogFilter_always_use_getters_and_setters = r""                           # filter regex for what logs will be printed (what is not logged cannnot be printed, so log filter go first!)
+    __printLogFilter_always_use_getters_and_setters = r""                           # filter regex for what logs will be printed (what is not logged cannnot be printed, so log filter goes first!)
 
 
     @classmethod

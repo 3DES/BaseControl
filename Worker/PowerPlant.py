@@ -976,6 +976,7 @@ class PowerPlant(Worker):
         self.TRANSFER_TO_INVERTER = "transferToInverter"
         self.TRANSFER_TO_NETZ     = "transferToNetz"
         self.REL_WR_1     = "relWr"
+        self.REL_PV_AUS   = "relPvAus"
         self.REL_NETZ_AUS = "relNetzAus"
         self.EIN = BasicUsbRelais.REL_ON
         self.AUS = BasicUsbRelais.REL_OFF
@@ -985,12 +986,10 @@ class PowerPlant(Worker):
             # "REL_PV_AUS_NC"
             self.REL_PV_AUS_closed = self.AUS
             self.REL_PV_AUS_open   = self.EIN
-            self.REL_PV_AUS        = "relPvAus"
         else:
             # "REL_PV_AUS_NO"
             self.REL_PV_AUS_closed = self.EIN
             self.REL_PV_AUS_open   = self.AUS
-            self.REL_PV_AUS        = "relPvEin"
 
         # init TransferRelais to switch all Relais to initial position
         self.initTransferRelais()

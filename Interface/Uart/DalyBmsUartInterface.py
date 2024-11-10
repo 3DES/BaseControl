@@ -15,10 +15,6 @@ class DalyBmsUartInterface(BasicUartInterface):
     '''
 
 
-    _ERROR_REPEATS = 10         # in case of communication error 20 repeats will be done before an exception is thrown
-
-
-
     """
     The error messages are taken from the "Part 4_ Daly RS485+UART Protocol.pdf",
     so the translation quality isn't that great yet.

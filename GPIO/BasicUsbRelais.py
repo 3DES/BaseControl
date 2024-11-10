@@ -303,7 +303,7 @@ class BasicUsbRelais(ThreadObject):
                                             tempRelais.update({self.configuration["relMapping"][key] : newMqttMessageDict["content"][self.gpioCmd][key]})
                                         if not (newMqttMessageDict["content"][self.gpioCmd][key] in [self.REL_OFF, self.REL_ON]):
                                             raise Exception(f'{self.name} got a wrong value for relay state. Check your code. Relayname was: {key}, value: {newMqttMessageDict["content"][self.gpioCmd][key]}')
-                                
+
                                 # since gpioHandlers usually publish more than just our relays here publish relay states only if there were some in the received message
                                 if relaysFound:
                                     self.mqttPublish(self.interfaceInTopics[0], {"setRelay" : tempRelais}, globalPublish = False, enableEcho = False)
@@ -319,7 +319,7 @@ class BasicUsbRelais(ThreadObject):
                             self.logger.debug(self, f"got message from not registered handler what is OK since 'publish' configuration has been set to True: {newMqttMessageDict}")
                         else:
                             raise Exception(f'{self.name} got message from unknown handler: {newMqttMessageDict}\nvalid handlers: {self.configuration["gpioHandler"]}')
-                        
+
 
         if self.timer(name = "timerStateReq", timeout = 60):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd" : "readRelayState"}, globalPublish = False, enableEcho = False)

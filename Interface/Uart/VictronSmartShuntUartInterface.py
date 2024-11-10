@@ -137,7 +137,7 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
             newMqttMessageDict = self.readMqttQueue(error = False)
             if "cmd" in newMqttMessageDict["content"]:
                 if newMqttMessageDict["content"]["cmd"] == "resetSoc":
-                    # @todo Victron resetten, falls das über die Kommunikationsschnittstelle irgendwie möglich ist, ggf. ist das auch garnicht nötig, wenn sich der Victron Shunt selbst beim Erreichen der Max.Spg. selbst resettet
+                    # @todo Victron resetten, falls das ueber die Kommunikationsschnittstelle irgendwie moeglich ist, ggf. ist das auch garnicht noetig, wenn sich der Victron Shunt selbst beim Erreichen der Max.Spg. selbst resettet
                     pass
 
         self.serialReset_input_buffer()
@@ -168,8 +168,12 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
                 "H8":    53000              # Vmax
             }
 
+        self.logger.debug(self, f"Victron values from interface {self.matchedValues}")
         self.SocMonitorWerte[self.CURRENT_TEXT]         = round(int(self.matchedValues["I"]) / 1000, 2)
-        self.SocMonitorWerte[self.PERCENT_TEXT]         = int(self.matchedValues["SOC"]) / 10
+        if self.matchedValues["SOC"] != b'---':
+            self.SocMonitorWerte[self.PERCENT_TEXT]         = int(self.matchedValues["SOC"]) / 10
+        else:
+            self.SocMonitorWerte[self.PERCENT_TEXT] = 80        # dummy @todo remove this and replace it with retained message!
         self.SocMonitorWerte[self.VOLTAGE_TEXT]         = round(int(self.matchedValues["V"]) / 1000, 2)
         self.SocMonitorWerte[self.ALARM_TEXT]           = str(self.matchedValues["Alarm"])
         self.SocMonitorWerte[self.ALARM_REASON_TEXT]    = str(self.matchedValues["AR"])

@@ -126,16 +126,16 @@ class WatchDog(ThreadObject):
                 if "sender" in newMqttMessageDict["content"]:
                     content = self.extendedJson.parse(newMqttMessageDict["content"])
                     if "sender" in content:
-                        sender = self.extendedJson.parse(newMqttMessageDict["content"])["sender"]
-    
+                        sender = content["sender"]
+
                         # do we expect a thread with this name?
                         if sender not in self.configuration["expectThreads"]:
                             raise Exception("watch dog found unexpected thread [" + sender + "]")
-    
+
                         # ensure there is a timestamp for the sender of the currently received message (if not use startup timeout)
                         if sender not in self.watchDogLastInformedDict:
                             self.watchDogLastInformedDict[sender] = self.watchDogLastInformedInitTime   # this will immediately be overwritten with current time but we need the startup time here for remaining time calculation
-    
+
                         # ignore "ignored" threads otherwise timing calculation for diagnosis could get damaged
                         if sender not in self.configuration["ignoreThreads"]:
                             # calculate remaining time and check if it is shorter as the current minimum remaining time
@@ -143,16 +143,16 @@ class WatchDog(ThreadObject):
                             if timeLeftForSender < self.remainingTime["minimum"]:
                                 self.remainingTime["minimum"] = timeLeftForSender
                                 self.remainingTime["minimumThread"] = sender
-    
+
                             # warning in case current remaining time becomes shorter than defined warning time
                             if timeLeftForSender <= self.configuration["warningTime"]:
                                 self.logger.warning(self, f"detected remaining time for {sender} is very short: " + Supporter.encloseString(str(self.remainingTime)))
-    
+
                             # finally set new timeout for current sender
                             self.watchDogLastInformedDict[sender] = self.calculateNextTimeoutTime()
                     else:
                         self.logger.warning(self, f"received message {content}, {newMqttMessageDict['content']}")
-                        
+
 
             # log received message and shortest detected remaining time ever
             self.logger.debug(self, "received message :" +

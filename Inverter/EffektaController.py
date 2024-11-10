@@ -119,11 +119,11 @@ class EffektaController(ThreadObject):
         given data is a dict with one or more Effektas {"effekta_A":{Data}, "effekta_B":{Data}}
         """
         globalEffektaData = {"FloatingModeOr" : False, "OutputVoltageHighOr" : False, "InputVoltageAnd" : True, "OutputVoltageHighAnd" : True, "OutputVoltageLowAnd" : True, "ErrorPresentOr" : False}
-        currentHandledKey = None
+        currentlyHandledKey = None
         floatmode = None
         try:
             for name in list(EffektaData.keys()):
-                currentHandledKey = name
+                currentlyHandledKey = name
                 # from "DeviceStatus2" string take first character because it contains the state of the float mode
                 floatmode = list(EffektaData[name]["DeviceStatus2"])
                 # todo pollen und timeout wenn keine Daten kommen. Es kann sein dass der powerplant die funktion aufruft und der effekta noch keine daten liefert.
@@ -143,7 +143,7 @@ class EffektaController(ThreadObject):
                 if EffektaData[name]["ActualMode"] == "F":
                     globalEffektaData["ErrorPresentOr"] = True
         except Exception as ex:
-            Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentHandledKey}, floatmode:{floatmode}")
+            Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentlyHandledKey}, floatmode:{floatmode}")
         return globalEffektaData
 
     def updateChargeValues(self):
@@ -290,7 +290,7 @@ class EffektaController(ThreadObject):
                         self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
                         self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
                     else:
-                        self.logger.logger.logger.warning(self, f"unhandled Effekta message: {newMqttMessageDict['content']}")
+                        self.logger.logger.logger.info(self, f"unhandled Effekta message: {newMqttMessageDict['content']}")
 
 
         now = datetime.datetime.now()

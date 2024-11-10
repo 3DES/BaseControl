@@ -1,0 +1,308 @@
+{
+    "MqttBridge":
+    {
+        "class":      "MqttBridge.MqttBridge.MqttBridge",
+        "interfaces":
+        {
+            "Mosquitto":
+            {
+                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
+                #"server":       "localhost",
+                "port":         1883,
+                "sendRetained": true                       # for tests you can send not retained
+            }
+        }
+    },
+
+    "Logger":
+    {
+        "projectName": "AccuControl"
+    },
+
+    "StecaL1":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrStecaL1":
+            {
+                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2.2:1.0-port0",  # Steca L1
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "StecaL2":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrStecaL2":
+            {
+                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2.3:1.0-port0",  # Steca L2
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "StecaL3":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "interfaces":
+        {
+            "UartWrStecaL3":
+            {
+                "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2.4:1.0-port0",  # Steca L3
+                "baudrate":     2400
+            }
+        }
+    },
+
+    "Bms":
+    {
+        "class":                   "BMS.BasicBms.BasicBms",
+        "parameters":              {"vMin": 2.8, "vMax": 3.65, "vMinTimer": 60, "vBal": 3.5},  # optional, vbal will manage relBalance. you can map it to a gpio
+        "balancingHysteresisTime": 600,                                                        # balancing state switch not faster than 10 minutes
+        "interfaces":
+        {
+            "BmsInterfaceAccu1":
+            {
+                "connection":    "Interface.Uart.DalyBmsUartInterface.DalyBmsUartInterface",
+                "interface":     "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.1.2:1.0-port0",  # BMS Accu 1
+                "baudrate":      9600,       # 8N1
+                "interfaceType": "USB",
+                "errorFilter":   "FFFF0FFFFFFFFFFF"     # ignore SOC errors from BMS since BMS is used for measurement only!
+            },
+            "BmsInterfaceAccu2":
+            {
+                "connection":    "Interface.Uart.DalyBmsUartInterface.DalyBmsUartInterface",
+                "interface":     "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.1.3:1.0-port0",  # BMS Accu 2
+                "baudrate":      9600,       # 8N1
+                "interfaceType": "USB",
+                "errorFilter":   "FFFF0FFFFFFFFFFF"     # ignore SOC errors from BMS since BMS is used for measurement only!
+            }
+        },
+        "socMonitor": "SocMonitor"
+    },
+
+    "SocMonitor":
+    {
+        "class":            "GridLoad.SocMeter.SocMeter",
+        "startPriority":    -1,               # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+        "startPollingTime": 310,
+        "interfaces":
+        {
+            "UartSocMonitor":
+            {
+                "connection":   "Interface.Uart.VictronSmartShuntUartInterface.VictronSmartShuntUartInterface",
+                "readTimeout":  300,        # 5 minutes timeout
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.1.4:1.0-port0",  # Victron shunt
+                "baudrate":     19200
+            }
+        }
+    },
+
+    "Kaco":
+    {
+        "class":        "Inverter.KacoController.KacoController",
+        "interfaces":
+        {
+            "UartWrKaco":
+            {
+                "connection":      "Interface.Uart.KacoUartInterface.KacoUartInterface",
+                "interface":       "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.2.4.4.1.3:1.0-port0",  # Kaco 1+2+3
+                "baudrate":        9600,
+                "pollingPeriod":   60,         # read 60 seconds
+                "loadCycle":       300,        # send energy of last n seconds (5 minutes = 60s * 5 = 300s)
+                "dumpSerial":      false,      # do not dump serial (useful for debugging)
+                "slaves":                      # bus system (RS485)
+                {             
+                    "Kaco_L1":       1,        # RS485 Address 1 = Kaco_L1
+                    "Kaco_L2":       2,        # RS485 Address 2 = Kaco_L2
+                    "Kaco_L1_L2_L3": 3         # RS485 Address 3 = Kaco_L1_L2_L3
+                }
+            }
+        }
+    },
+
+    "UsbRelaisWd1":
+    {
+        "class":            "GPIO.BasicUsbRelais.BasicUsbRelais",
+        "gpioHandler":      ["PowerPlant", "Bms"],
+        "triggerThread":    "Bms",
+        "relMapping":       {"relNetzAus": "Relay3", "relPvAus": "Relay4", "relWr": "Relay5", "relBalance": "Relay6"},                                  # relNetzAus = K3, relPvAus = K4, relWr = K5, relBalance = K7
+        "inputMapping":     {"Input0" : "watchDogState", "Input1" : "solarContactorPowered", "Input2" : "inverterActive", "Input3" : "gridActive"},     # gridActive = K1, inverterActive = K2, solarContactorPowered = U2out
+        "inputs":           4,      # optionally, but if not given only those outputs will be shown in home automation that are given in inputMapping value, input names are Input0, Input1, ...
+        "outputs":          7,      # common outputs without watchdog (optionally, but if not given only those outputs will be shown in home automation that are given in relMapping value)
+        "watchdogRelays":   ["UsbRelaisWd1", "UsbRelaisWd2"],                                                                                           # ALL watchdog relays have to be given here
+        "publish":          true,   # input and output states will only be published to home automation if this value is True
+        "interfaces":
+        {
+            "UsbRelaisInterfaceWd1":
+            {
+                "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
+                "firmware":     "firmware.hex",
+                #"firmware":     "T_1.7_4xUNPULSED.hex",
+                #"debugVersion": true,       # to be set to true if a debug firmware has been installed!
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2.1.3:1.0-port0",    # Watchdog 1
+                "baudrate":     9600,
+                "rebind":       true,
+                #"autoDump":     true,
+            }
+        }
+    },
+
+    "UsbRelaisWd2":
+    {
+        "class":            "GPIO.BasicUsbRelais.BasicUsbRelais",
+        "gpioHandler":      ["PowerPlant", "Bms"],
+#        "triggerThread":   "PowerPlant",
+        "triggerThread":    "Bms",
+#        "relMapping":      {"relBalance": "Relay3", "relWr": ["Relay0", "Relay1"], "relPvAus": "Relay3", "relNetzAus": "Relay4"},      # not needed so far
+        "inputMapping":     {"Input0" : "watchDogState", "Input1" : "OK12V", "Input2" : "AccuContactorPowered"},
+        "inputs":           4,      # optionally, but if not given only those outputs will be shown in home automation that are given in inputMapping value)
+        "outputs":          7,      # common outputs without watchdog (optionally, but if not given only those outputs will be shown in home automation that are given in relMapping value)
+        "watchdogRelays":   ["UsbRelaisWd1", "UsbRelaisWd2"],                                                                           # ALL watchdog relays have to be given here
+        "publish":          true,   # input and output states will only be published to home automation if this value is True
+        "interfaces":
+        {
+            "UsbRelaisInterfaceWd2":
+            {
+                "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
+                "firmware":     "firmware.hex",
+                #"firmware":     "T_1.7_4xUNPULSED.hex",
+                #"debugVersion": true,       # to be set to true if a debug firmware has been installed!
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2.1.4:1.0-port0",    # Watchdog 2
+                "baudrate":     9600,
+                "rebind":       true,
+                #"autoDump":     true,
+            }
+        }
+    },
+
+    "Debugger":
+    {
+        "class"         : "Base.Debugger.Debugger",
+        "startPriority" : -9,        # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+    },
+
+    "WatchDog":
+    {
+        "class":      "WatchDog.WatchDog.WatchDog",
+        "startPriority": -8,              # priorities work similar to linux nice levels, the more negative a value is the higher start priority it has, tasks without priority have priority 0 by default
+        "setupTime":     300,             # additional time until first check if all threads and only these are registered to give the threads some time to come up (timeout will happen after setupTime + triggerTime + timeout)
+        "triggerTime":   10,              # after that time threads should start sending alive message to watch dog
+        "timeout":       10,              # n seconds timeout after ticker time, after triggerTime + timeout watch dog will raise an Exception
+        "warningTime":   3,               # if minimum measured remaining timeout time is less or equal warningTime log a warning to inform the user about critical timing
+        "expectThreads":                  # expected threads
+        [
+            "Logger",
+            "PowerPlant",
+            "Mosquitto",
+            "MqttBridge",
+            "StecaL1",
+            "StecaL2",
+            "StecaL3",
+            "Bms",
+            "SocMonitor",
+            "Kaco",
+            "UsbRelaisWd1",
+            "UsbRelaisWd2",
+            "EasyMeterGridSide",
+            "EasyMeterHouseSide",
+            "Debugger"
+        ],
+        "ignoreThreads":                    # no timeout monitoring for these ones... but they have to be included in expectedThreads, reason is that usually UARTs can take more time than the watchdog monitor object allows
+        [
+            "UartWrStecaL1",
+            "UartWrStecaL2",
+            "UartWrStecaL3",
+            "BmsInterfaceAccu1",
+            "BmsInterfaceAccu2",
+            "UartSocMonitor",
+            "UsbRelaisInterfaceWd1",
+            "UsbRelaisInterfaceWd2",
+            "EasyMeterGridSideUart",
+            "EasyMeterHouseSideUart",
+            "UartWrKaco",
+            "Wetter"
+        ],
+        "logUpTime":          60            # every 60 seconds create up time message
+    },
+
+    "PowerPlant":
+    {
+        "class": "Worker.PowerPlant.PowerPlant",
+        "managedEffektas": ["StecaL1", "StecaL2", "StecaL3"],
+        "socMonitorName": "Bms",
+        "bmsName": "Bms",
+        "weatherName": "Wetter",                            # optional
+        "initModeEffekta": "Auto",                          # Auto, Akku, Netz.  Fallback: Netz
+        "inputs": ["UsbRelaisWd1", "UsbRelaisWd2"],
+        "REL_PV_AUS_NC": false,                             # if True the relay contact is a NC one, otherwise it's a NO one, NC = normally closed, NO = normally open
+    },
+
+    "EasyMeterGridSide":
+    {
+        "class": "GridLoad.EasyMeter.EasyMeter",
+        "priority": 2,      # take energy from 2011 plant only if that from 2023 plant is not enough
+        
+        "loadCycle":            900,        # 15 * 60 seconds = 900 seconds = 15 minutes
+        "gridLossThreshold":    120,        #  2 * 60 seconds = 120 seconds =  2 minutes
+        "decreasingDelta":     1000,        # in case of decreasing power level reduce possible load power by this amount 
+        "increasingDelta":      500,        # in case of increasing power level reduce possible load power by this amount
+        "minimumPowerStep":    1000,        # change load power only if calculated load power is at least that amount larger/smaller than currently used load power      
+        #"messageInterval":       60,        # (optional)
+        
+        "interfaces":
+        {
+            "EasyMeterGridSideUart":
+            {
+                "connection":   "Interface.Uart.EasyMeterUartInterface.EasyMeterUartInterface",
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.2.4.4.1.1:1.0-port0",  # Easy Meter grid side (Zaehler1)
+                "baudrate":      9600,          # 8N1
+                "pollingPeriod": 10             # read from easy meter every 10 seconds is really enough
+            }
+        }
+    },
+
+    "EasyMeterHouseSide":
+    {
+        "class": "GridLoad.EasyMeter.EasyMeter",
+        "priority": 1,      # first take energy from 2023 plant
+        
+        "loadCycle":            900,        # 15 * 60 seconds = 900 seconds = 15 minutes
+        "gridLossThreshold":    120,        #  2 * 60 seconds = 120 seconds =  2 minutes
+        "decreasingDelta":     1000,        # in case of decreasing power level reduce possible load power by this amount 
+        "increasingDelta":      500,        # in case of increasing power level reduce possible load power by this amount
+        "minimumPowerStep":    1000,        # change load power only if calculated load power is at least that amount larger/smaller than currently used load power      
+        #"messageInterval":       60,        # (optional)
+
+        "interfaces":
+        {
+            "EasyMeterHouseSideUart":
+            {
+                "connection":   "Interface.Uart.EasyMeterUartInterface.EasyMeterUartInterface",
+                "interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.2.4.4.1.2:1.0-port0",  # Easy Meter house side (Zaehler2)
+                "baudrate":      9600,          # 8N1
+                "pollingPeriod": 10,            # read from easy meter every 10 seconds is really enough
+                #"autoDump":     true,
+            }
+        }
+    },
+    
+    "Wetter":
+    {
+        "class": "Weather.Weather.WetterOnline"
+    },
+
+    # an @import tag will always overwrite existing values with the content of the given file independent from its position in the json file!
+    # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
+    "@import": [
+        "json/secure.json",         # secure stuff not to be pushed
+#        "json/temporary.json"       # to overwrite values temporarily for debugging or development
+    ]
+}
