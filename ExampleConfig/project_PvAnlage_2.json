@@ -71,6 +71,7 @@
         "gpioHandler": ["PowerPlant"],
         "triggerThread":   "Pylontech",
         "relMapping":{"relWr": ["Relay0", "Relay1"], "relPvAus": "Relay4", "relNetzAus": "Relay3"},
+        "inputMapping":{"Input3":"inverterActive"},
         # In2:NetzSchütz In3:InverterSchütz
         "interfaces":
         {

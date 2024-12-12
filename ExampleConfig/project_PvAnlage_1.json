@@ -103,6 +103,7 @@
         "gpioHandler": ["PowerPlant"],
         "triggerThread":   "Bms",
         "relMapping":{"relWr": ["Relay0", "Relay1"], "relPvAus": "Relay3", "relNetzAus": "Relay4"},
+        "inputMapping":{"Input1":"inverterActive"},
         "interfaces":
         {
             "WdUsbRelais":

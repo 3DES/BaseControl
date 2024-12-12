@@ -45,9 +45,9 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     def _getCmdTemplate(cls, name) -> str:
         return r'{"%s": {{ value }} }' %name
 
+    @classmethod
     def _getCmdStrTemplate(cls, name) -> str:
         return r'{"%s": "{{ value }}" }' %name
-
 
     @classmethod
     def _getPayloadOn(cls, name) -> str:
