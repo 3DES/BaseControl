@@ -39,17 +39,13 @@ class MqttBrokerInterface(InterfaceBase):
 
     def on_connect(self, client, userdata, flags, rc):
         _MOSQUITTO_INITIAL_TIMEOUT = 2
+
+        if len(self.GlobalSubscribedTopics):
+            self.timer(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, reSetup = True, timeout = _MOSQUITTO_INITIAL_TIMEOUT)
+
         self.InitialConnected = True
 
         self.logger.info(self, f"MQTT connected with result code " + str(rc))
-
-        if not self.counter(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, value = 2, autoReset = False):
-            timeout = _MOSQUITTO_INITIAL_TIMEOUT
-        else:
-            timeout = 0.1
-
-        # (re-)setup one-shot-timer with timeout of 2 seconds
-        self.timer(name = self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, reSetup = True, timeout = timeout)
 
     def on_message(self, client, userdata, msg):
         tempTopic = str(msg.topic)
@@ -74,6 +70,7 @@ class MqttBrokerInterface(InterfaceBase):
             self.logger.error(self, "MQTT RX queue was quiet full. We loss Messages!")
 
     def threadInitMethod(self):
+        self.GlobalSubscribedTopics = []
         self.BridgeTopic = self.createOutTopic(self.createProjectTopic(self.configuration["internalBridge"]))
 
         # subscribe internally global to get all global msg
@@ -100,6 +97,12 @@ class MqttBrokerInterface(InterfaceBase):
 
         self.handleQueueOverflow()
 
+        # if timer was setup in onConnect() we resubscribe all topics here 
+        if self.timerExists(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME):
+            if self.timer(self._MOSQUITTO_SUBSCRIBE_TIMER_NAME, oneShot = True):
+                for topic in self.GlobalSubscribedTopics:
+                    self.client.subscribe(topic)
+
         if self.InitialConnected:
             while not self.mqttRxQueue.empty():
                 newMqttMessageDict = self.readMqttQueue(error = False)
@@ -114,11 +117,22 @@ class MqttBrokerInterface(InterfaceBase):
                         self.logger.error(self, f"Could not send MQTT msg to broker: {str(newMqttMessageDict)}")
                 elif newMqttMessageDict["topic"] == self.BridgeTopic:
                     if MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE in newMqttMessageDict["content"]:
-                        self.client.unsubscribe(newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE])
-                        self.logger.info(self, f'Unsubscribed locally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE]}')
+                        try:
+                            self.GlobalSubscribedTopics.remove(newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE])
+                        except:
+                            self.logger.error(self, f'Could not find topic in locally list: {newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE]}')
+                        try:
+                            self.client.unsubscribe(newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE])
+                            self.logger.info(self, f'Unsubscribed globally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE]}')
+                        except:
+                            self.logger.error(self, f'Could not unsubscribe globally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_UNSUBSCRIBER_MESSAGE]}')
                     elif MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE in newMqttMessageDict["content"]:
-                        self.client.subscribe(newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE])
-                        self.logger.info(self, f'Subscribed globally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE]}')
+                        try:
+                            self.GlobalSubscribedTopics.append(newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE])
+                            self.client.subscribe(newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE])
+                            self.logger.info(self, f'Subscribed globally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE]}')
+                        except:
+                            self.logger.error(self, f'Could not subscribe globally: {newMqttMessageDict["content"][MqttBridge.GLOBAL_SUBSCRIBER_MESSAGE]}')
                 elif newMqttMessageDict["topic"] == self.createInTopic(self.getObjectTopic()):
                     # check here msg for class Mosquitto
                     self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
