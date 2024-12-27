@@ -63,7 +63,7 @@ fi
 
 # start parameters
 EXECUTE="__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter user|password|\+49"
-#EXECUTE="__main__.py -w -l=5 -p5 --json-dump --json-dump-filter user|password|\+49 --log-filter=Debugger"
+#EXECUTE="__main__.py -w -l=5 -p5 --json-dump --json-dump-filter user|password|\+49 --log-filter=Victron"
 #EXECUTE="__main__.py -w -l=4 -p=2 --json-dump --json-dump-filter user|password|\+49 --log-filter Bms"
     # from command line you have to execute:
     #   python3 __main__.py -w -l=5 -p=3 --json-dump --json-dump-filter "user|password|\+49"

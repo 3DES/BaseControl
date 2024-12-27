@@ -76,6 +76,7 @@ class EasyMeterUartInterface(BasicUartInterface):
                     continue
 
                 # publish detected message
+                self.logger.debug(self, f"publish message {self.createOutTopic(self.getObjectTopic())}: {message}")
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False, enableEcho = False)
                 published = True
                 #beautified = Supporter.hexAsciiDump(message)

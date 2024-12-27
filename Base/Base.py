@@ -58,6 +58,13 @@ class Base():
                 raise Exception("tagsIncluded called without a configuration dictionary and without self.configuration set")
             configuration = self.configuration
 
+        # if string and not list has been given convert it to list
+        if type(tagNames) != type([]):
+            if type(tagNames) == type(""):
+                tagNames = [tagNames]
+            else:
+                raise Exception(f"type of tagNames is {type(tagNames)} what is not supported, only list or str")
+
         # check and prepare mandatory parameters
         for tagName in tagNames:
             if tagName not in configuration:

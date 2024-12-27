@@ -516,8 +516,8 @@ class EasyMeter(ThreadObject):
         forceHomeAutomationUpdate = False
         if self.timer("messageTimer", timeout = self.configuration["messageInterval"], startTime = Supporter.getTimeOfToday(), firstTimeTrue = False):
             outTopic = self.createOutTopic(self.getObjectTopic())
-            self.mqttPublish(outTopic, self.energyData, globalPublish = False)
             self.logger.debug(self, f"new message published at {outTopic}: {str(self.energyData)}")
+            self.mqttPublish(outTopic, self.energyData, globalPublish = False)
             self.energyData["updatePowerValue"] = False     # set to False (again) for all following messages until it has been decided to set a new power level
             forceHomeAutomationUpdate = True
 

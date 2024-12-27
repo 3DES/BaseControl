@@ -23,6 +23,7 @@ class SocMeter(ThreadObject):
         set SOC Value:    mosquitto_pub -h localhost -p 1883  -u xxx -P xxx -t "HomeAccu/SocMonitor/in" -m "{\"Prozent\":79}"
         '''
         super().__init__(threadName, configuration)
+        self.tagsIncluded("preferRetainedSoc", optional = True, default = False)
 
 
     # thread is not yet ready just because initialization has been done since thread should wait until first SOC message has arrived from interface, so overwrite setThreadStarted() and set the variable manually later on
@@ -75,8 +76,9 @@ class SocMeter(ThreadObject):
                 elif "Prozent" in newMqttMessageDict["content"] and newMqttMessageDict["global"]:
                     # If we receive a global msg with a Prozent key we will forward it to the interface with the cmd setSocValue to set the value
                     self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
-                    if self.SocMonitorWerte["Prozent"] != self.InitAkkuProz:
-                        self.mqttPublish(self.interfaceInTopics[0], {"cmd":["setSocToValue", str(int(newMqttMessageDict["content"]["Prozent"]))]}, globalPublish = False, enableEcho = False)
+                    if (self.SocMonitorWerte["Prozent"] != self.InitAkkuProz) or self.configuration["preferRetainedSoc"]:
+                        publishMessage = {"cmd":["setSocToValue", str(int(newMqttMessageDict["content"]["Prozent"]))]}
+                        self.mqttPublish(self.interfaceInTopics[0], publishMessage, globalPublish = False, enableEcho = False)
 
 
                     # @todo -> soc monitor

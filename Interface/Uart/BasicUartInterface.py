@@ -144,7 +144,7 @@ class BasicUartInterface(InterfaceBase):
             self.reInitSerial()
 
         if dump or self.configuration['autoDump']:
-            Supporter.debugPrint([f"::serialWrite:: serial dump [{Supporter.hexCharDump(data)}]", f"read/matched data [{data}]"])
+            Supporter.debugPrint([f"::serialWrite:: serial dump [{Supporter.hexCharDump(data)}]", f"read/matched data [{data}]", f"reason: {dump} or {self.configuration['autoDump']}"])
 
         return success
 

@@ -78,6 +78,7 @@ class WatchDog(ThreadObject):
         '''
         self.watchDogLastInformedInitTime = self.calculateNextTimeoutTime() + self.configuration["setupTime"]       # initial timeout after that all threads must have been seen at least once (use "setupTime" here since it could take some more time until all threads have been set up)
         self.watchDogLastInformedDict = {}                                                                          # to collect all known threads so far with next timeout time
+        self.watchDogLastInformedOrder = []
 
         self.homeAutomationValues = {
             "startTime"            : Supporter.formattedTime(self.startupTime, shortTime = True),
@@ -135,6 +136,8 @@ class WatchDog(ThreadObject):
                         # ensure there is a timestamp for the sender of the currently received message (if not use startup timeout)
                         if sender not in self.watchDogLastInformedDict:
                             self.watchDogLastInformedDict[sender] = self.watchDogLastInformedInitTime   # this will immediately be overwritten with current time but we need the startup time here for remaining time calculation
+                            self.watchDogLastInformedOrder.append(sender)
+                            #Supporter.debugPrint(f"added {sender} at {self.watchDogLastInformedInitTime}", color = "LIGHTBLUE", borderSize = 2)
 
                         # ignore "ignored" threads otherwise timing calculation for diagnosis could get damaged
                         if sender not in self.configuration["ignoreThreads"]:
@@ -165,9 +168,12 @@ class WatchDog(ThreadObject):
             if len(self.configuration["expectThreads"]) == len(self.watchDogLastInformedDict):
                 # received notification from all expected threads, so startup phase can be finished
                 self.startUpPhase = False   # startup phase is over now
+
                 message = f"all threads ({len(self.configuration['expectThreads'])}) up and running after {int(Supporter.getTimeStamp() - self.startupTime)} seconds"
-                Supporter.debugPrint(message)
                 self.logger.debug(self, message)
+
+                message = [message, "detection order:"] + [ f"    {entry}" for entry in self.watchDogLastInformedOrder]
+                Supporter.debugPrint(message)
             elif Supporter.getTimeStamp() < self.watchDogLastInformedInitTime:
                 # still waiting for some notification (show message every 5 seconds to inform user why watchdog is not switched ON)
                 if self.timer(name = "waitingForMonitoredThreads", timeout = 5, firstTimeTrue = True):

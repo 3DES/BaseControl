@@ -3,6 +3,7 @@ from ply import lex
 import ply.yacc as yacc
 import re
 import copy
+import json
 
 class ExtendedJsonParser(object):
     HIDE_STRING = "##########"
@@ -92,6 +93,7 @@ class ExtendedJsonParser(object):
         return t
 
     def t_STRING(self, t):
+        #r'"((?:\\"|[^"])*)"'
         r'(\\"|\")(\\"|[^\"])*(\\"|\")'
         t.value = t.value[1:-1]     # remove leading and trailing quotation marks
         return t
@@ -284,7 +286,7 @@ class ExtendedJsonParser(object):
     def parse(self, extendedJsonString : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         self.combineDicts = combineDicts
         self.protectRegex = re.compile("{0}".format(protectRegex))
-        return copy.deepcopy(self.parser.parse(extendedJsonString, lexer = self.lexer))
+        return copy.deepcopy(self.parser.parse(extendedJsonString, lexer = self.lexer, tracking = True))
 
     def parseFile(self, fileName : str, combineDicts : bool = True, protectRegex : str = None) -> dict:
         self.fileName = fileName
@@ -308,11 +310,17 @@ if __name__ == '__main__':
             "e" : -42,          # hello again "whats going on here?"
             "3" : [ "g", "h" , { "i" : "j" } ],  # foo
             "4" : False,
-            "5" : falsE,
-            "P" : "C:\\Program Files (x86)\AVRDUDESS\avrDude.exe"
+            "5" : false,
+            "P" : "C:\\Program Files (x86)\\AVRDUDESS\\avrDude.exe",
         },
     }
     '''
+    stuff = '{"name": "Debugger Interface", "command_topic": "AccuControl/Debugger/in", "command_template": "{ \"variable\" : \"{{ value }}\" }"}'
+    stuff = '{"command_template": "{ \"variable\" : \"{{ value }}\" }"}'
+    stuff = '{"X": "{ A : \"B\" }"}'
+    stuff = json.dumps({"X" : "{ \"A\" : \"B\" }"}, indent = 4)
+    stuff = '{\\"schaltschwelleAkkuSchlechtesWetter\\": 75 }'
+    print(f"stuff is {stuff}")
     parser = ExtendedJsonParser()
 
     try:

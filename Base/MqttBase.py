@@ -10,6 +10,7 @@ from strenum import StrEnum    # pip install StrEnum
 
 from Base.Supporter import Supporter
 from Base.InterfaceFactory import InterfaceFactory
+import Base.ExtendedJsonParser
 import Base.Base as Base
 
 
@@ -569,7 +570,7 @@ class MqttBase(Base.Base):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
-    def mqttDiscoverySensor(self, sensors, ignoreKeys : list = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = "", senderName : str = None) -> str:
+    def mqttDiscoverySensor(self, sensors, ignoreKeys : list = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = None, senderName : str = None) -> str:
         """
         sensors: dict, nestedDict oder List der Sensoren die angelegt werden sollen
         ignoreKeys: list. Diese keys werden ignoriert
@@ -803,18 +804,34 @@ class MqttBase(Base.Base):
 
         message = mqttQueue.get(block = False)                                                  # read a message from queue
         infoText = '' if information is None else f" [{information}]"
-        self.logger.debug(self, f"received message{infoText}: {str(message[contentTag])}")      # debug message
+        self.logger.debug(self, f"received message{infoText}: {message}")                       # debug message
         if convert:
+            preString = message[contentTag]
             try:
                 # @todo pruefen ob [contentTag] string enthaelt, falls Inhalt = dict, was dann?
+                if self.name == "PowerPlant" and "schaltschwelle" in preString:
+                    Supporter.debugPrint(f"pre :{preString}", color = "LIGHTRED", borderSize = 5)
                 message[contentTag] = self.extendedJson.parse(message[contentTag])                           # try to convert content into dict
+                if self.name == "PowerPlant" and "schaltschwelle" in preString:
+                    Supporter.debugPrint(f"post:{message[contentTag]}", color = "LIGHTBLUE", borderSize = 5)
             except Exception as ex:
+                hexInfo = ""
+                # filling hexInfo only works if content is of type str
+                if type(message[contentTag]) == str:
+                    hexInfo = '\n' + ' '.join(f'0x{ord(c):02x}' for c in message[contentTag])
                 if error:
-                    self.logger.error(self, f'Cannot convert content {message[contentTag]} to python dict\n{ex}\n' + ' '.join(f'0x{ord(c):02x}' for c in message[contentTag]))
+                    self.logger.error(self, f'Cannot convert content {preString} / {message[contentTag]} to python dict\n{ex})' + hexInfo)
                     if exception:
                         raise
                 else:
-                    self.logger.debug(self, f'Cannot convert content {message[contentTag]} to python dict\n{ex}\n' + ' '.join(f'0x{ord(c):02x}' for c in message[contentTag]))
+                    self.logger.debug(self, f'Cannot convert content {preString} / {message[contentTag]} to python dict\n{ex}' + hexInfo)
+                    if self.name == "PowerPlant" and "schaltschwelle" in preString:
+                        Supporter.debugPrint(f"type:{type(preString)}", color = "LIGHTBLUE", borderSize = 5)
+                        try:
+                            Supporter.debugPrint(f"rep:{Base.ExtendedJsonParser.ExtendedJsonParser().parse(preString)}", color = "LIGHTBLUE", borderSize = 5)
+                        except Exception as ex2:
+                            Supporter.debugPrint(f"exc:{ex}", color = "LIGHTBLUE", borderSize = 5)
+
 
         return message
 
