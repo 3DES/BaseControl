@@ -92,7 +92,7 @@ class ExtendedJsonParser(object):
         return t
 
     def t_STRING(self, t):
-        r'\"([^\"]|\\")*\"'
+        r'(\\"|\")(\\"|[^\"])*(\\"|\")'
         t.value = t.value[1:-1]     # remove leading and trailing quotation marks
         return t
 
