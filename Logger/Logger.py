@@ -218,6 +218,8 @@ class Logger(ThreadBase):
 
         self.logger.info(self, "init (Logger)")
 
+        Logger.loggerThread = self          # remember this thread as global logger thread 
+
 
 #        print(f"timer: {self.timer('abc', timeout = 3)}")
 #        time.sleep(1)
@@ -524,24 +526,28 @@ class Logger(ThreadBase):
             data.append(text) 
             data.append("#" * 100) 
             return data
+        
+        if hasattr(Logger, "loggerThread"):
+            Logger.loggerThread.threadMethod()          # call thread method to get all messages from the queue processed before log file is going to be written
 
+            bufferCopy = []
 
-        bufferCopy = []
-
-        # insert lead in
-        if len(leadIn):
-            bufferCopy += insertFramedText(leadIn)
-
-        # take all collected messages from log buffer
-        bufferCopy += cls.get_logBuffer().copy()
-
-        # insert lead out
-        if len(leadOut):
-            bufferCopy += insertFramedText(leadOut)
-
-        # finally write log file
-        with open(logFileName, 'w') as logFile:
-            for message in bufferCopy:
-                logFile.write(message + "\n")
-
-            logFile.close()
+            # insert lead in
+            if len(leadIn):
+                bufferCopy += insertFramedText(leadIn)
+    
+            # take all collected messages from log buffer
+            bufferCopy += cls.get_logBuffer().copy()
+    
+            # insert lead out
+            if len(leadOut):
+                bufferCopy += insertFramedText(leadOut)
+    
+            # finally write log file
+            with open(logFileName, 'w') as logFile:
+                for message in bufferCopy:
+                    logFile.write(message + "\n")
+    
+                logFile.close()
+        else:
+            raise Exception("Logger not yet instantiated!")
