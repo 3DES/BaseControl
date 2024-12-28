@@ -846,7 +846,7 @@ class PowerPlant(Worker):
         #    #"gridActive"
         #    #"inverterActive"
 
-        # check if its our own topic
+        # check if its our own out topic
         if self.createOutTopic(self.getObjectTopic()) in message["topic"]:
             # we use it and unsubscribe
             self.updateScriptValues(message["content"])
@@ -860,7 +860,7 @@ class PowerPlant(Worker):
 
             # we got our own data so we don't need to auto-initialize inverters
             self.localDeviceData["AutoInitRequired"] = False
-        else:
+        elif self.createInTopic(self.getObjectTopic()) in message["topic"]:
             # check if the incoming value is part of self.setableScriptValues and if true then take the new value
             for key in self.setableScriptValues:
                 if key in message["content"]:
@@ -891,7 +891,8 @@ class PowerPlant(Worker):
                         self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                     elif message["content"] == "WrAufAkku":
                         self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
-
+        else:
+            # incoming msg is for other devices
             # check if a expected device sent a msg and store it
             for key in self.expectedDevices:
                 if key in message["topic"]:
