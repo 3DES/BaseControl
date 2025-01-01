@@ -93,9 +93,8 @@ class ExtendedJsonParser(object):
         return t
 
     def t_STRING(self, t):
-        #r'"((?:\\"|[^"])*)"'
-        r'(\\"|\")(\\"|[^\"])*(\\"|\")'
-        t.value = t.value[1:-1]     # remove leading and trailing quotation marks
+        r'"((?:\\"|[^"])*)"'
+        t.value = t.value[1:-1].encode().decode('unicode_escape')       # remove leading and trailing quotation marks, un-escape escaped characters
         return t
 
     def t_NULL(self, t):
