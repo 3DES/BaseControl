@@ -27,6 +27,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     {"cmd":"triggerWdRelay"} trigger the external wd relay
     {"cmd":"clearWdRelay"} resets the external wd relay
     {"cmd":"testWdRelay"} send the Test Command to the wd relay
+    {"cmd":"checkWdState"} checks if wd was ever triggered and wd readback input is low then raise an exception. If wd was never triggered print a info to logfile
     {"setRelay":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} set the Relay state
 
 
@@ -53,7 +54,6 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         < 8;S;1;1;0;22322;\n                # OK, output 1 was 1 and changed to 0
         
         
-        todo: aktuell bekomme ich nicht mit mit wenn der WD abfällt wenn ihn keiner triggert.
         todo: wd trigger cmd {"cmd":"triggerWdRelay"} in den watchdog.py einbauen und an alle wd schicken (Liste ueber init.json uebergeben)
         todo: getFirmwarePath() und getAvrDudePath() an linux final anpassen und ggf zwisch windows und linux unterscheiden
         todo: neue Firmware einchecken und getAndLogDiagnosis() anpassen und testen
@@ -395,6 +395,12 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"testWdRelay":self.testWdRelay()}, globalPublish = False, enableEcho = False)
                 elif "clearWdRelay" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"clearWdRelay":self.clearWdRelay()}, globalPublish = False, enableEcho = False)
+                elif "checkWdState" == newMqttMessageDict["content"]["cmd"]:
+                    if self.wdEverTriggered:
+                        if tempInputState["Input1"] != "1":
+                            raise Exception(f"Watchdog testinput is not high. Maybe there is a hardware problem or wd was not triggered for a too long time.")
+                    else:
+                        self.logger.info(self,f"Watchdog testinput could not be tested because it was never triggered. Maybe wd is not used or tested before trigger.")
             elif "setRelay" in newMqttMessageDict["content"]:
                 self.setRelayStates(newMqttMessageDict["content"]["setRelay"])
 

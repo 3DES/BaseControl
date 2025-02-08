@@ -15,6 +15,8 @@ class BasicUsbRelais(ThreadObject):
     {"cmd":"..."} will be forwarded to the interface
     {"cmd":"triggerWdRelay"} check if sender is the triggerThread and forward to the interface with "cmd":"triggerWd"
     {"gpio":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}} will be mapped to {"setRelay":{"Relay0": "0", "Relay1": "1", "Relay5": "0", "Relay2": "1"}} and sent to the interface
+    
+    todo: test the external wd input via cmd {"cmd":"checkWdState"}. Not during Test!!!
     '''
     gpioCmd = "gpio"
     REL_OFF = "0"
