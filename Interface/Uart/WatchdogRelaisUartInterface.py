@@ -272,7 +272,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 ourFw = ourFw[:-2]
             return bytes.fromhex(ourFw).decode('utf-8')
 
-    def updateArduio(self):
+    def updateArduino(self):
         try:
             self.clearWdRelay()
         except:
@@ -300,7 +300,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         ourFw = self.getOurVersion()
         if hwFw != ourFw:
             self.logger.info(self, f"Watchdog firmware differs from ours. We will update. Ours: --{ourFw}-- Wd: --{hwFw}--")
-            self.updateArduio()
+            self.updateArduino()
 
             hwFw = self.getHwVersion()
             if hwFw != ourFw:

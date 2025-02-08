@@ -311,4 +311,4 @@ class EffektaController(ThreadObject):
             #self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
 
     def threadBreak(self):
-        time.sleep(0.5)
+        time.sleep(1)

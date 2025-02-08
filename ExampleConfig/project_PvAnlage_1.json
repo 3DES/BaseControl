@@ -2,6 +2,7 @@
     "MqttBridge":
     {
         "class":      "MqttBridge.MqttBridge.MqttBridge",
+        "startPriority" : -8,
         "interfaces":
         {
             "Mosquitto":

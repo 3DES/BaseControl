@@ -86,8 +86,8 @@ class GenericCharger(ThreadObject):
                 self.tempDailyProduction = 0.0
                 self.sendeGlobalMqtt = True
 
-        if self.timer(name = "timerChargerStateReq", timeout = self.query_Cycle, firstTimeTrue = True):
+        if self.initialMqttTimeout and self.timer(name = "timerChargerStateReq", timeout = self.query_Cycle, firstTimeTrue = True):
             self.mqttPublish(self.interfaceInTopics[0], {"cmd":"readState"}, globalPublish = False, enableEcho = False)
 
     def threadBreak(self):
-        time.sleep(0.3)
+        time.sleep(5)

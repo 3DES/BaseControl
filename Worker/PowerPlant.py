@@ -595,7 +595,7 @@ class PowerPlant(Worker):
 
         # @todo Netzausfallerkennung im worker ist noch nicht vorhanden (Parameter!!)
 
-        # Die Hardwre des Wendeschützes und die ZusatzRelais schalten automatisch auf Inverter (und starten diese auch) wenn das Netz ausfällt
+        # Die Hardware des Wendeschützes und die ZusatzRelais schalten automatisch auf Inverter (und starten diese auch) wenn das Netz ausfällt
         # Wir prüfen das hier und ziehen mit STATE_FORCE_TO_INVERTER den internen State auf INVERTER_MODE 
         if self.getInputValueByName("inverterActive") and self.scriptValues["NetzRelais"] == self.GRID_MODE:
             switchTransferRelais(self.INVERTER_MODE, self.tranferRelaisStates.STATE_FORCE_TO_INVERTER)
@@ -1163,5 +1163,5 @@ class PowerPlant(Worker):
 
 
     def threadBreak(self):
-        time.sleep(0.1)
+        time.sleep(0.2)
 
