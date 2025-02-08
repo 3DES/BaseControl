@@ -1043,6 +1043,7 @@ class PowerPlant(Worker):
 
         # if all devices have sent their work data and timeout values for external MQTT data, the worker will be executed
         if self.localDeviceData["expectedDevicesPresent"] and self.localDeviceData["initialMqttTimeout"]:
+            self.GlobalEffektaData = self.getCombinedEffektaData()
             self.manageLogicalCombinedEffektaData()
             now = datetime.datetime.now()
 
@@ -1087,15 +1088,19 @@ class PowerPlant(Worker):
                         if self.scriptValues["WrNetzladen"] == True and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleNetz"]:
                             self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
 
+                    # Umschalten auf Netz oder Akku je nach dem ob die Schaltschwellen gerissen wurden. Darauf achten dass Netz vorhanden ist
                     if self.scriptValues["WrMode"] == self.AKKU_MODE:
-                        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"]) and self.GlobalEffektaData["InputVoltageAnd"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                             self.publishAndLog(Logger.LOG_LEVEL.INFO, "%iP erreicht -> schalte auf Netz." %self.scriptValues["schaltschwelleNetz"])
                     elif self.scriptValues["WrMode"] == self.GRID_MODE:
-                        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"]) or not self.GlobalEffektaData["InputVoltageAnd"]:
                             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
                             self.NetzLadenAusGesperrt = False
-                            self.publishAndLog(Logger.LOG_LEVEL.INFO, "%iP erreicht -> Schalte auf Akku"  %self.scriptValues["schaltschwelleAkku"])
+                            if self.GlobalEffektaData["InputVoltageAnd"]:
+                                self.publishAndLog(Logger.LOG_LEVEL.INFO, "%iP erreicht -> Schalte auf Akku"  %self.scriptValues["schaltschwelleAkku"])
+                            else:
+                                self.publishAndLog(Logger.LOG_LEVEL.INFO, "Netzausfall erkannt -> Schalte auf Akku")
                     else:
                         # Wr Mode nicht bekannt
                         self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
