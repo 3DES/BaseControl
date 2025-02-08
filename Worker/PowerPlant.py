@@ -389,11 +389,10 @@ class PowerPlant(Worker):
             if forceToState is not None:
                 self.tranferRelaisState = forceToState
 
-            tmpglobalEffektaData = self.getCombinedEffektaData()
             # first of all ensure that all inverters see their input voltages, otherwise a switch to the grid doesn't make any sense
             if self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_INPUT_BEVORE_TRANSFER_TO_GRID:
                 stateMode = self.TRANSFER_TO_NETZ
-                if not tmpglobalEffektaData["InputVoltageAnd"]:
+                if not self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"]:
                     if self.timer(name = "errorMessageTimer", timeout = errorMessageTimer, firstTimeTrue = True, removeOnTimeout = True):
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Keine Netzversorgung vorhanden!")
                 else:
@@ -438,8 +437,7 @@ class PowerPlant(Worker):
                 stateMode = self.GRID_MODE
                 # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                 if self.timer(name = "outputVoltageLowTimer", timeout = outputVoltageLowTimer, removeOnTimeout = True):
-                    tmpglobalEffektaData = self.getCombinedEffektaData()
-                    if tmpglobalEffektaData["OutputVoltageHighOr"]:
+                    if self.localDeviceData["combinedEffektaData"]["OutputVoltageHighOr"]:
                         # Durch das ruecksetzten von PowersaveMode schalten wir als nächstes wieder zurück auf PV.
                         # Wir wollen im Fehlerfall keinen inkonsistenten Schaltzustand der Anlage darum schalten wir die Umrichter nicht aus.
                         self.setScriptValues("PowerSaveMode", False)
@@ -473,7 +471,7 @@ class PowerPlant(Worker):
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_OUTPUT_BEVORE_INVERTER_ON:
                 stateMode = self.TRANSFER_TO_INVERTER
                 # ensure that no inverter sees any output voltage, otherwise there is sth. wrong
-                if tmpglobalEffektaData["OutputVoltageHighOr"] and not debug:
+                if self.localDeviceData["combinedEffektaData"]["OutputVoltageHighOr"] and not debug:
                     self.modifyRelaisData(
                         # all these states are already expected but sth. is wrong and inverter output voltages are on, so try to switch off again
                         expectedStates = {
@@ -526,7 +524,7 @@ class PowerPlant(Worker):
                     )
                     # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_CANCEL_TRANSFER_TO_INVERTER
-                elif self.getCombinedEffektaData()["OutputVoltageHighAnd"] == True:
+                elif self.localDeviceData["combinedEffektaData"]["OutputVoltageHighAnd"] == True:
                     self.timer(name = "timeoutAcOut", remove = True)    # timer hasn't timed out yet, so removeOnTimeout didn't get active, therefore, the timer has to be removed manually
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER:
@@ -586,7 +584,7 @@ class PowerPlant(Worker):
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung wartet auf Netzrückkehr.")
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_GRID_AND_TIMEOUT:
                 stateMode = self.INVERTER_MODE
-                if tmpglobalEffektaData["InputVoltageAnd"] and self.timer(name = "minGridTime", timeout = minGridTime, removeOnTimeout = True):
+                if self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"] and self.timer(name = "minGridTime", timeout = minGridTime, removeOnTimeout = True):
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_GRID_MODE_REQ
 
             # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
@@ -600,8 +598,7 @@ class PowerPlant(Worker):
         if self.getInputValueByName("inverterActive") and self.scriptValues["NetzRelais"] == self.GRID_MODE:
             switchTransferRelais(self.INVERTER_MODE, self.tranferRelaisStates.STATE_FORCE_TO_INVERTER)
 
-        tmpglobalEffektaData = self.getCombinedEffektaData()
-        if tmpglobalEffektaData["ErrorPresentOr"] == False:
+        if self.localDeviceData["combinedEffektaData"]["ErrorPresentOr"] == False:
             # only if timer exists errorTimerFinished can be True
             if self.timerExists("ErrorTimer"):
                 self.timer(name = "ErrorTimer", remove = True)
@@ -1043,7 +1040,6 @@ class PowerPlant(Worker):
 
         # if all devices have sent their work data and timeout values for external MQTT data, the worker will be executed
         if self.localDeviceData["expectedDevicesPresent"] and self.localDeviceData["initialMqttTimeout"]:
-            self.GlobalEffektaData = self.getCombinedEffektaData()
             self.manageLogicalCombinedEffektaData()
             now = datetime.datetime.now()
 
@@ -1089,15 +1085,16 @@ class PowerPlant(Worker):
                             self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
 
                     # Umschalten auf Netz oder Akku je nach dem ob die Schaltschwellen gerissen wurden. Darauf achten dass Netz vorhanden ist
+                    # self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"] = False
                     if self.scriptValues["WrMode"] == self.AKKU_MODE:
-                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"]) and self.GlobalEffektaData["InputVoltageAnd"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"]) and self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                             self.publishAndLog(Logger.LOG_LEVEL.INFO, "%iP erreicht -> schalte auf Netz." %self.scriptValues["schaltschwelleNetz"])
                     elif self.scriptValues["WrMode"] == self.GRID_MODE:
-                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"]) or not self.GlobalEffektaData["InputVoltageAnd"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"]) or not self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"]:
                             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
                             self.NetzLadenAusGesperrt = False
-                            if self.GlobalEffektaData["InputVoltageAnd"]:
+                            if self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"]:
                                 self.publishAndLog(Logger.LOG_LEVEL.INFO, "%iP erreicht -> Schalte auf Akku"  %self.scriptValues["schaltschwelleAkku"])
                             else:
                                 self.publishAndLog(Logger.LOG_LEVEL.INFO, "Netzausfall erkannt -> Schalte auf Akku")
