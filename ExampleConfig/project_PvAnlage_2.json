@@ -128,9 +128,13 @@
         {
             "PylontechInterface":
             {
-                "connection":   "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
-                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.3:1.0-port0",
-                "battCount":    5
+                "connection":       "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
+                "interface":        "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.3:1.0-port0",
+                "battCount":        5,
+                "VmaxCellWarn":     3.60,           # if this voltage and VmaxTimer is exceeded BmsLadeFreigabe is set to False. We use this to prevent a complete shutdown.
+                "VmaxTimer":        10,
+                "VminCellWarn":     2.8,            # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
+                "VminTimer":        40,
             }
         }
     },

@@ -133,10 +133,15 @@
 #        {
 #            "PylontechInterface":
 #            {
-#                "connection":   "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
-#                "interface":    "COM7",
-#                "battCount":    1,
-#                "baudrate":     115200         # optional
+#                "connection":      "Interface.Uart.Pylontech485Interface.Pylontech485Interface",
+#                "interface":       "COM7",
+#                "battCount":       1,
+#                "VmaxCellWarn":    3.60,           # if this voltage and VmaxTimer is exceeded BmsLadeFreigabe is set to False. We use this to prevent a complete shutdown.
+#                "VmaxTimer":       10,
+#                "VminCellWarn":    2.8,            # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
+#                "VminTimer":       40,
+#                "NumLogfiles":     20,             # optional
+#                "baudrate":        115200          # optional
 #            }
 #        }
 #    },

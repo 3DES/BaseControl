@@ -19,8 +19,11 @@ class Pylontech485Interface(InterfaceBase):
         self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
 
     def threadInitMethod(self):
-        self.tagsIncluded(["interface", "battCount"])
+        self.tagsIncluded(["interface", "battCount", "VminCellWarn", "VmaxCellWarn", "VminWarnTimer", "VmaxWarnTimer"])
         self.tagsIncluded(["baudrate"], optional = True, default = 115200)
+        self.tagsIncluded(["NumLogfiles"], optional = True, default = 20)
+        self.printError = True
+        self.LogIndex = 0
         tries = 0
         while tries < self.MAX_INIT_TRIES:
             try:
@@ -61,20 +64,61 @@ class Pylontech485Interface(InterfaceBase):
             # Extract BmsEntladeFreigabe and BmsLadeFreigabe from CellAlarm  
             self.BmsWerte["BmsEntladeFreigabe"] = True
             self.BmsWerte["BmsLadeFreigabe"] = True
+            printRawData = False
             for module in data["AlarmInfoList"]:
                 #if not data["ChargeDischargeManagementList"]["StatusDischargeEnable"]:
                 if module["ModuleVoltageAlarm"] != "Ok":
+                    printRawData = True
                     if self.BmsWerte["Vmin"] < 3.0:
                         self.BmsWerte["BmsEntladeFreigabe"] = False
+                        self.logger.error(self, f'Pylontec ModuleVoltageAlarm detected')
                     if self.BmsWerte["Vmax"] > 3.5:
                         self.BmsWerte["BmsLadeFreigabe"] = False
+                        self.logger.error(self, f'Pylontec ModuleVoltageAlarm detected')
                 for cellAlarm in module["CellAlarm"]:
                     if cellAlarm != "Ok":
+                        printRawData = True
                         if self.BmsWerte["Vmin"] < 3.0:
                             self.BmsWerte["BmsEntladeFreigabe"] = False
                         if self.BmsWerte["Vmax"] > 3.5:
                             self.BmsWerte["BmsLadeFreigabe"] = False
-    
+                        self.logger.error(self, f'Pylontec CellAlarm in str: str(module["CellAlarm"])')
+
+            # Check cell voltages wtih given parameters to create a warning. We need this to prevent a low or high voltage disconnect.
+            if self.BmsWerte["Vmin"] <= self.configuration["VminCellWarn"]:
+                if self.timer(name = "VminTimer", timeout = self.configuration["VminWarnTimer"], autoReset = False):
+                    self.BmsWerte["BmsEntladeFreigabe"] = False
+                    if self.printError:
+                        self.printError = False
+                        self.logger.error(self, f'VminCellWarn from {self.name} has triggered, we stop discharging.')
+                    printRawData = True
+            else:
+                if self.timerExists("VminTimer"):
+                    self.printError = True
+                    self.timer(name = "VminTimer", remove = True)
+
+            if self.BmsWerte["Vmax"] >= self.configuration["VmaxCellWarn"]:
+                if self.timer(name = "VmaxTimer", timeout = self.configuration["VmaxWarnTimer"], autoReset = False):
+                    self.BmsWerte["BmsLadeFreigabe"] = False
+                    if self.printError:
+                        self.printError = False
+                        self.logger.error(self, f'VmaxCellWarn from {self.name} has triggered, we stop charging.')
+                    printRawData = True
+            else:
+                if self.timerExists("VmaxTimer"):
+                    self.printError = True
+                    self.timer(name = "VmaxTimer",remove = True)
+
+            if printRawData:
+                if self.timer(name = "WriteErrorLog", firstTimeTrue = True, timeout = 60*60*2):
+                    self.logger.error(self, f'Error from Pylontec detected. Pylontec rawData:')
+                    self.logger.error(self, f'str(data)')
+                    self.LogIndex += 1
+                    self.logger.writeLogBufferToDisk(f"{self.name}_{str(self.LogIndex)}_pylontec_error.log")
+
+            if self.LogIndex >= self.configuration["NumLogfiles"]:
+                self.LogIndex = 0
+
             for module in data["ChargeDischargeManagementList"]:
                 if module["StatusFullChargeRequired"]:
                     self.BmsWerte["FullChargeRequired"] = True
