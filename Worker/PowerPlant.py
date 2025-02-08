@@ -586,6 +586,9 @@ class PowerPlant(Worker):
                 stateMode = self.INVERTER_MODE
                 if self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"] and self.timer(name = "minGridTime", timeout = minGridTime, removeOnTimeout = True):
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_GRID_MODE_REQ
+                # Reset timer if grid was available for a short time
+                if not self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"] and self.timerExists("minGridTime"):
+                    self.timerRemove("minGridTime")
 
             # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
             self.setScriptValues("NetzRelais", stateMode)
