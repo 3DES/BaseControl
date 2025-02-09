@@ -16,7 +16,7 @@ class Pylontech485Interface(InterfaceBase):
         '''
         super().__init__(threadName, configuration)
         self.removeMqttRxQueue()
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[] "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount", "VminCellWarn", "VmaxCellWarn", "VminWarnTimer", "VmaxWarnTimer"])
@@ -46,20 +46,22 @@ class Pylontech485Interface(InterfaceBase):
             data = self.p.update()
             if self.timerExists("timeoutPylontechRead"):
                 self.timer(name = "timeoutPylontechRead",remove = True)
-            valueList = []
+            self.BmsWerte["VoltageList"] = []
             for module in data["AnaloglList"]:
-                valueList += module["CellVoltages"]
-            self.BmsWerte["Vmin"] = min(valueList)
-            self.BmsWerte["Vmax"] = max(valueList)
+                self.BmsWerte["VoltageList"] += module["CellVoltages"]
+            self.BmsWerte["Vmin"] = min(self.BmsWerte["VoltageList"])
+            self.BmsWerte["Vmax"] = max(self.BmsWerte["VoltageList"])
             valueList = []
             for module in data["AnaloglList"]:
                 valueList += module["Temperatures"]
             self.BmsWerte["Tmin"] = min(valueList)
             self.BmsWerte["Tmax"] = max(valueList)
-    
+
+            self.BmsWerte["CurrentList"] = []
             self.BmsWerte["Current"] = 0.0
             for module in data["AnaloglList"]:
                 self.BmsWerte["Current"] += module["Current"]
+                self.BmsWerte["CurrentList"].append(module["Current"])
 
             # Extract BmsEntladeFreigabe and BmsLadeFreigabe from CellAlarm  
             self.BmsWerte["BmsEntladeFreigabe"] = True

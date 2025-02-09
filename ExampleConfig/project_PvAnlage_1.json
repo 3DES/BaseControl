@@ -1,4 +1,5 @@
 {
+    # Anlage vom Boaschti
     "MqttBridge":
     {
         "class":      "MqttBridge.MqttBridge.MqttBridge",
