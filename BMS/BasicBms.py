@@ -17,7 +17,7 @@ class BasicBms(ThreadObject):
                                                 or:     key from interface >BmsEntladeFreigabe<
 
     Optional is                                 FullChargeRequired and BmsLadeFreigabe which is also merged to globalBmsData["merged"]
-    Optional is                                 any other value
+    Optional is                                 any other value or a list (the listname and valuename must be named in self.LIST_TO_VALUE_NAMES)
 
     From SocMonitor:
     Required:                                   none, upper checks are disabled
@@ -62,20 +62,21 @@ class BasicBms(ThreadObject):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), {"cmd":"clearWdRelay"}, globalPublish = False, enableEcho = False)
         raise Exception(exceptionMessage)
 
-    def convertList(self, baseName : str, voltageList : list) -> dict:
+    def convertList(self, listType : str, list : list) -> dict:
         '''
-        expects a list with voltage values and converts it into a dictionary, e.g.
+        expects a list with values and converts it into a dictionary, e.g.
+        listType == CellVoltage
         [ 3.4, 3.4, 3.41, 3.39 ] -> {"CellVoltage0" : 3.4, "CellVoltage1" : 3.4, "CellVoltage2" : 3.41, "CellVoltage3" : 3.39, "CellVoltageDelta" : 0.02}
         Furthermore maximum delta is added as "CellVoltageDelta". It's calculated here even it could be calculated easier with given min and max values but so it's independent from values the BMS calculates 
         '''
         resultDict = {}
 
         # add cell voltages for this interface
-        for cellNumber, cellVoltage in enumerate(voltageList):
-            resultDict[f"{baseName}{cellNumber}"] = cellVoltage
+        for listNumber, listValue in enumerate(list):
+            resultDict[f"{listType}{listNumber}"] = listValue
 
         # add maximum delta for this interface
-        resultDict[f"{baseName}Delta"] = round(max(voltageList) - min(voltageList), 3)
+        resultDict[f"{listType}Delta"] = round(max(list) - min(list), 3)
 
         return resultDict
 
@@ -122,7 +123,7 @@ class BasicBms(ThreadObject):
             if "FullChargeRequired" in self.bmsWerte[interfaceName]:
                 fullChargeReqList.append(self.bmsWerte[interfaceName]["FullChargeRequired"])
 
-            # convert  list in single values to be shown and logged in homeassistant, original list entry will be unchanged
+            # convert a list element in to single values to be shown and logged in homeassistant, original list element will stay unchanged
             for key in self.listElements:
                 if key in self.bmsWerte[interfaceName]:
                     self.bmsWerte[interfaceName].update(self.convertList(self.LIST_TO_VALUE_NAMES[key], self.bmsWerte[interfaceName][key]))
@@ -342,7 +343,7 @@ class BasicBms(ThreadObject):
                         if self.configuration["socMonitor"] in self.bmsWerte:
                             del self.bmsWerte[self.configuration["socMonitor"]]
 
-                        # if "VoltageList" is in current interface add discover ignore entry for it and discover single cell voltages instead
+                        # if a list is in current interface add discover ignore entry for it and discover single values instead
                         keyList = list(self.bmsWerte[interfaceName]) # because we change size of dict in this loop
                         for key in keyList:
                             if type(self.bmsWerte[interfaceName][key]) == list:
@@ -350,7 +351,7 @@ class BasicBms(ThreadObject):
                                     self.listElements.append(key)
                                     if not (key in self.LIST_TO_VALUE_NAMES):
                                         raise Exception(f"{interfaceName} has sent a list whith a unknown listname: {key}. We cannot map this name. Check self.LIST_TO_VALUE_NAMES!")
-                                # if there is a "VoltageList" element discover all cell voltages separately
+                                # if there is a list element discover all cell voltages separately
                                 self.bmsWerte[interfaceName].update(self.convertList(self.LIST_TO_VALUE_NAMES[key], self.bmsWerte[interfaceName][key]))
                                 self.notDiscoverableInterfaceElements.append(f"{interfaceName}.{key}")    # add discover ignore entry
 
