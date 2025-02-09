@@ -50,6 +50,7 @@ class BasicBms(ThreadObject):
         super().__init__(threadName, configuration)
         self.tagsIncluded(["parameters"], optional = True, default = {})
         self.tagsIncluded(["balancingHysteresisTime"], optional = True, default = 600)
+        self.LIST_TO_VALUE_NAMES = {"VoltageList":"CellVoltage", "CurrentList":"ModuleCurrent"}
 
     def getSocMonitorTopic(self):
         return self.createOutTopic(self.getObjectTopic(self.configuration["socMonitor"]))
@@ -61,7 +62,7 @@ class BasicBms(ThreadObject):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), {"cmd":"clearWdRelay"}, globalPublish = False, enableEcho = False)
         raise Exception(exceptionMessage)
 
-    def convertVoltageList(self, voltageList : list) -> dict:
+    def convertList(self, baseName : str, voltageList : list) -> dict:
         '''
         expects a list with voltage values and converts it into a dictionary, e.g.
         [ 3.4, 3.4, 3.41, 3.39 ] -> {"CellVoltage0" : 3.4, "CellVoltage1" : 3.4, "CellVoltage2" : 3.41, "CellVoltage3" : 3.39, "CellVoltageDelta" : 0.02}
@@ -71,10 +72,10 @@ class BasicBms(ThreadObject):
 
         # add cell voltages for this interface
         for cellNumber, cellVoltage in enumerate(voltageList):
-            resultDict[f"CellVoltage{cellNumber}"] = cellVoltage
+            resultDict[f"{baseName}{cellNumber}"] = cellVoltage
 
         # add maximum delta for this interface
-        resultDict["CellVoltageDelta"] = round(max(voltageList) - min(voltageList), 3)
+        resultDict[f"{baseName}Delta"] = round(max(voltageList) - min(voltageList), 3)
 
         return resultDict
 
@@ -115,13 +116,16 @@ class BasicBms(ThreadObject):
                 vMinList.append(min(self.bmsWerte[interfaceName]["VoltageList"]))
                 vMaxList.append(max(self.bmsWerte[interfaceName]["VoltageList"]))
 
-                # convert voltage list in single cell voltages to be shown and logged in homeassistant, original "VoltageList" entry will not be unchanged
-                self.bmsWerte[interfaceName].update(self.convertVoltageList(self.bmsWerte[interfaceName]["VoltageList"]))
 
                 vMinSeen = True
                 vMaxSeen = True
             if "FullChargeRequired" in self.bmsWerte[interfaceName]:
                 fullChargeReqList.append(self.bmsWerte[interfaceName]["FullChargeRequired"])
+
+            # convert  list in single values to be shown and logged in homeassistant, original list entry will be unchanged
+            for key in self.listElements:
+                if key in self.bmsWerte[interfaceName]:
+                    self.bmsWerte[interfaceName].update(self.convertList(self.LIST_TO_VALUE_NAMES[key], self.bmsWerte[interfaceName][key]))
 
             # if interfaceName is a BMS, then we expect that the BMS either sends a value "BmsEntladeFreigabe", Vmin and Vmax or a VoltageList; in the last two cases vMin, vMax and vMinTimer values must have been configured
             if interfaceName in self.configuration["interfaces"].keys():
@@ -281,7 +285,8 @@ class BasicBms(ThreadObject):
     def threadInitMethod(self):
         self.tagsIncluded(["socMonitor"], optional = True)
         self.bmsWerte = {}                                  # local Bms interface data from each interface stored in its interface key
-        self.notDiscoverableInterfaceElements = []                   # ignore elements from all interfaces, e.g. "VoltageList" -> <interface1>.VoltageList, <interface2>.VoltageList, ...
+        self.notDiscoverableInterfaceElements = []          # ignore elements from all interfaces, e.g. "VoltageList" -> <interface1>.VoltageList, <interface2>.VoltageList, ...
+        self.listElements = []                              # element in interface dict 
         self.numOfDevices = len(self.interfaceInTopics)
         if self.configuration["socMonitor"] is not None:
             self.mqttSubscribeTopic(self.getSocMonitorTopic(), globalSubscription = False)
@@ -338,10 +343,16 @@ class BasicBms(ThreadObject):
                             del self.bmsWerte[self.configuration["socMonitor"]]
 
                         # if "VoltageList" is in current interface add discover ignore entry for it and discover single cell voltages instead
-                        if "VoltageList" in self.bmsWerte[interfaceName] and type(self.bmsWerte[interfaceName]["VoltageList"]) == list:
-                            # if there is a "VoltageList" element discover all cell voltages separately
-                            self.bmsWerte[interfaceName].update(self.convertVoltageList(self.bmsWerte[interfaceName]["VoltageList"]))
-                            self.notDiscoverableInterfaceElements.append(f"{interfaceName}.VoltageList")    # add discover ignore entry
+                        keyList = list(self.bmsWerte[interfaceName]) # because we change size of dict in this loop
+                        for key in keyList:
+                            if type(self.bmsWerte[interfaceName][key]) == list:
+                                if not (key in self.listElements):
+                                    self.listElements.append(key)
+                                    if not (key in self.LIST_TO_VALUE_NAMES):
+                                        raise Exception(f"{interfaceName} has sent a list whith a unknown listname: {key}. We cannot map this name. Check self.LIST_TO_VALUE_NAMES!")
+                                # if there is a "VoltageList" element discover all cell voltages separately
+                                self.bmsWerte[interfaceName].update(self.convertList(self.LIST_TO_VALUE_NAMES[key], self.bmsWerte[interfaceName][key]))
+                                self.notDiscoverableInterfaceElements.append(f"{interfaceName}.{key}")    # add discover ignore entry
 
                         self.homeAutomation.mqttDiscoverySensor(self.bmsWerte, ignoreKeys = self.notDiscoverableInterfaceElements, subTopic = self.allBmsDataTopicExtension)
                         self.homeAutomation.mqttDiscoverySensor(self.globalBmsWerte, unitDict = {'calc.VminOk' : "none", "calc.VmaxOk" : "none"})
