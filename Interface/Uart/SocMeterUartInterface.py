@@ -14,8 +14,9 @@ class SocMeterUartInterface(BasicUartInterface):
         '''
         super().__init__(threadName, configuration)
         
-        self.SocMonitorWerte = {"Ah":-1, "Current":0, "Prozent":SocMeter.InitAkkuProz}
+        self.SocMonitorWerte = {"Ah":-1, "Current":0, "FullChargeRequired":False, "Prozent":SocMeter.InitAkkuProz}
         self.cmdList = []
+        self.FULL_CHG_REQ_TIMER = 60*60*24*30
 
 
     def threadMethod(self):
@@ -31,6 +32,9 @@ class SocMeterUartInterface(BasicUartInterface):
                 # If cmd is resetSoc we add a special cmd socResetMaxAndHold, else we add all cmd to cmdList {"cmd":["",""]} and {"cmd":""} is accepted
                 if newMqttMessageDict["content"]["cmd"] == "resetSoc":
                     self.cmdList.append("socResetMaxAndHold")
+                    # Reset FullChgReqTimer because we are in Floatmode now
+                    if self.timerExists("FullChgReqTimer"):
+                        self.timer("FullChgReqTimer", remove=True)
                 elif newMqttMessageDict["content"]["cmd"] == list:
                     self.cmdList += newMqttMessageDict["content"]["cmd"]
                 elif newMqttMessageDict["content"] == list:
@@ -85,6 +89,13 @@ class SocMeterUartInterface(BasicUartInterface):
             self.serialWrite(cmd)
             del self.cmdList[0]
 
+        # If FullChgReqTimer is triggered we send one FullChargeRequired request
+        if self.timer("FullChgReqTimer", timeout=self.FULL_CHG_REQ_TIMER):
+            self.SocMonitorWerte["FullChargeRequired"] = True
+
         if lastLine:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SocMonitorWerte, globalPublish = False, enableEcho = False)
+
+            if self.SocMonitorWerte["FullChargeRequired"]:
+                self.SocMonitorWerte["FullChargeRequired"] = False
 

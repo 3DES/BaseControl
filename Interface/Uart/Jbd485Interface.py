@@ -15,8 +15,9 @@ class Jbd485Interface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
+        self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "FullChargeRequired":False, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
         self.CHG_FET_DISABLE_TIME = 60*60
+        self.FULL_CHG_REQ_TIMER = 60*60*24*30
 
     def handleChargeFet(self, chgFetState):
         # We count charge fet disables, if we reached 5 disables we deactivate charge fet for 60min. 
@@ -89,6 +90,9 @@ class Jbd485Interface(InterfaceBase):
 
             if "cmd" in newMqttMessageDict["content"]:
                 if newMqttMessageDict["content"]["cmd"] == "resetSoc":
+                    # Reset FullChgReqTimer because we are in Floatmode now
+                    if self.timerExists("FullChgReqTimer"):
+                        self.timer("FullChgReqTimer", remove=True)
                     # reset battery pack to max capacity value if charge fet is on. Else ignore this cmd because battery is momentary not connected to system. 
                     if self.chg_fet_en:
                         try:
@@ -127,8 +131,14 @@ class Jbd485Interface(InterfaceBase):
         # todo einzelne Packs falls nötig aus dem system nehmen um balancieren lassen
         # self.jbd.chgDsgEnable(chgEnable=False, dsgEnable=False)
 
+        # If FullChgReqTimer is triggered we send one FullChargeRequired request
+        if self.timer("FullChgReqTimer", timeout=self.FULL_CHG_REQ_TIMER):
+            self.BmsWerte["FullChargeRequired"] = True
+
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
 
+        if self.BmsWerte["FullChargeRequired"]:
+            self.BmsWerte["FullChargeRequired"] = False
 
     def threadBreak(self):
         time.sleep(1.5)
