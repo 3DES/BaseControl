@@ -544,6 +544,9 @@ class Logger(ThreadBase):
                 bufferCopy += insertFramedText(leadOut)
     
             # finally write log file
+            dir_name = os.path.dirname(logFileName)
+            if dir_name and not os.path.exists(dir_name):
+                os.makedirs(dir_name)
             with open(logFileName, 'w') as logFile:
                 for message in bufferCopy:
                     logFile.write(message + "\n")

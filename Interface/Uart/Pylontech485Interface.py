@@ -116,7 +116,7 @@ class Pylontech485Interface(InterfaceBase):
                     self.logger.error(self, f'Error from Pylontec detected. Pylontec rawData:')
                     self.logger.error(self, f'str(data)')
                     self.LogIndex += 1
-                    self.logger.writeLogBufferToDisk(f"{self.name}_{str(self.LogIndex)}_pylontec_error.log")
+                    self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_{str(self.LogIndex)}_pylontec_error.log")
 
             if self.LogIndex >= self.configuration["NumLogfiles"]:
                 self.LogIndex = 0

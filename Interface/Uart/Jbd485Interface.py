@@ -111,7 +111,7 @@ class Jbd485Interface(InterfaceBase):
                 self.logger.error(self, f'{str(basicInfo)}')
                 self.logger.error(self, f'{str(cellInfo)}')
                 self.fullCap = basicInfo["full_cap"]
-                self.logger.writeLogBufferToDisk(f"{self.name}_full_cap_changed.log")
+                self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_full_cap_changed.log")
             for cell in list(cellInfo):
                 self.BmsWerte["VoltageList"].append(cellInfo[cell] / 1000)
             self.BmsWerte["Current"] = basicInfo["pack_ma"] / 1000
