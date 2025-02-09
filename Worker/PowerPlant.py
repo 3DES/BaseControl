@@ -508,10 +508,8 @@ class PowerPlant(Worker):
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_OUTPUT_AFTER_INVERTER_ON:
                 stateMode = self.TRANSFER_TO_INVERTER
                 if self.timer(name = "timeoutAcOut", timeout = acOutTimeout, removeOnTimeout = True):                                # wait until inverter output voltages are ON and stable
-                    self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Wartezeit zu lange. Keine Ausgangsspannung am WR erkannt.")
-                    # Wir schalten die Funktion aus
-                    self.setScriptValues("PowerSaveMode", False)
-                    self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Die Automatische Netzumschaltung wurde deaktiviert.")
+                    self.setScriptValues("PowerSaveMode", False)        # Wir schalten die Funktion aus
+                    self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Wartezeit zu lange, keine Ausgangsspannung am WR erkannt, automatische Netzumschaltung deaktiviert.")
                     self.modifyRelaisData(
                         {
                             self.REL_WR_1     : self.AUS,       # disable inverter output voltages again since there wasn't detected any output voltages in time
@@ -529,7 +527,7 @@ class PowerPlant(Worker):
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER:
                 stateMode = self.INVERTER_MODE
-                if self.timer(name = "waitForOut", timeout = 10, removeOnTimeout = True):
+                if self.timer(name = "waitForOutputVoltage", timeout = 10, removeOnTimeout = True):
                     self.modifyRelaisData(
                         {
                             self.REL_PV_AUS   : self.REL_PV_AUS_closed,       # enable inverters what makes utility relay switch over to inverter mode since inverter output voltages are up
@@ -545,7 +543,7 @@ class PowerPlant(Worker):
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CANCEL_TRANSFER_TO_INVERTER:
                 stateMode = self.GRID_MODE
                 # Abbruch des Schaltvorgangs weil keine Outputvoltage erkannt wurde.
-                if self.timer(name = "waitForOut", timeout = outputVoltageLowTimer, removeOnTimeout = True):
+                if self.timer(name = "waitForOutputVoltage", timeout = outputVoltageLowTimer, removeOnTimeout = True):
                     self.modifyRelaisData(
                         {
                             self.REL_PV_AUS   : self.REL_PV_AUS_closed,       # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
@@ -557,7 +555,7 @@ class PowerPlant(Worker):
                         }
                     )
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_INVERTER_MODE_REQ
-                    self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Umschaltung auf Inverter ist fehlgeschlagen und steht jetzt wieder auf Netz.")
+                    self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Umschaltung auf Inverter ist wegen fehlender Ausgangsspannung am WR fehlgeschlagen und steht jetzt wieder auf Netz.")
                     self.aufPvSchaltenErlaubt = False
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_GRID_MODE_REQ:
                 stateMode = self.INVERTER_MODE
