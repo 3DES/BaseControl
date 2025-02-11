@@ -1024,6 +1024,10 @@ class PowerPlant(Worker):
         self.modifyExcessRelaisData("relPowerPlantRunning", self.AUS, True)
         self.modifyExcessRelaisData("relPowerPlantWaiting", self.EIN, True)
 
+        # Test if file logging is working
+        self.logger.info(self, "Test Log entry")
+        self.logger.writeLogBufferToDisk(f"logfiles/test_error.log")
+
     def threadMethod(self):
         self.sendeMqtt = False
 

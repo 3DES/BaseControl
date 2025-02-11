@@ -86,7 +86,7 @@ class Pylontech485Interface(InterfaceBase):
                             self.BmsWerte["BmsLadeFreigabe"] = False
                         self.logger.error(self, f'Pylontec CellAlarm in str: str(module["CellAlarm"])')
 
-            # Check cell voltages wtih given parameters to create a warning. We need this to prevent a low or high voltage disconnect.
+            # Check cell voltages with given parameters to create a warning. We need this to prevent a low or high voltage disconnect.
             if self.BmsWerte["Vmin"] <= self.configuration["VminCellWarn"]:
                 if self.timer(name = "VminTimer", timeout = self.configuration["VminWarnTimer"], autoReset = False):
                     self.BmsWerte["BmsEntladeFreigabe"] = False

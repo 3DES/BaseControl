@@ -164,25 +164,25 @@ class EffektaController(ThreadObject):
         self.queryIndex = 0
         self.queries = [
             "QMUCHGCR",      # should be the first entry!
-            "QPI",
-            "QID",
-            "QVFW",
-            "QVFW2",
+            #"QPI",
+            #"QID",
+            #"QVFW",
+            #"QVFW2",
             #"QVFW3",        # seems to be empty
             #"QVFW4",        # seems to be empty
-            "QPIRI",
-            "QFLAG",
+            #"QPIRI",
+            #"QFLAG",
             #"QPIGS",        # read every 20ms by default
             #"QPIGS2",       # seems to be empty
             #"QPGSn",        # do we need this?
             #"QP2GSn",       # do we need this?
             #"QMOD",         # read every 20ms by default
-            "QPIWS",
-            "QDI",
-            "QMCHGCR",
+            #"QPIWS",
+            #"QDI",
+            #"QMCHGCR",
             #"QMSCHGCR",     # seems to be empty
-            "QBOOT",
-            "QOPM",
+            #"QBOOT",
+            #"QOPM",
             #"QCST",         # seems to be empty
             #"QCVT"          # seems to be empty
         ]
