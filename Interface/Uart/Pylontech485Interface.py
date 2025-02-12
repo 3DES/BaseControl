@@ -132,8 +132,9 @@ class Pylontech485Interface(InterfaceBase):
             self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
     
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
-        except:
+        except Exception as exception:
             self.logger.error(self, f"Error reading {self.name} inteface.")
+            self.logger.error(self, f"{exception}")
             if self.timer(name = "timeoutPylontechRead", timeout = 60):
                 raise Exception(f'{self.name} connection is broken since 60s!')
 
