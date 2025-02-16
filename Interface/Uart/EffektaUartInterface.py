@@ -15,6 +15,9 @@ class EffektaUartInterface(BasicUartInterface):
         '''
         Constructor
         '''
+
+        # We have to create configuration bevore we call super class. The Parameter configuration have to be given because it doesn't exist yet.
+        self.tagsIncluded(["baudrate"], configuration = configuration, optional = True, default = 2400)
         super().__init__(threadName, configuration)
         self.cmdCounter = 0
 

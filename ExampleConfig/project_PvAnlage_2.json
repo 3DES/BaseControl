@@ -8,9 +8,7 @@
         {
             "Mosquitto":
             {
-            "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-            "port":         1883,
-            "sendRetained": true                       # for tests you can send not retained
+            "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface"
             }
          }
     },
@@ -28,8 +26,7 @@
             "UartWrEffektaWest":
             {
                 "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
-                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.2:1.0-port0",
-                "baudrate":     2400
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.2:1.0-port0"
             }
         }
     },
@@ -42,8 +39,7 @@
             "UartWrEffektaOst":
             {
                 "connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
-                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.1:1.0-port0",
-                "baudrate":     2400
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.1:1.0-port0"
             }
         }
     },
@@ -60,9 +56,7 @@
             "WdUsbRelaisRot":
             {
                 "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
-                "firmware":     "firmware.hex",
-                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.3:1.0-port0",
-                "baudrate":     9600
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.3:1.0-port0"
             }
         }
     },
@@ -80,9 +74,7 @@
             "WdUsbRelaisBlau":
             {
                 "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
-                "firmware":     "firmware.hex",
-                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.1:1.0-port0",
-                "baudrate":     9600
+                "interface":    "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.1:1.0-port0"
             }
         }
     },
@@ -135,7 +127,7 @@
                 "VmaxCellWarn":     3.60,           # if this voltage and VmaxTimer is exceeded BmsLadeFreigabe is set to False. We use this to prevent a complete shutdown.
                 "VmaxWarnTimer":        10,
                 "VminCellWarn":     2.8,            # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
-                "VminWarnTimer":        40,
+                "VminWarnTimer":        40
             }
         }
     },

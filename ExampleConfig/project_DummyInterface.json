@@ -7,9 +7,9 @@
         {
             "Mosquitto":
             {
-                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface",
-                "port":         1883,
-                "sendRetained": false                       # for tests always send non-retained
+                "connection":   "Interface.Ethernet.MqttBrokerInterface.MqttBrokerInterface"
+                #"port":         1883,                       # optional
+                #"sendRetained": false                       # optional, for tests always send non-retained
             }
         }
     },
@@ -28,8 +28,8 @@
             {
                 #"connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
                 "connection":   "Interface.Dummy.DummyEffektaUartInterface.DummyEffektaUartInterface",
-                "interface":    "COM4",
-                "baudrate":     2400
+                "interface":    "COM4"
+                #"baudrate":     2400                        # optional
             }
         }
     },
@@ -42,31 +42,32 @@
         "bmsName": "Bms",
         #"inputs":"WdUsbRelais",
         "weatherName": "Wetter",                            # optional
-        "initModeEffekta": "Auto"                   # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
+        "initModeEffekta": "Auto"                           # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
     },
 
     "Bms":
     {
         "class":         "BMS.BasicBms.BasicBms",
-        #"socMonitor": "SocMonitor",                                                 # optional socmonitor whose data will be merged with other bms, current will be added, percent will be a avg
-        #"parameters":    {"vBal": 3.5},                                             # optional
-        #"parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60},               # optional 
-        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},  # optional, vbal will manage relBalance. you can map it to a gpio, vmin rises an exception and set internal BmsEntladeFreigabe to false after vMinTimer time occured, vMax rises an exception after 10s
+        #"socMonitor": "SocMonitor",                                                    # optional socmonitor whose data will be merged with other bms, current will be added, percent will be a avg
+        #"parameters":    {"vBal": 3.5},                                                # optional
+        #"parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60},                  # optional 
+        "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},      # optional, vbal will manage relBalance. you can map it to a gpio, vmin rises an exception and set internal BmsEntladeFreigabe to false after vMinTimer time occured, vMax rises an exception after 10s
+        "balancingHysteresisTime":      0,                                              # optional
         "interfaces":
         {
             "BmsEins":
             {
                 #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
                 "connection":   "Interface.Dummy.DummyWBmsUartInterface.DummyWBmsUartInterface",
-                "interface":    "COM4",
-                "baudrate":     2400
+                "interface":    "COM4"
+                #"baudrate":     2400        # optional
             },
             "BmsZwei":
             {
                 #"connection":   "Interface.Uart.WBmsUartInterface.WBmsUartInterface",
                 "connection":   "Interface.Dummy.DummyWBmsUartInterface.DummyWBmsUartInterface",
-                "interface":    "COM4",
-                "baudrate":     2400
+                "interface":    "COM4"
+                #"baudrate":     2400        # optional
             }
         }
     },
@@ -80,8 +81,8 @@
             {
                 #"connection":   "Interface.Uart.SocMeterUartInterface.SocMeterUartInterface",
                 "connection":   "Interface.Dummy.DummySocMeterUartInterface.DummySocMeterUartInterface",
-                "interface":    "COM4",
-                "baudrate":     9600
+                "interface":    "COM4"
+                #"baudrate":     9600        # optional
             }
         }
     },
@@ -97,8 +98,8 @@
             {
                 #"connection":   "Interface.Uart.UsbRelaisUartInterface.UsbRelaisUartInterface",
                 "connection":   "Interface.Dummy.DummyUartInterface.UartInterface",   # empty UArt Interface
-                "interface":    "COM4",
-                "baudrate":     115200
+                "interface":    "COM4"
+                #"baudrate":     115200        # optional
             }
         }
     },
@@ -117,11 +118,11 @@
            {
                 "connection":   "Interface.Dummy.DummyUartInterface.UartInterface",   # empty UArt Interface
                 #"connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
-                "firmware":     "firmware.hex",
+                "firmware":     "firmware.hex",         # optional
                 #"avrdudePath":  "C:\\Program Files (x86)\\AVRDUDESS\\avrdude.exe",  # optional todo Pfad funktioniert nicht ohne escapen
                 #"interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2.4:1.0-port0",
-                "interface":    "COM5",
-                "baudrate":     9600
+                "interface":    "COM5"
+                #"baudrate":     9600                    # optional
             }
         }
     },

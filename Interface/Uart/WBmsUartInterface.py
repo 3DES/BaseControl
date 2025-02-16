@@ -12,6 +12,10 @@ class WBmsUartInterface(BasicUartInterface):
         '''
         Constructor
         '''
+
+        # We have to create configuration bevore we call super class. The Parameter configuration have to be given because it doesn't exist yet.
+        self.tagsIncluded(["baudrate"], configuration = configuration, optional = True, default = 9600)
+
         super().__init__(threadName, configuration)
         self.removeMqttRxQueue()
         self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe":False}

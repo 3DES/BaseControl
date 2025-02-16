@@ -68,6 +68,9 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         '''
         Constructor
         '''
+
+        # We have to create configuration bevore we call super class. The Parameter configuration have to be given because it doesn't exist yet.
+        self.tagsIncluded(["baudrate"], configuration = configuration, optional = True, default = 9600)
         super().__init__(threadName, configuration)
         self.separator = ";"
         self.comandEnd = ";\n"
@@ -76,9 +79,10 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         self.inputMapping = {"Input0": "0", "Input1": "1", "Input2": "2", "Input3": "3"}
         self.localInputState = {"Input0": "None", "Input1": "None", "Input2": "None", "Input3": "None"}
 
-        self.tagsIncluded(["firmware"])
+        self.tagsIncluded(["firmware"], optional = True, default = "firmware.hex")
         self.tagsIncluded(["avrdudePath"], optional = True, default = "avrdude")
         self.tagsIncluded(["debugVersion"], optional = True, default = False)
+        self.tagsIncluded(["interface"])
         self.firstLoop = True
         self.getDiagnosis = False
         self.wdEverTriggered = False

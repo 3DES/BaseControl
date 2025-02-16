@@ -12,8 +12,10 @@ class SocMeterUartInterface(BasicUartInterface):
         '''
         Constructor
         '''
+
+        # We have to create configuration bevore we call super class. The Parameter configuration have to be given because it doesn't exist yet.
+        self.tagsIncluded(["baudrate"], configuration =  configuration, optional = True, default = 115200)
         super().__init__(threadName, configuration)
-        
         self.SocMonitorWerte = {"Ah":-1, "Current":0, "FullChargeRequired":False, "Prozent":SocMeter.InitAkkuProz}
         self.cmdList = []
         self.FULL_CHG_REQ_TIMER = 60*60*24*30
