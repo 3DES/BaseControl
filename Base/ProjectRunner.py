@@ -286,6 +286,7 @@ class ProjectRunner(object):
                 stopReason = cls.monitorThreads(stopAfterSeconds)        # "endless" while loop
             except Exception as exception:
                 Logger.Logger.Logger.error(cls, f"INSTANTIATE/RUNNING EXCEPTION {exception}" + traceback.format_exc())
+                Supporter.debugPrint(f"INSTANTIATE/RUNNING EXCEPTION {exception}", color = "RED")
                 #logging.exception("INSTANTIATE EXCEPTION " + traceback.format_exc())
 
             Base.ThreadBase.ThreadBase.stopAllThreads()

@@ -26,6 +26,7 @@ class EffektaController(ThreadObject):
         "F" : "Fault mode",
         "H" : "Power saving mode"
     }
+    MQTT_TIMEOUT = 60
 
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
@@ -154,6 +155,7 @@ class EffektaController(ThreadObject):
         self.tempDailyProduction = 0.0
         self.valideChargeValues = []
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
+        self.OldMqttDataReceived = False
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()) + "/#", globalSubscription = True)
         #self.mqttSubscribeTopic(self.createInTopic(self.getClassTopic()) + "/#", globalSubscription = True)
 
@@ -234,10 +236,12 @@ class EffektaController(ThreadObject):
                     self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict(newMqttMessageDict["content"], extern=True), globalPublish = False, enableEcho = False)
                 elif "setValueExtern" in newMqttMessageDict["topic"]:
                     self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(newMqttMessageDict["content"], extern = True), globalPublish = False, enableEcho = False)
-                elif "Netzspannung" in newMqttMessageDict["content"]:
+                elif "CompleteProduction" in newMqttMessageDict["content"]:
                     # if we get our own Data will overwrite internal data. For initial settings like ...Production
-                    self.EffektaData["EffektaWerte"] = newMqttMessageDict["content"]
+                    self.EffektaData["EffektaWerte"]["CompleteProduction"] = newMqttMessageDict["content"]["CompleteProduction"]
+                    self.EffektaData["EffektaWerte"]["DailyProduction"] = newMqttMessageDict["content"]["DailyProduction"]
                     self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
+                    self.OldMqttDataReceived = True
             else:
                 # The msg is from our interface
                 if "setValue" in newMqttMessageDict["content"]:
@@ -301,7 +305,11 @@ class EffektaController(ThreadObject):
                 self.tempDailyProduction = 0.0
                 self.sendeGlobalMqtt = True
 
-        if self.sendeGlobalMqtt:
+        if not self.OldMqttDataReceived:
+            if self.timer("mqttTimeout", self.MQTT_TIMEOUT, removeOnTimeout = True):
+                self.OldMqttDataReceived = True
+
+        if self.sendeGlobalMqtt and self.OldMqttDataReceived:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = False, enableEcho = False)
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.EffektaData["EffektaWerte"], globalPublish = True,  enableEcho = False)
             self.sendeGlobalMqtt = False
