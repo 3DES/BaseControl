@@ -155,7 +155,12 @@ class PowerPlant(Worker):
         else:
             setThresholds(self.scriptValues["MinSoc"], self.scriptValues["schaltschwelleAkkuTollesWetter"])
 
-        if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == self._HUNDRED_PERCENT:
+        if self.configuration["resetFullchargeRequiredWithFloatmode"]:
+            # if FullChargeRequired is used to reference soc monitor it is neccessary to reset this bit if floatMode from the inverter is detected
+            if self.localDeviceData["combinedEffektaData"]["FloatingModeOr"]:
+                self.setScriptValues("FullChargeRequired", False)
+        elif self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] == self._HUNDRED_PERCENT:
+            # if FullChargeRequired is used to balance battery and the bms or interface is able to send finally 100% soc. E.g. soc is 90% due balancing and 100% at the end of balancing.
             self.setScriptValues("FullChargeRequired", False)
         if self.scriptValues["FullChargeRequired"]:
             self.setScriptValues("schaltschwelleAkku", self._HUNDRED_PERCENT)
@@ -218,7 +223,7 @@ class PowerPlant(Worker):
     def updateVariables(self):
         """
         update some variables in setableScriptValues
-        AkkusSupply is True if all load is supplyed via akku
+        AkkusSupply is True if all load is supplied from akku
         """
         self.setScriptValues("AkkuSupply", ((self.scriptValues["WrMode"] == self.AKKU_MODE) and (self.scriptValues["NetzRelais"] == self.INVERTER_MODE)))
 
@@ -242,9 +247,9 @@ class PowerPlant(Worker):
                 self.timer(name = "timerFloatmode", timeout = minBalanceTime)
             # the boolean ensures that the SOC reset is only sent once when inverters are in float mode and is only sent again when float mode has been left and entered again
             if not self.ResetSocSent:
-                self.resetSocMonitor()                  # send SOC reset
-                self.setScriptValues("Error", False)    # clear error
-                self.ResetSocSent = True                # remember SOC reset has been sent
+                self.resetSocMonitor()                                          # send SOC reset
+                self.setScriptValues("Error", False)                            # clear error
+                self.ResetSocSent = True                                        # remember SOC reset has been sent
         else:
             self.ResetSocSent = False                   # float mode left, so ensure SOC reset will be sent again when float mode is entered the next time
 
@@ -929,6 +934,7 @@ class PowerPlant(Worker):
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
         self.tagsIncluded(["HeaterWeatherControlledTime"], optional = True, default = 7)        # never heat before 7 o'clock in the morning
         self.tagsIncluded(["inputs"], optional = True, default = [])
+        self.tagsIncluded(["resetFullchargeRequiredWithFloatmode"], optional = True, default = False)
 
         # if there was only one module given for inputs convert it to a list
         if type(self.configuration["inputs"]) != list:

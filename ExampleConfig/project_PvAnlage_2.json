@@ -125,9 +125,9 @@
                 "interface":        "/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.2.3:1.0-port0",
                 "battCount":        5,
                 "VmaxCellWarn":     3.60,           # if this voltage and VmaxTimer is exceeded BmsLadeFreigabe is set to False. We use this to prevent a complete shutdown.
-                "VmaxWarnTimer":        10,
-                "VminCellWarn":     2.8,            # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
-                "VminWarnTimer":        40
+                "VmaxWarnTimer":    10,
+                "VminCellWarn":     3.05,            # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
+                "VminWarnTimer":    40
             }
         }
     },
@@ -138,6 +138,7 @@
         "managedEffektas": ["West", "Ost"],
         "socMonitorName": "Pylontech",
         "bmsName": "Pylontech",
+        "resetFullchargeRequiredWithFloatmode": false,      # optional, if FullChargeRequired is used to reference soc monitor it is neccessary to reset this bit if floatMode from the inverter is detected, if FullChargeRequired is used to balance battery and the bms or interface is able to send finally 100% soc. E.g. soc is 90% due balancing and 100% at the end of balancing.
         "weatherName": "Wetter",                            # optional
         "initModeEffekta": "Auto"                           # Auto, Akku, Netz.  Fallback: Netz
     },

@@ -27,16 +27,21 @@ class WBmsUartInterface(BasicUartInterface):
         lastLine = False
         if len(line):
             segmentList = line.split()
+            
             try:
                 for i in segmentList:
                     if i == b'Kleinste':
-                        self.BmsWerte["Vmin"] = float(segmentList[2])
+                        tempVoltage = float(segmentList[2])
+                        if tempVoltage > -5.0 and tempVoltage < 10:         # try to filter invalid data
+                            self.BmsWerte["Vmin"] = tempVoltage
                     elif i == b'Groeste':
-                        self.BmsWerte["Vmax"] = float(segmentList[2])
+                        tempVoltage = float(segmentList[2])
+                        if tempVoltage > -5.0 and tempVoltage < 10:         # try to filter invalid data
+                            self.BmsWerte["Vmax"] = tempVoltage
                     elif i == b'Ladephase:':
                         self.BmsWerte["Ladephase"] = segmentList[1].decode()
                         lastLine = True
-                        self.serialReset_input_buffer() 
+                        self.serialReset_input_buffer()
                 if line == b'Rel fahren 1\r\n':
                     self.BmsWerte["BmsEntladeFreigabe"] = True
                     self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]

@@ -257,7 +257,6 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             '-U',
             fr'flash:w:{self.getFirmwarePath()}:a'
         ]
-        #self.logger.info(f"execute: {' '.join(parameterList)}")
         return subprocess.run(parameterList, capture_output=True)
 
     def getOurVersion(self):

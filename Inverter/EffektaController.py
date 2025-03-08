@@ -9,6 +9,11 @@ import Logger
 class EffektaController(ThreadObject):
     '''
     classdocs
+
+    A parameter rerquest can be triggered with following command. Where Ost ist the threadName.
+    HomeAccu/Ost/in/queryExtern QPIGS
+    HomeAccu/Ost/out {"cmd": "QPIGS", "response": "231.1 49.9 000.0 00.0 0000 0000 000 054 49.10 000 059 0020 0000 062.4 49.22 00000 00000110 00 00 00044 000", "extern": true}
+
     '''
     VerbraucherNetz = "POP00"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
     VerbraucherAkku = "POP02"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
