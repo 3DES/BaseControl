@@ -16,7 +16,7 @@ class Jbd485Interface(InterfaceBase):
         '''
         super().__init__(threadName, configuration)
         self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "FullChargeRequired":False, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
-        self.CHG_FET_DISABLE_TIME = 60*60
+        self.CHG_FET_DISABLE_TIME = 60*60*2
         self.FULL_CHG_REQ_TIMER = 60*60*24*30
 
     def handleChargeFet(self, chgFetState):
@@ -30,7 +30,7 @@ class Jbd485Interface(InterfaceBase):
         self.old_dsg_fet_en = chgFetState
 
         # if 4 falling edges were detected we start a timer and deactivate chg fet
-        if self.chg_fet_disable_count >= 4:
+        if self.chg_fet_disable_count >= 3:
             if self.timerExists("chgFetDisable"):
                 if self.timer(name = "chgFetDisable", timeout = self.CHG_FET_DISABLE_TIME):
                     self.jbd.chgDsgEnable(chgEnable=True, dsgEnable=True)

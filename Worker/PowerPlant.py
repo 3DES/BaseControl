@@ -163,7 +163,8 @@ class PowerPlant(Worker):
             # if FullChargeRequired is used to balance battery and the bms or interface is able to send finally 100% soc. E.g. soc is 90% due balancing and 100% at the end of balancing.
             self.setScriptValues("FullChargeRequired", False)
         if self.scriptValues["FullChargeRequired"]:
-            self.setScriptValues("schaltschwelleAkku", self._HUNDRED_PERCENT)
+            # we want to disable a switch to accumode until FullChargeRequired is resetet
+            self.setScriptValues("schaltschwelleAkku", self._HUNDRED_PERCENT + 1)
 
         # ensure "schaltschwelleNetz" is at least as large as "MinSoc"
         self.setScriptValues("schaltschwelleNetz", max(self.scriptValues["schaltschwelleNetz"], self.scriptValues["MinSoc"]))
