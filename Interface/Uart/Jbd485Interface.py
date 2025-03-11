@@ -4,6 +4,7 @@ from GridLoad.SocMeter import SocMeter
 import serial
 import json
 from Interface.Uart.Jbd.jbd import JBDUP
+from Base.Supporter import Supporter
 
 class Jbd485Interface(InterfaceBase):
     '''
@@ -16,10 +17,11 @@ class Jbd485Interface(InterfaceBase):
         '''
         super().__init__(threadName, configuration)
         self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "FullChargeRequired":False, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
-        self.CHG_FET_DISABLE_TIME = 60*60*2
+        self.CHG_FET_DISABLE_TIME = 60*60*3
         self.FULL_CHG_REQ_TIMER = 60*60*24*30
+        self.CHARGE_FET_RECOVER_VOLTAGE = 3.40
 
-    def handleChargeFet(self, chgFetState):
+    def handleChargeFet(self, chgFetState, maxCellVoltage):
         # We count charge fet disables, if we reached 5 disables we deactivate charge fet for 60min. 
         # This funktion is to prevent a oscillating system because of debalanced cells ect
 
@@ -29,23 +31,21 @@ class Jbd485Interface(InterfaceBase):
 
         self.old_dsg_fet_en = chgFetState
 
-        # if 4 falling edges were detected we start a timer and deactivate chg fet
+        # if 3 falling edges were detected we start a timer and deactivate chg fet
         if self.chg_fet_disable_count >= 3:
             if self.timerExists("chgFetDisable"):
-                if self.timer(name = "chgFetDisable", timeout = self.CHG_FET_DISABLE_TIME):
+                if self.timer(name = "chgFetDisable", timeout = self.CHG_FET_DISABLE_TIME) or (maxCellVoltage < self.CHARGE_FET_RECOVER_VOLTAGE):
                     self.jbd.chgDsgEnable(chgEnable=True, dsgEnable=True)
                     self.timer("chgFetDisable", remove=True)
-                    self.timer("reset_disable_counter", remove=True)
                     self.chg_fet_disable_count = 0
-                    self.logger.info(self, f"{self.name} inteface enabled chg fet from BMS")
+                    self.logger.info(self, f"{self.name} inteface enabled charge fet from BMS")
             else:
                 self.jbd.chgDsgEnable(chgEnable=False, dsgEnable=True)
                 self.timer(name = "chgFetDisable", timeout = self.CHG_FET_DISABLE_TIME)
-                self.logger.info(self, f"{self.name} inteface disabled chg fet from BMS")
+                self.logger.info(self, f"{self.name} inteface disabled charge fet from BMS")
         # reset counter after 1 day
-        elif self.chg_fet_disable_count > 0:
-            if self.timer(name = "reset_disable_counter", removeOnTimeout = True, timeout = 60*60*24):
-                self.chg_fet_disable_count = 0
+        if self.timer(name = "reset_disable_counter", startTime = Supporter.getTimeOfToday(hour = 20), timeout = 60*60*24):
+            self.chg_fet_disable_count = 0
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount"])
@@ -122,7 +122,7 @@ class Jbd485Interface(InterfaceBase):
             self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
             if self.timerExists("timeoutJbdRead"):
                 self.timer("timeoutJbdRead", remove=True)
-            self.handleChargeFet(basicInfo["chg_fet_en"])
+            self.handleChargeFet(basicInfo["chg_fet_en"], max(self.BmsWerte["VoltageList"]))
         except:
             self.logger.error(self, f"Error reading {self.name} inteface.")
             if self.timer(name = "timeoutJbdRead", timeout = 60):
