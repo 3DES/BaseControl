@@ -64,7 +64,7 @@
     {
         "class":                        "BMS.BasicBms.BasicBms",
         "socMonitor":                   "SocMonitor",
-        "parameters":                   {"vBal": 3.5},
+        "parameters":                   {"vBal": 3.48},
         "balancingHysteresisTime":      0,
         "interfaces":
         {

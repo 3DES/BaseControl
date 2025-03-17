@@ -9,14 +9,16 @@ class Pylontech485Interface(InterfaceBase):
     '''
     classdocs
     '''
-    
+    MAX_PACK_VOLTAGE = 53.5
+
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
         '''
         super().__init__(threadName, configuration)
         self.removeMqttRxQueue()
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[], "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[], "PackVoltageList":[], "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
+
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount", "VminCellWarn", "VmaxCellWarn", "VminWarnTimer", "VmaxWarnTimer"])
@@ -24,6 +26,7 @@ class Pylontech485Interface(InterfaceBase):
         self.tagsIncluded(["NumLogfiles"], optional = True, default = 20)
         self.printError = True
         self.LogIndex = 0
+        self.printRawData = False
         tries = 0
         while tries < self.MAX_INIT_TRIES:
             try:
@@ -47,30 +50,29 @@ class Pylontech485Interface(InterfaceBase):
             if self.timerExists("timeoutPylontechRead"):
                 self.timer(name = "timeoutPylontechRead",remove = True)
             self.BmsWerte["VoltageList"] = []
-            for module in data["AnaloglList"]:
-                self.BmsWerte["VoltageList"] += module["CellVoltages"]
-            self.BmsWerte["Vmin"] = min(self.BmsWerte["VoltageList"])
-            self.BmsWerte["Vmax"] = max(self.BmsWerte["VoltageList"])
             valueList = []
-            for module in data["AnaloglList"]:
-                valueList += module["Temperatures"]
-            self.BmsWerte["Tmin"] = min(valueList)
-            self.BmsWerte["Tmax"] = max(valueList)
-
+            self.BmsWerte["PackVoltageList"] = []
             self.BmsWerte["CurrentList"] = []
             self.BmsWerte["Current"] = 0.0
             for module in data["AnaloglList"]:
+                self.BmsWerte["VoltageList"] += module["CellVoltages"]
+                valueList += module["Temperatures"]
+                self.BmsWerte["PackVoltageList"].append(module["Voltage"])
                 self.BmsWerte["Current"] += module["Current"]
                 self.BmsWerte["CurrentList"].append(module["Current"])
+
+            self.BmsWerte["Vmin"] = min(self.BmsWerte["VoltageList"])
+            self.BmsWerte["Vmax"] = max(self.BmsWerte["VoltageList"])
+            self.BmsWerte["Tmin"] = min(valueList)
+            self.BmsWerte["Tmax"] = max(valueList)
 
             # Extract BmsEntladeFreigabe and BmsLadeFreigabe from CellAlarm  
             self.BmsWerte["BmsEntladeFreigabe"] = True
             self.BmsWerte["BmsLadeFreigabe"] = True
-            printRawData = False
             for module in data["AlarmInfoList"]:
                 #if not data["ChargeDischargeManagementList"]["StatusDischargeEnable"]:
                 if module["ModuleVoltageAlarm"] != "Ok":
-                    printRawData = True
+                    self.printRawData = True
                     if self.BmsWerte["Vmin"] < 3.0:
                         self.BmsWerte["BmsEntladeFreigabe"] = False
                         self.logger.error(self, f'Pylontec ModuleVoltageAlarm detected')
@@ -79,7 +81,7 @@ class Pylontech485Interface(InterfaceBase):
                         self.logger.error(self, f'Pylontec ModuleVoltageAlarm detected')
                 for cellAlarm in module["CellAlarm"]:
                     if cellAlarm != "Ok":
-                        printRawData = True
+                        self.printRawData = True
                         if self.BmsWerte["Vmin"] < 3.0:
                             self.BmsWerte["BmsEntladeFreigabe"] = False
                         if self.BmsWerte["Vmax"] > 3.5:
@@ -93,7 +95,7 @@ class Pylontech485Interface(InterfaceBase):
                     if self.printError:
                         self.printError = False
                         self.logger.error(self, f'VminCellWarn from {self.name} has triggered, we stop discharging.')
-                    printRawData = True
+                    self.printRawData = True
             else:
                 if self.timerExists("VminTimer"):
                     self.printError = True
@@ -105,13 +107,21 @@ class Pylontech485Interface(InterfaceBase):
                     if self.printError:
                         self.printError = False
                         self.logger.error(self, f'VmaxCellWarn from {self.name} has triggered, we stop charging.')
-                    printRawData = True
+                    self.printRawData = True
             else:
                 if self.timerExists("VmaxTimer"):
                     self.printError = True
                     self.timer(name = "VmaxTimer",remove = True)
 
-            if printRawData:
+            if max(self.BmsWerte["PackVoltageList"]) >= self.MAX_PACK_VOLTAGE:
+                if self.timer(name = "Write error", firstTimeTrue = True, timeout = 120):
+                    self.logger.error(self, f'MaxPackVoltage from {self.name} has triggered, we stop charging.')
+                    self.logger.error(self, f'Pack Voltages: {str(self.BmsWerte["PackVoltageList"])}')
+                self.printRawData = True
+                self.BmsWerte["BmsLadeFreigabe"] = False
+
+
+            if self.printRawData:
                 if self.timer(name = "WriteErrorLog", firstTimeTrue = True, timeout = 60*60*2):
                     self.logger.error(self, f'Error from Pylontec detected. Pylontec rawData:')
                     self.logger.error(self, f'str(data)')
