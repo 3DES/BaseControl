@@ -124,7 +124,7 @@ class EffektaController(ThreadObject):
         returns given Effekta data with logical link
         given data is a dict with one or more Effektas {"effekta_A":{Data}, "effekta_B":{Data}}
         """
-        globalEffektaData = {"FloatingModeOr" : False, "OutputVoltageHighOr" : False, "InputVoltageAnd" : True, "OutputVoltageHighAnd" : True, "OutputVoltageLowAnd" : True, "ErrorPresentOr" : False}
+        globalEffektaData = {"BatteryModeAnd" : True, "FloatingModeOr" : False, "OutputVoltageHighOr" : False, "InputVoltageAnd" : True, "OutputVoltageHighAnd" : True, "OutputVoltageLowAnd" : True, "ErrorPresentOr" : False}
         currentlyHandledKey = None
         floatmode = None
         try:
@@ -148,6 +148,8 @@ class EffektaController(ThreadObject):
                     globalEffektaData["OutputVoltageHighOr"] = True
                 if EffektaData[name]["ActualMode"] == "F":
                     globalEffektaData["ErrorPresentOr"] = True
+                if EffektaData[name]["ActualMode"] != "B":
+                    globalEffektaData["BatteryModeAnd"] = False
         except Exception as ex:
             Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentlyHandledKey}, floatmode:{floatmode}")
         return globalEffektaData

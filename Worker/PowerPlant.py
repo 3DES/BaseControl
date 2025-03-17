@@ -224,9 +224,9 @@ class PowerPlant(Worker):
     def updateVariables(self):
         """
         update some variables in setableScriptValues
-        AkkusSupply is True if all load is supplied from akku
+        AkkusSupply is True if all load is supplied from battery
         """
-        self.setScriptValues("AkkuSupply", ((self.scriptValues["WrMode"] == self.AKKU_MODE) and (self.scriptValues["NetzRelais"] == self.INVERTER_MODE)))
+        self.setScriptValues("AkkuSupply", ((self.localDeviceData["combinedEffektaData"]["BatteryModeAnd"]) and (self.scriptValues["NetzRelais"] == self.INVERTER_MODE)))
 
     def manageLogicalCombinedEffektaData(self):
         """
@@ -496,7 +496,8 @@ class PowerPlant(Worker):
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON:
                 stateMode = self.TRANSFER_TO_INVERTER
-                if self.timer(name = "parameterSetTimer", timeout = parameterSetTimer, removeOnTimeout = True):
+                # If grid is down we want to switch on immediately the inverters else we wait for writing all parameters ensure a start with battery Mode
+                if not self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"] or self.timer(name = "parameterSetTimer", timeout = parameterSetTimer, removeOnTimeout = True):
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Schalte Netzumschaltung auf Inverter.")
                     # grid mode has to be active, inverter mode has to be inactive, switch on inverter output voltages
                     self.modifyRelaisData(
