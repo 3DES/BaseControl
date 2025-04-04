@@ -58,6 +58,8 @@ class DummyEffektaUartInterface(InterfaceBase):
                             cmd["response"] = "S"
                         else:
                             cmd["response"] = "B"
+                    elif cmd["cmd"] == "QMUCHGCR":
+                        cmd["response"] = "002 010 030 020 040 050 060"
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"query":cmd}, globalPublish = False, enableEcho = False)
             elif "setValue" in newMqttMessageDict["content"]:
                 if type(newMqttMessageDict["content"]["setValue"]) == dict:

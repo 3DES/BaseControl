@@ -19,8 +19,6 @@ class EffektaController(ThreadObject):
     VerbraucherAkku = "POP02"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
     BattLeer = "PSDV43.0"
     BattWiederEntladen = "PBDV48.0"
-    NetzSchnellLadestrom = "MUCHGC030"
-    NetzErhaltungsLadestrom = "MUCHGC002"
     chargePrioNetzPV = "PCP02"             # charge prio 02=Netz und pv, 03=pv
     chargePrioPV = "PCP03"             # charge prio 02=Netz und pv, 03=pv
     fullTextMode = {
@@ -32,6 +30,7 @@ class EffektaController(ThreadObject):
         "H" : "Power saving mode"
     }
     MQTT_TIMEOUT = 60
+    ValideChargeValues = []
 
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
@@ -84,19 +83,20 @@ class EffektaController(ThreadObject):
 
     @classmethod
     def getCmdSwitchUtilityChargeOn(cls):
+        # We set the lowest value of valideChargeValues (normally 2A charge current)
         parList = []
         parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
-        # @todo kleinsten strom automatisch ermitteln
-        parList.append(cls.getSetValueKeys(cls.NetzErhaltungsLadestrom))
+        parList.append(cls.getSetValueKeys(f"MUCHGC{cls.ValideChargeValues[0]}"))
         return {"setValue":parList}
 
     @classmethod
     def getCmdSwitchUtilityFastChargeOn(cls):
+        # We set the middle value of valideChargeValues (normally 30A charge current)
         parList = []
         parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
-        parList.append(cls.getSetValueKeys(cls.NetzSchnellLadestrom))
+        parList.append(cls.getSetValueKeys(f"MUCHGC{cls.ValideChargeValues[round(len(cls.ValideChargeValues) / 2) - 1]}"))
         return {"setValue":parList}
 
     @classmethod
@@ -114,7 +114,7 @@ class EffektaController(ThreadObject):
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
         parList.append(cls.getSetValueKeys("PBDV52.0"))
         parList.append(cls.getSetValueKeys("PSDV48.0"))
-        parList.append(cls.getSetValueKeys(cls.NetzErhaltungsLadestrom))
+        parList.append(cls.getSetValueKeys(f"MUCHGC{cls.ValideChargeValues[0]}"))
         parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
         return {"setValue":parList}
 
@@ -154,13 +154,9 @@ class EffektaController(ThreadObject):
             Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentlyHandledKey}, floatmode:{floatmode}")
         return globalEffektaData
 
-    def updateChargeValues(self):
-        self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMUCHGCR"), globalPublish = False, enableEcho = False)
-
     def threadInitMethod(self):
         self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "ActualModeText": "", "DailyProduction": 0.0, "CompleteProduction": 0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
         self.tempDailyProduction = 0.0
-        self.valideChargeValues = []
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
         self.OldMqttDataReceived = False
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()) + "/#", globalSubscription = True)
@@ -217,13 +213,12 @@ class EffektaController(ThreadObject):
         # tempDailyCharge = 0.0
 
         if self.timer(name = "queryTimer", timeout = effekta_Query_Cycle, autoReset = True, firstTimeTrue = True):
-            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QPIGS"), globalPublish = False, enableEcho = False)
-            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMOD"),  globalPublish = False, enableEcho = False)
-
             self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict(self.queries[self.queryIndex]),   globalPublish = False, enableEcho = False)
             self.queryIndex += 1
             if self.queryIndex >= len(self.queries):
                 self.queryIndex = 0
+            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QPIGS"), globalPublish = False, enableEcho = False)
+            self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict("QMOD"),  globalPublish = False, enableEcho = False)
 
         self.sendeGlobalMqtt = False
 
@@ -260,9 +255,7 @@ class EffektaController(ThreadObject):
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"], globalPublish = True, enableEcho = False)
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
-                        if not self.valideChargeValues:
-                            # If valideChargeValues is empty we fill it with effekta answers
-                            self.valideChargeValues = newMqttMessageDict["content"]["query"]["response"].split()
+                        EffektaController.ValideChargeValues = sorted(newMqttMessageDict["content"]["query"]["response"].split())
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
                             self.sendeGlobalMqtt = True
