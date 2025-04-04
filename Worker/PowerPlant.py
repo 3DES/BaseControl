@@ -749,11 +749,8 @@ class PowerPlant(Worker):
 
         updateRelaisTimerChanged = updateRelaisTimerChanged or self.modifyExcessRelaisData(self.relNichtHeizen, self.nichtHeizen)
 
-        anyInverterNotLocked = False
-        for device in inverterLocked:
-            anyInverterNotLocked |= not inverterLocked[device]
-
-        if self.localLoad > 0 and anyInverterNotLocked:
+        # if one inverter is not locked and local load > 0
+        if self.localLoad > 0 and (not all(inverterLocked)):
             updateRelaisTimerChanged = updateRelaisTimerChanged or self.modifyExcessRelaisData(self.relLastAktiv, self.EIN)
         else:
             updateRelaisTimerChanged = updateRelaisTimerChanged or self.modifyExcessRelaisData(self.relLastAktiv, self.AUS)
