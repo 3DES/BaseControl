@@ -186,50 +186,31 @@ class BasicBms(ThreadObject):
         @param balancing    new balancing state
 
                       ^
-                      |A    _______ C      _ E __ G
-                vBal -|____/B      \______/D\_/F \__vMax_
+                      |A    _______ C      _ E ______ G
+                vBal -|____/B      \______/D\_/F     \__vMax_
                       |                                  
-                      |  _______  ______  _______________
-          hysteresis -|*/TTT    \/TT    \/T  TT   TTTTTTT
+                      |             ___      ___       ___
+          hysteresis -|*___________/   \____/   \_____/   \
                       |                                  
-                      |           _______                
-            balancer -|*\________/       \_______________
+                      |     _______        _     ____   
+            balancer -|*\__/       \______/ \___/    \____
                       |                                  
                      -+-----------------------------------> t
-                      |         12      34        5
-        
-               * = unclear state
-               T = hysteresis timer is retriggered (that's the case when balancer state is already in correct state what means ON for vMax > vBal and OFF for vMax < vBal)
-        
-               A: without any restrictions it's assumed that vMax < vBal, since before any value has been read the initialization will cause a switch from 1 to 0
-                  this will cause the hysteresis timer to be started
-               B: vMax becomes larger than vBal but hysteresis timer is still active so no state switch
-               1: hysteresis timer timed out
-               2: vMax > vBal, balancing is started, hysteresis timer is re-started
-               C: vMax < vBal ignored while hysteresis timer is running
-               3: hysteresis timer timed out
-               4: vMax < vBal, balancing is stopped, hysteresis timer is re-started
-               D: vMax > vBal ignored while hysteresis timer is running
-               E: vMax < vBal, hysteresis timer is re-triggered
-               F: vMax > vBal ignored while hysteresis timer is running
-               G: vMax < vBal, hysteresis timer is re-triggered        
         '''
-        if (balancing != self.globalBmsWerte["calc"]["relBalance"]) and self.allDevicesPresent():
-            # if there is no timer running or last started timer timed out already, take the new balancing state, otherwise ignore it
-            if not self.timerExists("balancingHysteresis") or self.timer(name = "balancingHysteresis"):
-                # take over new balancing state and send broadcast message out
-                self.globalBmsWerte["calc"]["relBalance"] = balancing
-                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "1" if balancing else "0"}}, globalPublish = False, enableEcho = False)
-
-                # (re-)setup hysteresis timer since new balancing state has been taken over and hasn't to be changed for a minimum time of 10 minutes 
-                self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
-            else:
-                # waiting for hysteresis timer timed out until change will be taken over
-                pass
-        else:
-            # (re-)setup hysteresis timer since current balancing state has been confirmed again
-            self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
-
+        if self.allDevicesPresent():
+            if balancing != self.globalBmsWerte["calc"]["relBalance"] or self.InitBalanceRelais:
+                if balancing:
+                    if not self.timerExists("balancingHysteresis") or self.timer(name = "balancingHysteresis"):
+                        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "1"}}, globalPublish = False, enableEcho = False)
+                        self.globalBmsWerte["calc"]["relBalance"] = balancing
+                        if self.timerExists("balancingHysteresis"):
+                            self.timer("blancingHysteresis", remove = True)
+                        self.InitBalanceRelais = False
+                else:
+                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "0"}}, globalPublish = False, enableEcho = False)
+                    self.globalBmsWerte["calc"]["relBalance"] = balancing
+                    self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
+                    self.InitBalanceRelais = False
 
     def checkAllBmsData(self):
         # this funktion checks all merged data with given vmin, vmax and timerVmin and writes result to self.globalBmsWerte["calc"]
@@ -295,8 +276,8 @@ class BasicBms(ThreadObject):
             self.numOfDevices += 1
 
         # initialize global BMS values
-        self.globalBmsWerte = {"merged":{"toggleIfMsgSeen":False}, "calc":{"BmsEntladeFreigabe":False, "BmsLadeFreigabe":False, "relBalance":True}}
-        self.setBalancerState(False)      # initially switch balancing OFF (was initialized with True and is now set to False to ensure a mqtt message will be sent and hysteresis timer is started)
+        self.InitBalanceRelais = True
+        self.globalBmsWerte = {"merged":{"toggleIfMsgSeen":False}, "calc":{"BmsEntladeFreigabe":False, "BmsLadeFreigabe":False, "relBalance":False}}
 
     def threadMethod(self):
         def takeDataAndSendGlobal(interfaceName):
