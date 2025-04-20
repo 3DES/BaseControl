@@ -49,7 +49,7 @@ class BasicBms(ThreadObject):
         '''
         super().__init__(threadName, configuration)
         self.tagsIncluded(["parameters"], optional = True, default = {})
-        self.tagsIncluded(["balancingHysteresisTime"], optional = True, default = 600)
+        self.tagsIncluded(["balancingHysteresisTime"], optional = True, default = 60)
         self.LIST_TO_VALUE_NAMES = {"VoltageList":"CellVoltage", "CurrentList":"ModuleCurrent"}
 
     def getSocMonitorTopic(self):
@@ -201,8 +201,8 @@ class BasicBms(ThreadObject):
                * = unclear state
                T = hysteresis timer is retriggered (that's the case when balancer state is already in correct state what means ON for vMax > vBal and OFF for vMax < vBal)
         
-               A: wihtout any restrictions it's assumed that vMax < vBal, since before any value has been read the initialization will cause a switch from 1 to 0
-                  this will cause the hystersis timer to be started
+               A: without any restrictions it's assumed that vMax < vBal, since before any value has been read the initialization will cause a switch from 1 to 0
+                  this will cause the hysteresis timer to be started
                B: vMax becomes larger than vBal but hysteresis timer is still active so no state switch
                1: hysteresis timer timed out
                2: vMax > vBal, balancing is started, hysteresis timer is re-started
@@ -214,24 +214,21 @@ class BasicBms(ThreadObject):
                F: vMax > vBal ignored while hysteresis timer is running
                G: vMax < vBal, hysteresis timer is re-triggered        
         '''
-        if self.configuration["balancingHysteresisTime"]:
-            if (balancing != self.globalBmsWerte["calc"]["relBalance"]) and self.allDevicesPresent():
-                # if there is no timer running or last started timer timed out already, take the new balancing state, otherwise ignore it
-                if not self.timerExists("balancingHysteresis") or self.timer(name = "balancingHysteresis"):
-                    # take over new balancing state and send broadcast message out
-                    self.globalBmsWerte["calc"]["relBalance"] = balancing
-                    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "1" if balancing else "0"}}, globalPublish = False, enableEcho = False)
-    
-                    # (re-)setup hysteresis timer since new balancing state has been taken over and hasn't to be changed for a minimum time of 10 minutes 
-                    self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
-                else:
-                    # waiting for hysteresis timer timed out until change will be taken over
-                    pass
-            else:
-                # (re-)setup hysteresis timer since current balancing state has been confirmed again
+        if (balancing != self.globalBmsWerte["calc"]["relBalance"]) and self.allDevicesPresent():
+            # if there is no timer running or last started timer timed out already, take the new balancing state, otherwise ignore it
+            if not self.timerExists("balancingHysteresis") or self.timer(name = "balancingHysteresis"):
+                # take over new balancing state and send broadcast message out
+                self.globalBmsWerte["calc"]["relBalance"] = balancing
+                self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "1" if balancing else "0"}}, globalPublish = False, enableEcho = False)
+
+                # (re-)setup hysteresis timer since new balancing state has been taken over and hasn't to be changed for a minimum time of 10 minutes 
                 self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
+            else:
+                # waiting for hysteresis timer timed out until change will be taken over
+                pass
         else:
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "1" if balancing else "0"}}, globalPublish = False, enableEcho = False)
+            # (re-)setup hysteresis timer since current balancing state has been confirmed again
+            self.timer(name = "balancingHysteresis", timeout = self.configuration["balancingHysteresisTime"], reSetup = True)
 
 
     def checkAllBmsData(self):
