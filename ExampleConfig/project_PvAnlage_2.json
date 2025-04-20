@@ -21,6 +21,9 @@
     "West":
     {
         "class":        "Inverter.EffektaController.EffektaController",
+        "bmsName": "Bms",
+        "boostVoltage": 53.0,
+        "floatVoltage": 52.2,
         "interfaces":
         {
             "UartWrEffektaWest":
@@ -34,6 +37,9 @@
     "Ost":
     {
         "class":        "Inverter.EffektaController.EffektaController",
+        "bmsName": "Bms",
+        "boostVoltage": 53.0,
+        "floatVoltage": 52.2,
         "interfaces":
         {
             "UartWrEffektaOst":

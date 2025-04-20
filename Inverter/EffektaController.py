@@ -3,8 +3,7 @@ import datetime
 import json
 from Base.ThreadObject import ThreadObject
 from Base.Supporter import Supporter
-import Logger
-
+from Logger.Logger import Logger
 
 class EffektaController(ThreadObject):
     '''
@@ -19,8 +18,12 @@ class EffektaController(ThreadObject):
     VerbraucherAkku = "POP02"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
     BattLeer = "PSDV43.0"
     BattWiederEntladen = "PBDV48.0"
-    chargePrioNetzPV = "PCP02"             # charge prio 02=Netz und pv, 03=pv
-    chargePrioPV = "PCP03"             # charge prio 02=Netz und pv, 03=pv
+    SetChargeToFloatmode = "PBDV00.0"
+    chargePrioNetzPV = "PCP02"              # charge prio 02=Netz und pv, 03=pv
+    chargePrioPV = "PCP03"                  # charge prio 02=Netz und pv, 03=pv
+    chargeBoostVoltageCmd = "PCVV"
+    chargeFloatVoltageCmd = "PBFT"
+
     fullTextMode = {
         "P" : "Power on mode",
         "S" : "Standby mode",
@@ -31,6 +34,14 @@ class EffektaController(ThreadObject):
     }
     MQTT_TIMEOUT = 60
     ValideChargeValues = []
+    BMS_TIMEOUT = 300
+    
+    FAST_CHARGE_ON = "fastChargeOn"
+    SLOW_CHARGE_ON = "slowChargeOn"
+    GRID_CHARGER_OFF = "gridChargerOff"
+    SWITCH_TO_BATTERY = "switchToBattery"
+    SWITCH_TO_GRID = "switchToGrid"
+    
 
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
@@ -51,6 +62,15 @@ class EffektaController(ThreadObject):
     getCmdSwitchToUtilityWithUvDetection ehem     schalteAlleWrAufNetzMitNetzladen()  Schaltet alle Wr auf Netz, setzt die Unterspannungserkennung des Wr auf aktiv
     """
     
+
+    @classmethod
+    def prepareUtilityChargeCmd(cls, inverterIndex:int, current:int):
+        if inverterIndex > 9:
+            raise Exception(f"{self.name}: inverterIndex must be < 9!")
+        if current >= 100:
+            return f"MNCHGC{inverterIndex}{current:03}"
+        else:
+            return f"MUCHGC{inverterIndex}{current:02}"
 
     @classmethod
     def getSetValueKeys(cls, cmd, value = "", extern = False):
@@ -82,21 +102,35 @@ class EffektaController(ThreadObject):
         return cls.getSetValueDict(cls.chargePrioPV)
 
     @classmethod
-    def getCmdSwitchUtilityChargeOn(cls):
+    def getCmdForceChargerToFloat(cls):
+        parList = []
+        # wir verstellen die Ladespannung (float und boost!!)
+        parList.append(cls.getSetValueKeys(cls.SetChargeToFloatmode))
+        return {"setValue":parList}
+
+    @classmethod
+    def getCmdEnableChargerBoostMode(cls):
+        parList = []
+        # wir verstellen die Ladespannung (float und boost!!)
+        parList.append(cls.getSetValueKeys(cls.BattWiederEntladen))
+        return {"setValue":parList}
+
+    @classmethod
+    def getCmdSwitchUtilityChargeOn(cls, inverterIndex:int = 0):
         # We set the lowest value of valideChargeValues (normally 2A charge current)
         parList = []
         parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
-        parList.append(cls.getSetValueKeys(f"MUCHGC{cls.ValideChargeValues[0]}"))
+        parList.append(cls.getSetValueKeys(cls.prepareUtilityChargeCmd(inverterIndex, int(cls.ValideChargeValues[0]))))
         return {"setValue":parList}
 
     @classmethod
-    def getCmdSwitchUtilityFastChargeOn(cls):
+    def getCmdSwitchUtilityFastChargeOn(cls, inverterIndex:int = 0):
         # We set the middle value of valideChargeValues (normally 30A charge current)
         parList = []
         parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
-        parList.append(cls.getSetValueKeys(f"MUCHGC{cls.ValideChargeValues[round(len(cls.ValideChargeValues) / 2) - 1]}"))
+        parList.append(cls.getSetValueKeys(cls.prepareUtilityChargeCmd(inverterIndex, int(cls.ValideChargeValues[round(len(cls.ValideChargeValues) / 2) - 1]))))
         return {"setValue":parList}
 
     @classmethod
@@ -109,12 +143,12 @@ class EffektaController(ThreadObject):
         return {"setValue":parList}
 
     @classmethod
-    def getCmdSwitchToUtilityWithUvDetection(cls):
+    def getCmdSwitchToUtilityWithUvDetection(cls, inverterIndex:int = 0):
         parList = []
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
         parList.append(cls.getSetValueKeys("PBDV52.0"))
         parList.append(cls.getSetValueKeys("PSDV48.0"))
-        parList.append(cls.getSetValueKeys(f"MUCHGC{cls.ValideChargeValues[0]}"))
+        parList.append(cls.getSetValueKeys(cls.prepareUtilityChargeCmd(inverterIndex, int(cls.ValideChargeValues[0]))))
         parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
         return {"setValue":parList}
 
@@ -151,16 +185,26 @@ class EffektaController(ThreadObject):
                 if EffektaData[name]["ActualMode"] != "B":
                     globalEffektaData["BatteryModeAnd"] = False
         except Exception as ex:
-            Logger.Logger.Logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentlyHandledKey}, floatmode:{floatmode}")
+            self.logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentlyHandledKey}, floatmode:{floatmode}")
         return globalEffektaData
 
     def threadInitMethod(self):
-        self.EffektaData = {"EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "ActualModeText": "", "DailyProduction": 0.0, "CompleteProduction": 0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
+        self.tagsIncluded(["bmsName", "floatVoltage", "boostVoltage"])
+        self.tagsIncluded(["inverterIndex"], optional = True, default = 0)
+        self.EffektaData = {"BmsWerte":{"BmsEntladeFreigabe":True, "BmsLadeFreigabe":True}, "EffektaWerte": {"Netzspannung": 0, "AcOutSpannung": 0, "AcOutPower": 0, "PvPower": 0, "BattCharge": 0, "BattDischarge": 0, "ActualMode": "", "ActualModeText": "", "DailyProduction": 0.0, "CompleteProduction": 0, "BattCapacity": 0, "DeviceStatus2": "", "BattSpannung": 0.0}}
         self.tempDailyProduction = 0.0
+        self.sendChDchStatesInitial = True
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
         self.OldMqttDataReceived = False
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()) + "/#", globalSubscription = True)
         #self.mqttSubscribeTopic(self.createInTopic(self.getClassTopic()) + "/#", globalSubscription = True)
+        self.mqttSubscribeTopic(self.createOutTopic(self.createProjectTopic(self.configuration["bmsName"])), globalSubscription = False)
+
+        # todo Ladespannungen zurück lesen  und checken
+        # send some paramters
+        self.mqttPublish(self.interfaceInTopics[0], self.getCmdEnableChargerBoostMode(), globalPublish = False, enableEcho = False)
+        self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeBoostVoltageCmd, value = str(round(self.configuration["boostVoltage"], 1)), extern = True), globalPublish = False, enableEcho = False)
+        self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeFloatVoltageCmd, value = str(round(self.configuration["floatVoltage"], 1)), extern = True), globalPublish = False, enableEcho = False)
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomation.mqttDiscoverySensor(self.EffektaData["EffektaWerte"])
@@ -205,6 +249,8 @@ class EffektaController(ThreadObject):
         we accept our own msg to get our old values initial.
         
         '''
+        if self.timer(name="bmsTimeout", timeout=self.BMS_TIMEOUT):
+            raise Exception(f'{self.name} received no data from bms {self.configuration["bmsName"]} for more than {self.BMS_TIMEOUT}s!')
 
         effekta_Query_Cycle = 20
         # battEnergyCycle = 8
@@ -226,37 +272,24 @@ class EffektaController(ThreadObject):
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.readMqttQueue(error = False)
 
-            # First we check if the msg is not from our Interface
-            if not (newMqttMessageDict["topic"] in self.interfaceOutTopics):
-                # if the msg is not from interface we will send it to the interface, either marked with global or not 
-                if "query" in newMqttMessageDict["content"]:
-                    self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
-                elif "setValue" in newMqttMessageDict["content"]:
-                    self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
-                # from extern we only need the sting of parameter, we build the required msg here
-                elif "queryExtern" in newMqttMessageDict["topic"]:
-                    self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict(newMqttMessageDict["content"], extern=True), globalPublish = False, enableEcho = False)
-                elif "setValueExtern" in newMqttMessageDict["topic"]:
-                    self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(newMqttMessageDict["content"], extern = True), globalPublish = False, enableEcho = False)
-                elif "CompleteProduction" in newMqttMessageDict["content"]:
-                    # if we get our own Data will overwrite internal data. For initial settings like ...Production
-                    self.EffektaData["EffektaWerte"]["CompleteProduction"] = newMqttMessageDict["content"]["CompleteProduction"]
-                    self.EffektaData["EffektaWerte"]["DailyProduction"] = newMqttMessageDict["content"]["DailyProduction"]
-                    self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
-                    self.OldMqttDataReceived = True
-            else:
+            # First we check if the msg is from our Interface
+            if newMqttMessageDict["topic"] in self.interfaceOutTopics:
                 # The msg is from our interface
                 if "setValue" in newMqttMessageDict["content"]:
                     if newMqttMessageDict["content"]["setValue"]["extern"]:
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["setValue"]["success"], globalPublish = True, enableEcho = False)
+                    elif not newMqttMessageDict["content"]["setValue"]["success"]:
+                        self.logger.error(self, f'setValue to inverter {self.name} was not successfull. Cmd was: {newMqttMessageDict["content"]}')
                 elif "query" in newMqttMessageDict["content"]:
                     if newMqttMessageDict["content"]["query"]["extern"]:
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"], globalPublish = True, enableEcho = False)
-                    elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
+                    elif len(newMqttMessageDict["content"]["query"]["response"]) == 0:
+                        self.logger.error(self, f'query to inverter {self.name} was not successfull. Cmd was: {newMqttMessageDict["content"]}')
+                    elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR":
                         EffektaController.ValideChargeValues = sorted(newMqttMessageDict["content"]["query"]["response"].split())
-                    elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
+                    elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD":
                         if self.EffektaData["EffektaWerte"]["ActualMode"] != newMqttMessageDict["content"]["query"]["response"]:
                             self.sendeGlobalMqtt = True
                             self.EffektaData["EffektaWerte"]["ActualMode"] = newMqttMessageDict["content"]["query"]["response"]
@@ -264,7 +297,7 @@ class EffektaController(ThreadObject):
                                 self.EffektaData["EffektaWerte"]["ActualModeText"] = self.fullTextMode[self.EffektaData["EffektaWerte"]["ActualMode"]]
                             else:
                                 self.EffektaData["EffektaWerte"]["ActualModeText"] = "unknown mode"
-                    elif newMqttMessageDict["content"]["query"]["cmd"] == "QPIGS" and len(newMqttMessageDict["content"]["query"]["response"]) > 0:
+                    elif newMqttMessageDict["content"]["query"]["cmd"] == "QPIGS":
                         (Netzspannung, Netzfrequenz, AcOutSpannung, AcOutFrequenz, AcOutPowerVA, AcOutPower, AcOutLoadProz, BusVoltage, BattSpannung, BattCharge, BattCapacity, InverterTemp, PvCurrent, PvVoltage, BattVoltageSCC, BattDischarge, DeviceStatus1, BattOffset, EeVersion, PvPower, DeviceStatus2) = newMqttMessageDict["content"]["query"]["response"].split()
                         self.EffektaData["EffektaWerte"]["AcOutSpannung"] = float(AcOutSpannung)
 
@@ -294,7 +327,48 @@ class EffektaController(ThreadObject):
                         self.tempDailyProduction = self.tempDailyProduction + (int(PvPower) * effekta_Query_Cycle / 60 / 60 / 1000)
                         self.EffektaData["EffektaWerte"]["DailyProduction"] = round(self.tempDailyProduction, 2)
                     else:
-                        self.logger.logger.logger.info(self, f"unhandled Effekta message: {newMqttMessageDict['content']}")
+                        self.logger.info(self, f"unhandled Effekta message: {newMqttMessageDict['content']}")
+            elif self.createOutTopic(self.createProjectTopic(self.configuration["bmsName"])) == newMqttMessageDict["topic"]:
+                if self.timerExists("bmsTimeout"):
+                    self.timer(name="bmsTimeout", timeout=self.BMS_TIMEOUT, remove=True)
+                if "BmsEntladeFreigabe" in newMqttMessageDict["content"]:
+                    if (self.EffektaData["BmsWerte"]["BmsEntladeFreigabe"] == True) and (newMqttMessageDict["content"]["BmsEntladeFreigabe"] == False):
+                        self.mqttPublish(self.interfaceInTopics[0], self.getCmdEnableCharger(), globalPublish = False, enableEcho = False)
+                        self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToUtilityWithUvDetection(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
+                    #if (self.EffektaData["BmsWerte"]["BmsLadeFreigabe"] != newMqttMessageDict["content"]["BmsLadeFreigabe"]) or self.sendChDchStatesInitial:
+                    #    if newMqttMessageDict["content"]["BmsLadeFreigabe"] == True:
+                    #        self.mqttPublish(self.interfaceInTopics[0], self.getCmdEnableChargerBoostMode(), globalPublish = False, enableEcho = False)
+                    #    else:
+                    #        self.mqttPublish(self.interfaceInTopics[0], self.getCmdForceChargerToFloat(), globalPublish = False, enableEcho = False)
+                    self.sendChDchStatesInitial = False
+                    self.EffektaData["BmsWerte"].update(newMqttMessageDict["content"])
+            else:
+                # if the msg is not from interface we will send it to the interface, either marked with global or not 
+                if "query" in newMqttMessageDict["content"]:
+                    self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
+                elif "setValue" in newMqttMessageDict["content"]:
+                    self.mqttPublish(self.interfaceInTopics[0], newMqttMessageDict["content"], globalPublish = False, enableEcho = False)
+                # from extern we only need the sting of parameter, we build the required msg here
+                elif "queryExtern" in newMqttMessageDict["topic"]:
+                    self.mqttPublish(self.interfaceInTopics[0], self.getQueryDict(newMqttMessageDict["content"], extern=True), globalPublish = False, enableEcho = False)
+                elif "setValueExtern" in newMqttMessageDict["topic"]:
+                    self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(newMqttMessageDict["content"], extern = True), globalPublish = False, enableEcho = False)
+                elif self.SWITCH_TO_GRID == newMqttMessageDict["content"]:
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToUtility(), globalPublish = False, enableEcho = False)
+                elif self.SWITCH_TO_BATTERY == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsEntladeFreigabe"] == True):
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToBattery(), globalPublish = False, enableEcho = False)
+                elif self.GRID_CHARGER_OFF == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsEntladeFreigabe"] == True):
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchUtilityChargeOff(), globalPublish = False, enableEcho = False)
+                elif self.SLOW_CHARGE_ON == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsLadeFreigabe"] == True):
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchUtilityChargeOn(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
+                elif self.FAST_CHARGE_ON == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsLadeFreigabe"] == True):
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchUtilityFastChargeOn(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
+                elif "CompleteProduction" in newMqttMessageDict["content"]:
+                    # if we get our own Data will overwrite internal data. For initial settings like ...Production
+                    self.EffektaData["EffektaWerte"]["CompleteProduction"] = newMqttMessageDict["content"]["CompleteProduction"]
+                    self.EffektaData["EffektaWerte"]["DailyProduction"] = newMqttMessageDict["content"]["DailyProduction"]
+                    self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
+                    self.OldMqttDataReceived = True
 
 
         now = datetime.datetime.now()

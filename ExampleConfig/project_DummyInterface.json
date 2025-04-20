@@ -22,6 +22,10 @@
     "WrEffektaWest":
     {
         "class":        "Inverter.EffektaController.EffektaController",
+        "bmsName": "Bms",
+        # "inverterIndex":2,                # optional inverter index needed if parallel kit is built in. L1 is not index 1!!
+        "boostVoltage": 53.5,
+        "floatVoltage": 52.0,
         "interfaces":
         {
             "UartWrEffektaWest":
@@ -40,6 +44,7 @@
         "managedEffektas": ["WrEffektaWest"],
         "socMonitorName": "SocMonitor",
         "bmsName": "Bms",
+        "debug": True,
         "resetFullchargeRequiredWithFloatmode": true,       # optional, if FullChargeRequired is used to reference soc monitor it is neccessary to reset this bit if floatMode from the inverter is detected, if FullChargeRequired is used to balance battery and the bms or interface is able to send finally 100% soc. E.g. soc is 90% due balancing and 100% at the end of balancing.
         #"inputs":"WdUsbRelais",
         "weatherName": "Wetter",                            # optional
@@ -53,7 +58,7 @@
         #"parameters":    {"vBal": 3.5},                                                # optional
         #"parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60},                  # optional 
         "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},      # optional, vbal will manage relBalance. you can map it to a gpio, vmin rises an exception and set internal BmsEntladeFreigabe to false after vMinTimer time occured, vMax rises an exception after 10s
-        "balancingHysteresisTime":      0,                                              # optional
+        "balancingHysteresisTime":      30,                                              # optional
         "interfaces":
         {
             "BmsEins":

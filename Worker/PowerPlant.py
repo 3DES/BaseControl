@@ -177,27 +177,28 @@ class PowerPlant(Worker):
             self.mqttPublish(self.createInTopic(self.get_projectName() + "/" + inverter), data, globalPublish = False, enableEcho = False)
 
     def schalteAlleWrAufAkku(self, effektas):
-        self.sendEffektaData(EffektaController.getCmdSwitchToBattery(), effektas)
+        self.sendEffektaData(EffektaController.SWITCH_TO_BATTERY, effektas)
         self.setScriptValues({"WrMode" : self.AKKU_MODE, "WrNetzladen" : False})
 
     def schalteAlleWrAufNetzOhneNetzLaden(self, effektas):
-        self.sendEffektaData(EffektaController.getCmdSwitchToUtility(), effektas)
+        self.sendEffektaData(EffektaController.SWITCH_TO_GRID, effektas)
         self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : False})
 
     def schalteAlleWrNetzLadenEin(self, effektas):
-        self.sendEffektaData(EffektaController.getCmdSwitchUtilityChargeOn(), effektas)
+        self.sendEffektaData(EffektaController.SLOW_CHARGE_ON, effektas)
         self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True})
 
     def schalteAlleWrNetzLadenAus(self, effektas):
-        self.sendEffektaData(EffektaController.getCmdSwitchUtilityChargeOff(), effektas)
+        self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, effektas)
         self.setScriptValues("WrNetzladen", False)
 
     def schalteAlleWrAufNetzMitNetzladen(self, effektas):
-        self.sendEffektaData(EffektaController.getCmdSwitchToUtilityWithUvDetection(), effektas)
+        # This is managed by inverter Thread
+        # self.sendEffektaData(EffektaController.getCmdSwitchToUtilityWithUvDetection(), effektas)
         self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True})
 
     def schalteAlleWrNetzSchnellLadenEin(self, effektas):
-        self.sendEffektaData(EffektaController.getCmdSwitchUtilityFastChargeOn(), effektas)
+        self.sendEffektaData(EffektaController.FAST_CHARGE_ON, effektas)
         self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True})
 
     def resetSocMonitor(self):
@@ -382,14 +383,12 @@ class PowerPlant(Worker):
         inverterErrorResponseTime   = 80
         acOutTimeout                = 100
         maxGridTransfersPerDay      = 2
-        debug = False
 
-        # for debugging:
-        #minGridTime                 = 15
-        #parameterSetTimer           = 5
-        #outputVoltageLowTimer       = 20
-        #maxGridTransfersPerDay      = 3
-        #debug = True
+        if self.configuration["debug"]:
+            minGridTime                 = 15
+            parameterSetTimer           = 5
+            outputVoltageLowTimer       = 20
+            maxGridTransfersPerDay      = 3
 
         def switchTransferRelais(deciredMode, forceToState = None):
             if forceToState is not None:
@@ -477,7 +476,7 @@ class PowerPlant(Worker):
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_OUTPUT_BEVORE_INVERTER_ON:
                 stateMode = self.TRANSFER_TO_INVERTER
                 # ensure that no inverter sees any output voltage, otherwise there is sth. wrong
-                if self.localDeviceData["combinedEffektaData"]["OutputVoltageHighOr"] and not debug:
+                if self.localDeviceData["combinedEffektaData"]["OutputVoltageHighOr"] and not self.configuration["debug"]:
                     self.modifyRelaisData(
                         # all these states are already expected but sth. is wrong and inverter output voltages are on, so try to switch off again
                         expectedStates = {
@@ -491,7 +490,7 @@ class PowerPlant(Worker):
                     # @todo auch hier kommen wir ggf. nie wieder raus, dann doch besser gezielt beenden!
                 # warten bis Parameter geschrieben sind
                 else:
-                    if debug:
+                    if self.configuration["debug"]:
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Debug! No OutputVoltage checked!")
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON:
@@ -931,6 +930,7 @@ class PowerPlant(Worker):
 
         self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName"])
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
+        self.tagsIncluded(["debug"], optional = True, default = False)
         self.tagsIncluded(["HeaterWeatherControlledTime"], optional = True, default = 7)        # never heat before 7 o'clock in the morning
         self.tagsIncluded(["inputs"], optional = True, default = [])
         self.tagsIncluded(["resetFullchargeRequiredWithFloatmode"], optional = True, default = False)
@@ -1129,6 +1129,7 @@ class PowerPlant(Worker):
                 # Wenn das BMS die entladefreigabe wieder erteilt dann reseten wir EntladeFreigabeGesendet damit das nachste mal wieder gesendet wird
                 self.EntladeFreigabeGesendet = False
             elif not self.EntladeFreigabeGesendet:
+                # Wir durchlaufen den u.g. Code einmalig wenn die Entladefreigabe entzogen wurde
                 self.EntladeFreigabeGesendet = True
                 self.schalteAlleWrAufNetzMitNetzladen(self.configuration["managedEffektas"])
                 # Falls der Akkustand zu hoch ist würde nach einer Abschaltung das Netzladen gleich wieder abgeschaltet werden das wollen wir verhindern
@@ -1140,6 +1141,7 @@ class PowerPlant(Worker):
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, f'Ladestand fehlerhaft')
                 # wir setzen einen error weil das nicht plausibel ist und wir hin und her schalten sollte die freigabe wieder kommen
                 # wir wollen den Akku erst bis 100 P aufladen
+                # self.scriptValues["schaltschwelleAkkuTollesWetter"] ist normalerweise die kleinste Akku Schaltschwelle, der Soc Wert ist nicht plausibel wenn dieser über der Schaltschwelle ist, während die Entladefreigabe entzogen wurde
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkkuTollesWetter"]:
                     self.setScriptValues("Error", True)
                     # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
