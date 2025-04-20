@@ -204,7 +204,7 @@ class BasicBms(ThreadObject):
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "1"}}, globalPublish = False, enableEcho = False)
                         self.globalBmsWerte["calc"]["relBalance"] = balancing
                         if self.timerExists("balancingHysteresis"):
-                            self.timer("blancingHysteresis", remove = True)
+                            self.timer("balancingHysteresis", remove = True)
                         self.InitBalanceRelais = False
                 else:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {BasicUsbRelais.gpioCmd:{"relBalance": "0"}}, globalPublish = False, enableEcho = False)
