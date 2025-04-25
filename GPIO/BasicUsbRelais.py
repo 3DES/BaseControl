@@ -180,8 +180,7 @@ class BasicUsbRelais(ThreadObject):
     def publishIOs(self):
         publishDict = {}
         publishDict["inputs"] = self.knownInputStates
-        if self.configuration["publish"]:
-            publishDict["outputs"] = self.knownRelayStates
+        publishDict["outputs"] = self.knownRelayStates
         self.logger.debug(self, f"update IO data: {publishDict}")
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), publishDict, globalPublish = False, enableEcho = False)
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), publishDict, globalPublish = True, enableEcho = False)
@@ -238,9 +237,13 @@ class BasicUsbRelais(ThreadObject):
             if outputName != reverseRelayDict[outputName]:
                 niceName += f" ({reverseRelayDict[outputName]})"
 
+            preparedMsg = self.homeAutomation.getDiscoverySensorCmd(deviceName = "", sensorName = outputName, niceName = niceName, unit = "none", topic = self.createOutTopic(self.getObjectTopic()), subStructure = "outputs", payloadOn = "1", payloadOff = "0")
+            sensorTopic = self.homeAutomation.getDiscoverySensorTopic(deviceName = self.name, sensorName = outputName, readOnly = True)
+            self.mqttPublish(sensorTopic, preparedMsg, globalPublish = True, enableEcho = False)
+            self.logger.debug(self, f"discover sensor at topic {sensorTopic}, message {preparedMsg}")
+
             switchTopic = self.homeAutomation.getDiscoverySwitchTopic(self.name, outputName)
             preparedMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs", payloadOn = f'{{ "inputs" : {{"{sensorName}" : "1"}} }}', payloadOff = f'{{ "inputs" : {{"{sensorName}" : "0"}} }}', stateOn = '1', stateOff = '0')
-            testMsg = self.homeAutomation.getDiscoverySwitchCmd(deviceName = self.name, sensorName = sensorName, niceName = niceName, subStructure = "outputs")
             if self.configuration["publish"]:
                 self.mqttPublish(switchTopic, preparedMsg, globalPublish = True, enableEcho = False)
                 self.logger.debug(self, f"discover switch at topic {switchTopic}, message {preparedMsg}")
