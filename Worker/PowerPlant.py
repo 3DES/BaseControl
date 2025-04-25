@@ -892,6 +892,9 @@ class PowerPlant(Worker):
                         self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                     elif message["content"] == "WrAufAkku":
                         self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
+                    elif message["content"] == "ResetErrors":
+                        self.scriptValues["Error"] = False
+                        self.aufPvSchaltenErlaubt = True
         else:
             # incoming msg is for other devices
             # check if a expected device sent a msg and store it
@@ -957,7 +960,7 @@ class PowerPlant(Worker):
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True}
         self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": "", "Load":0}
-        self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]
+        self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku", "ResetErrors"]
         self.dummyCommand = "NoCommand"
         self.manualCommands.append(self.dummyCommand)
         self.scriptValues = {}
