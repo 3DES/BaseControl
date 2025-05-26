@@ -189,7 +189,6 @@ class EffektaController(ThreadObject):
 
         # todo Ladespannungen zurück lesen  und checken
         # send some paramters
-        self.mqttPublish(self.interfaceInTopics[0], self.getCmdEnableChargerBoostMode(), globalPublish = False, enableEcho = False)
         self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeBoostVoltageCmd, value = str(round(self.configuration["boostVoltage"], 1)), extern = True), globalPublish = False, enableEcho = False)
         self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeFloatVoltageCmd, value = str(round(self.configuration["floatVoltage"], 1)), extern = True), globalPublish = False, enableEcho = False)
 
