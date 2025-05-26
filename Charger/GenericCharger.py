@@ -43,6 +43,7 @@ class GenericCharger(ThreadObject):
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.readMqttQueue(error = False)
 
+            # first check if the msg  is from a interface
             if (newMqttMessageDict["topic"] in self.interfaceOutTopics):
                 if self.initialMqttTimeout:
                     if not "Power" in self.chargerValues:

@@ -7,7 +7,7 @@ git clone "https://github.com/3DES/BaseControl.git"
 sudo pip install -r BaseControl/requirements.txt
 
 # create and/or copy your own ...project....json #
-cp BaseControl/ExampleProject/project_xxx.json BaseControl/json/project.json
+cp BaseControl/ExampleConfig/project_xxx.json BaseControl/json/project.json
 # create json/secure.json, see ExampleProject/secureExample.json #
 # create json/temporary.json  #
 

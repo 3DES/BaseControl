@@ -880,8 +880,9 @@ class PowerPlant(Worker):
             if message["content"] in self.manualCommands:
                 # if it is a dummy command. we do nothing
                 if message["content"] != self.dummyCommand:
-                    self.setScriptValues("AutoMode", False)
-                    self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf Manuell gestellt")
+                    if message["content"] in ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]:
+                        self.setScriptValues("AutoMode", False)
+                        self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf Manuell gestellt")
                     if message["content"] == "NetzSchnellLadenEin":
                         self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
                     elif message["content"] == "NetzLadenEin":
