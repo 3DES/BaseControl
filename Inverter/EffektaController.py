@@ -18,7 +18,6 @@ class EffektaController(ThreadObject):
     VerbraucherAkku = "POP02"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
     BattLeer = "PSDV43.0"
     BattWiederEntladen = "PBDV48.0"
-    SetChargeToFloatmode = "PBDV00.0"
     chargePrioNetzPV = "PCP02"              # charge prio 02=Netz und pv, 03=pv
     chargePrioPV = "PCP03"                  # charge prio 02=Netz und pv, 03=pv
     chargeBoostVoltageCmd = "PCVV"
@@ -50,18 +49,6 @@ class EffektaController(ThreadObject):
         '''
         super().__init__(threadName, configuration, interfaceQueues)
 
-
-    """
-    @todo kommentar bearbeiten. zum besseren Vergleich wurde er nur erweitert
-    die aktuellen Funktionen schalten nicht mehr aktiv sondern richten nur noch das cmd her
-    getCmdSwitchToBattery ehem.                   schalteAlleWrAufAkku()              Schaltet alle Wr auf Akku, setzt die Unterspannungserkennung des Wr ausser Kraft
-    getCmdSwitchUtilityChargeOff ehem.            schalteAlleWrNetzLadenAus()         Schaltet das Laden auf PV
-    getCmdSwitchUtilityChargeOn ehem.             schalteAlleWrNetzLadenEin()         Schaltet das Laden auf PV+Netz, schaltet die Verbraucher auf Netz, setzt den Netz Ladstrom auf NetzErhaltungsLadestrom
-    getCmdSwitchUtilityFastChargeOn ehem          schalteAlleWrNetzSchnellLadenEin()  Schaltet das Laden auf PV+Netz, schaltet die Verbraucher auf Netz, setzt den Netz Ladstrom auf NetzSchnellLadestrom, schaltet das Skript auf Manuell
-    getCmdSwitchToUtility ehem                    schalteAlleWrAufNetzOhneNetzLaden() Schaltet alle Wr auf Netz, setzt die Unterspannungserkennung des Wr ausser Kraft
-    getCmdSwitchToUtilityWithUvDetection ehem     schalteAlleWrAufNetzMitNetzladen()  Schaltet alle Wr auf Netz, setzt die Unterspannungserkennung des Wr auf aktiv
-    """
-    
 
     @classmethod
     def prepareUtilityChargeCmd(cls, inverterIndex:int, current:int):
@@ -105,14 +92,14 @@ class EffektaController(ThreadObject):
     def getCmdForceChargerToFloat(cls):
         parList = []
         # wir verstellen die Ladespannung (float und boost!!)
-        parList.append(cls.getSetValueKeys(cls.SetChargeToFloatmode))
+        # parList.append(cls.getSetValueKeys(cls.SetChargeToFloatmode))
         return {"setValue":parList}
 
     @classmethod
     def getCmdEnableChargerBoostMode(cls):
         parList = []
         # wir verstellen die Ladespannung (float und boost!!)
-        parList.append(cls.getSetValueKeys(cls.BattWiederEntladen))
+        # parList.append(cls.getSetValueKeys(cls.BattWiederEntladen))
         return {"setValue":parList}
 
     @classmethod
@@ -143,7 +130,7 @@ class EffektaController(ThreadObject):
         return {"setValue":parList}
 
     @classmethod
-    def getCmdSwitchToUtilityWithUvDetection(cls, inverterIndex:int = 0):
+    def getCmdSwitchToUtilityChargingWithUvDetection(cls, inverterIndex:int = 0):
         parList = []
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
         parList.append(cls.getSetValueKeys("PBDV52.0"))
@@ -333,8 +320,7 @@ class EffektaController(ThreadObject):
                     self.timer(name="bmsTimeout", timeout=self.BMS_TIMEOUT, remove=True)
                 if "BmsEntladeFreigabe" in newMqttMessageDict["content"]:
                     if (self.EffektaData["BmsWerte"]["BmsEntladeFreigabe"] == True) and (newMqttMessageDict["content"]["BmsEntladeFreigabe"] == False):
-                        self.mqttPublish(self.interfaceInTopics[0], self.getCmdEnableCharger(), globalPublish = False, enableEcho = False)
-                        self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToUtilityWithUvDetection(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
+                        self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToUtilityChargingWithUvDetection(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
                     #if (self.EffektaData["BmsWerte"]["BmsLadeFreigabe"] != newMqttMessageDict["content"]["BmsLadeFreigabe"]) or self.sendChDchStatesInitial:
                     #    if newMqttMessageDict["content"]["BmsLadeFreigabe"] == True:
                     #        self.mqttPublish(self.interfaceInTopics[0], self.getCmdEnableChargerBoostMode(), globalPublish = False, enableEcho = False)
