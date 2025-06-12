@@ -55,7 +55,7 @@
         "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
         "gpioHandler": ["PowerPlant"],
         "triggerThread":   "Pylontech",
-        "relMapping":{"RelNichtHeizen": "Relay3", "RelStufe1": "Relay4", "RelStufe2": "Relay5"},
+        "relMapping":{"RelNichtHeizen": "Relay3", "LoadLevelRel1": "Relay4", "LoadLevelRel2": "Relay5"},
         # In2:Netzheizen In3:PVHeizen
         "interfaces":
         {

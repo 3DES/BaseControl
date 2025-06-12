@@ -70,7 +70,7 @@
     {
         "class":                        "BMS.BasicBms.BasicBms",
         "socMonitor":                   "SocMonitor",
-        "parameters":                   {"vBal": 3.45},
+        "parameters":                   {"vBal": 3.51},
         "balancingHysteresisTime":      10,
         "interfaces":
         {

@@ -60,7 +60,7 @@ class PowerPlant(Worker):
                     sends {"cmd":"resetSoc"} to SocMonitor if floatMode from inverter is set (rising edge)
             OutTopic:
                     {"BasicUsbRelais.gpioCmd":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}}
-                    {"BasicUsbRelais.gpioCmd":{"relPowerPlantWaiting": "0", "relPowerPlantRunning": "0", "RelNichtHeizen": "0", "RelLastAktiv": "0", "RelStufe1": "1", "RelStufe2": "0", "RelStufe3": "0"}}
+                    {"BasicUsbRelais.gpioCmd":{"relPowerPlantWaiting": "0", "relPowerPlantRunning": "0", "RelNichtHeizen": "0", "RelLastAktiv": "0", "LoadLevelRel1": "1", "LoadLevelRel2": "0", "LoadLevelRel3": "0"}}
     '''
 
 
@@ -668,7 +668,7 @@ class PowerPlant(Worker):
         return oldValue != value
 
     def initExcessPower(self):
-        self.relStufe = "RelStufe"
+        self.relStufe = "LoadLevelRel"
         self.stufe1 = self.relStufe + "1"
         self.stufe2 = self.relStufe + "2"
         self.stufe3 = self.relStufe + "3"
@@ -681,7 +681,8 @@ class PowerPlant(Worker):
         self.modifyExcessRelaisData(self.stufe3, self.AUS)
         self.modifyExcessRelaisData(self.relLastAktiv, self.AUS)
         self.modifyExcessRelaisData(self.relNichtHeizen, self.AUS, True)
-        self.setScriptValues("Load", 0)
+        self.sensors.update(self.localPowerRelaisData[BasicUsbRelais.gpioCmd])
+        self.sensors.update({"Load":0})
         self.localLoad = 0
         self.nichtHeizen = self.AUS
 
@@ -757,6 +758,8 @@ class PowerPlant(Worker):
         # send new relay values and update scriptValues
         if updateRelaisTimerChanged:
             self.setScriptValues("Load", self.localLoad)
+            self.scriptValues.update(self.localPowerRelaisData[BasicUsbRelais.gpioCmd])
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.scriptValues, globalPublish = True, enableEcho = False)
             self.publishRelaisData(self.localPowerRelaisData)
 
 
@@ -929,6 +932,29 @@ class PowerPlant(Worker):
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Starte PowerPlant!")
 
     def threadInitMethod(self):
+        # init some constants
+        self.AKKU_MODE     = "Akku"
+        self.GRID_MODE     = "Netz"
+        self.AUTO_MODE     = "Auto"
+        self.INVERTER_MODE = "Inverter"
+        self.TRANSFER_TO_INVERTER = "transferToInverter"
+        self.TRANSFER_TO_NETZ     = "transferToNetz"
+        self.REL_WR_1     = "relWr"
+        self.REL_PV_AUS   = "relPvAus"
+        self.REL_NETZ_AUS = "relNetzAus"
+        self.EIN = BasicUsbRelais.REL_ON
+        self.AUS = BasicUsbRelais.REL_OFF
+
+        self.tagsIncluded(["REL_PV_AUS_NC"], optional = True, default = True)
+        if self.configuration['REL_PV_AUS_NC'] == True:
+            # "REL_PV_AUS_NC"
+            self.REL_PV_AUS_closed = self.AUS
+            self.REL_PV_AUS_open   = self.EIN
+        else:
+            # "REL_PV_AUS_NO"
+            self.REL_PV_AUS_closed = self.EIN
+            self.REL_PV_AUS_open   = self.AUS
+
         self.publishAndLog(Logger.LOG_LEVEL.INFO,  "---", logMessage = False)     # set initial value, don't log it!
         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "---", logMessage = False)     # set initial value, don't log it!
 
@@ -960,50 +986,28 @@ class PowerPlant(Worker):
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0, "wetterSchaltschwelleHeizung":9}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True}
-        self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": "", "Load":0}
+        self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku", "ResetErrors"]
         self.dummyCommand = "NoCommand"
         self.manualCommands.append(self.dummyCommand)
         self.scriptValues = {}
-        self.updateScriptValues(self.setableSlider)
-        self.updateScriptValues(self.setableSwitch)
-        self.updateScriptValues(self.sensors)
-        self.setableScriptValues = []
-        self.setableScriptValues += list(self.setableSlider.keys())
-        self.setableScriptValues += list(self.setableSwitch.keys())
+
         self.startupInitialization = False
         self.EntladeFreigabeGesendet = False
         self.NetzLadenAusGesperrt = False
         self.ResetSocSent = False
-
-        # init some constants
-        self.AKKU_MODE     = "Akku"
-        self.GRID_MODE     = "Netz"
-        self.AUTO_MODE     = "Auto"
-        self.INVERTER_MODE = "Inverter"
-        self.TRANSFER_TO_INVERTER = "transferToInverter"
-        self.TRANSFER_TO_NETZ     = "transferToNetz"
-        self.REL_WR_1     = "relWr"
-        self.REL_PV_AUS   = "relPvAus"
-        self.REL_NETZ_AUS = "relNetzAus"
-        self.EIN = BasicUsbRelais.REL_ON
-        self.AUS = BasicUsbRelais.REL_OFF
-
-        self.tagsIncluded(["REL_PV_AUS_NC"], optional = True, default = True)
-        if self.configuration['REL_PV_AUS_NC'] == True:
-            # "REL_PV_AUS_NC"
-            self.REL_PV_AUS_closed = self.AUS
-            self.REL_PV_AUS_open   = self.EIN
-        else:
-            # "REL_PV_AUS_NO"
-            self.REL_PV_AUS_closed = self.EIN
-            self.REL_PV_AUS_open   = self.AUS
 
         # init TransferRelais to switch all Relais to initial position
         self.initTransferRelais()
 
         self.initExcessPower()
 
+        self.updateScriptValues(self.setableSlider)
+        self.updateScriptValues(self.setableSwitch)
+        self.updateScriptValues(self.sensors)
+        self.setableScriptValues = []
+        self.setableScriptValues += list(self.setableSlider.keys())
+        self.setableScriptValues += list(self.setableSwitch.keys())
 
         # subscribe global to own out topic to get old data and set timeout
         self.mqttSubscribeTopic(self.createOutTopic(self.getObjectTopic()), globalSubscription = True)
