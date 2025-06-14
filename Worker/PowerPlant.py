@@ -261,6 +261,7 @@ class PowerPlant(Worker):
             if now.hour == 23:
                 self.timer(name = "timerFloatmode", remove = True)
                 self.localDeviceData["minBalanceTimeFinished"] = False
+        self.localDeviceData["minBalanceTimeFinished"] = self.localDeviceData["minBalanceTimeFinished"] or self.configuration["debug"]
 
     def getInputValueByName(self, inputName : str):
         '''
@@ -331,7 +332,7 @@ class PowerPlant(Worker):
         self.modifyRelaisData(
             {
                 self.REL_NETZ_AUS : self.AUS,               # initially all relays are OFF: - grid is enabled
-                self.REL_PV_AUS   : self.REL_PV_AUS_open,   #                               - inverters are enabled
+                self.REL_PV_AUS   : self.REL_PV_AUS_closed, #                               - inverters are enabled
                 self.REL_WR_1     : self.AUS                #                               - inverter output voltages are disabled
             },
             expectedStates = {}                 # no expected states during initialization
@@ -506,7 +507,7 @@ class PowerPlant(Worker):
                         },
                         expectedStates = {
                             self.REL_NETZ_AUS : self.AUS,
-                            self.REL_PV_AUS   : self.REL_PV_AUS_open,
+                            self.REL_PV_AUS   : self.REL_PV_AUS_closed,
                             self.REL_WR_1     : self.AUS,
                         }
                     )
