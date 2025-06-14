@@ -694,7 +694,10 @@ class PowerPlant(Worker):
 
         relayThresholds = sorted([96, 97, 98])                          # three thresholds means three supported relays, sorted because they are needed in ascending order!!!
         relayNames      = (self.stufe1, self.stufe2, self.stufe3)       # names of the relays to be switched off at the given thresholds
-        rangeMaximum    = min(len(relayThresholds), len(relayNames))    # not more relays are supported than thresholds or relay names have been given
+        rangeMaximum    = min(len(relayThresholds), len(relayNames), len(self.configuration["managedEffektas"]))    # not more relays are supported than thresholds or relay names have been given
+        # delete not used thresholds
+        while(len(relayThresholds) > len(self.configuration["managedEffektas"])):
+            del relayThresholds[0]
 
         # remember all inverters that are locked because of overload
         inverterLocked = []
@@ -756,10 +759,9 @@ class PowerPlant(Worker):
             updateRelaisTimerChanged = updateRelaisTimerChanged or self.modifyExcessRelaisData(self.relLastAktiv, self.AUS)
 
         # send new relay values and update scriptValues
+        self.setScriptValues("Load", self.localLoad)
+        self.setScriptValues(self.localPowerRelaisData[BasicUsbRelais.gpioCmd])
         if updateRelaisTimerChanged:
-            self.setScriptValues("Load", self.localLoad)
-            self.scriptValues.update(self.localPowerRelaisData[BasicUsbRelais.gpioCmd])
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.scriptValues, globalPublish = True, enableEcho = False)
             self.publishRelaisData(self.localPowerRelaisData)
 
 
@@ -932,29 +934,6 @@ class PowerPlant(Worker):
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Starte PowerPlant!")
 
     def threadInitMethod(self):
-        # init some constants
-        self.AKKU_MODE     = "Akku"
-        self.GRID_MODE     = "Netz"
-        self.AUTO_MODE     = "Auto"
-        self.INVERTER_MODE = "Inverter"
-        self.TRANSFER_TO_INVERTER = "transferToInverter"
-        self.TRANSFER_TO_NETZ     = "transferToNetz"
-        self.REL_WR_1     = "relWr"
-        self.REL_PV_AUS   = "relPvAus"
-        self.REL_NETZ_AUS = "relNetzAus"
-        self.EIN = BasicUsbRelais.REL_ON
-        self.AUS = BasicUsbRelais.REL_OFF
-
-        self.tagsIncluded(["REL_PV_AUS_NC"], optional = True, default = True)
-        if self.configuration['REL_PV_AUS_NC'] == True:
-            # "REL_PV_AUS_NC"
-            self.REL_PV_AUS_closed = self.AUS
-            self.REL_PV_AUS_open   = self.EIN
-        else:
-            # "REL_PV_AUS_NO"
-            self.REL_PV_AUS_closed = self.EIN
-            self.REL_PV_AUS_open   = self.AUS
-
         self.publishAndLog(Logger.LOG_LEVEL.INFO,  "---", logMessage = False)     # set initial value, don't log it!
         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "---", logMessage = False)     # set initial value, don't log it!
 
@@ -979,6 +958,29 @@ class PowerPlant(Worker):
         self.optionalDevices = []
         self.optionalDevices.append(self.configuration["weatherName"])
         self.optionalDevices += self.configuration["inputs"]
+
+        # init some constants
+        self.AKKU_MODE     = "Akku"
+        self.GRID_MODE     = "Netz"
+        self.AUTO_MODE     = "Auto"
+        self.INVERTER_MODE = "Inverter"
+        self.TRANSFER_TO_INVERTER = "transferToInverter"
+        self.TRANSFER_TO_NETZ     = "transferToNetz"
+        self.REL_WR_1     = "relWr"
+        self.REL_PV_AUS   = "relPvAus"
+        self.REL_NETZ_AUS = "relNetzAus"
+        self.EIN = BasicUsbRelais.REL_ON
+        self.AUS = BasicUsbRelais.REL_OFF
+
+        self.tagsIncluded(["REL_PV_AUS_NC"], optional = True, default = True)
+        if self.configuration['REL_PV_AUS_NC'] == True:
+            # "REL_PV_AUS_NC"
+            self.REL_PV_AUS_closed = self.AUS
+            self.REL_PV_AUS_open   = self.EIN
+        else:
+            # "REL_PV_AUS_NO"
+            self.REL_PV_AUS_closed = self.EIN
+            self.REL_PV_AUS_open   = self.AUS
 
         # init some variables
         self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "combinedEffektaData":{},"minBalanceTimeFinished": False, self.configuration["weatherName"]:{}}
