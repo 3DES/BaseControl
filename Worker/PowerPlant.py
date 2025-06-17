@@ -247,14 +247,13 @@ class PowerPlant(Worker):
         if self.localDeviceData["combinedEffektaData"]["FloatingModeOr"]:
             if not self.timerExists("timerFloatmode"):
                 self.timer(name = "timerFloatmode", timeout = minBalanceTime)
+            # the boolean ensures that the SOC reset is only sent once when inverters are in float mode and is only sent again when float mode has been left and entered again
+            if self.localDeviceData["minBalanceTimeFinished"] and not self.ResetSocSent:
+                self.resetSocMonitor()                                          # send SOC reset
+                self.setScriptValues("Error", False)                            # clear error
+                self.ResetSocSent = True                                        # remember SOC reset has been sent
         else:
             self.ResetSocSent = False                   # float mode left, so ensure SOC reset will be sent again when float mode is entered the next time
-
-        # the boolean ensures that the SOC reset is only sent once when inverters are in float mode and is only sent again when float mode has been left and entered again
-        if self.localDeviceData["minBalanceTimeFinished"] and not self.ResetSocSent:
-            self.resetSocMonitor()                                          # send SOC reset
-            self.setScriptValues("Error", False)                            # clear error
-            self.ResetSocSent = True                                        # remember SOC reset has been sent
 
         now = datetime.datetime.now()
         if self.timerExists("timerFloatmode"):
