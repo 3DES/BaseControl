@@ -232,11 +232,13 @@ class PowerPlant(Worker):
     def manageLogicalCombinedEffektaData(self):
         """
         check logically combined Effekta data
-        reset SocMonitor to 100% if floatMode is activ, and remember it
+        reset SocMonitor to 100% if floatMode is activ and minBalance time has finished, and remember it
         send the data on topic ...out/combinedEffektaData if a new value arrived
-        set and reset minBalanceTimeFinished to ensure that a load doesnt discharge too early and breaks balancing 
+        set and reset minBalanceTimeFinished to ensure that a load doesnt discharge too early and breaks balancing
+        increments the absolvedBalanceTime only if the inverter is in float mode
         """
-        minBalanceTime = 60 * 30
+        timerOneMinute = 60
+        minBalanceTime = 30     # minutes
         # create inverter data and if they differ from current ones publish them
         tempData = self.getCombinedEffektaData()
         if self.localDeviceData["combinedEffektaData"] != tempData:
@@ -246,7 +248,11 @@ class PowerPlant(Worker):
         # each time "FloatingModeOr" becomes True ("rising edge") a SOC reset message will be sent to set all SOCs to 100% 
         if self.localDeviceData["combinedEffektaData"]["FloatingModeOr"]:
             if not self.timerExists("timerFloatmode"):
-                self.timer(name = "timerFloatmode", timeout = minBalanceTime)
+                self.timer(name = "timerFloatmode", timeout = timerOneMinute)
+            if self.timer(name = "timerFloatmode", timeout = timerOneMinute):
+                self.localDeviceData["absolvedBalanceTime"] += 1
+            if self.localDeviceData["absolvedBalanceTime"] >= minBalanceTime:
+                self.localDeviceData["minBalanceTimeFinished"] = True
             # the boolean ensures that the SOC reset is only sent once when inverters are in float mode and is only sent again when float mode has been left and entered again
             if self.localDeviceData["minBalanceTimeFinished"] and not self.ResetSocSent:
                 self.resetSocMonitor()                                          # send SOC reset
@@ -257,10 +263,10 @@ class PowerPlant(Worker):
 
         now = datetime.datetime.now()
         if self.timerExists("timerFloatmode"):
-            self.localDeviceData["minBalanceTimeFinished"] = self.localDeviceData["minBalanceTimeFinished"] or self.timer(name = "timerFloatmode", timeout = minBalanceTime)
             if now.hour == 23:
                 self.timer(name = "timerFloatmode", remove = True)
                 self.localDeviceData["minBalanceTimeFinished"] = False
+                self.localDeviceData["absolvedBalanceTime"] = 0
         self.localDeviceData["minBalanceTimeFinished"] = self.localDeviceData["minBalanceTimeFinished"] or self.configuration["debug"]
 
     def getInputValueByName(self, inputName : str):
@@ -984,7 +990,7 @@ class PowerPlant(Worker):
             self.REL_PV_AUS_open   = self.AUS
 
         # init some variables
-        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "combinedEffektaData":{},"minBalanceTimeFinished": False, self.configuration["weatherName"]:{}}
+        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "combinedEffektaData":{},"minBalanceTimeFinished": False, self.configuration["weatherName"]:{}, "absolvedBalanceTime": 0}
         # init lists of direct set-able values, sensors or commands
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0, "wetterSchaltschwelleHeizung":9}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
