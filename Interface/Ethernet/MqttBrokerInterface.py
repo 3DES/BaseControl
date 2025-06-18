@@ -64,7 +64,7 @@ class MqttBrokerInterface(InterfaceBase):
         # if there was no on_connect so far and our mqttRxQueue is filled up at a level of 90% we will try to clear the loop at least even if messages get lost
 
         printError = False
-        while self.mqttRxQueue.qsize() >= (self.QUEUE_SIZE * 0.9):
+        while self.mqttRxQueue.qsize() >= (self.QUEUE_SIZE * 0.75):
             self.mqttRxQueue.get(block = False)      # read a message
             printError = True
 
@@ -88,7 +88,7 @@ class MqttBrokerInterface(InterfaceBase):
                 self.connectMqtt()
                 break
             except:
-                time.sleep(2)
+                time.sleep(1.5)
                 self.logger.info(self, f'Mosquitto connection init. {tries + 1} of {self.MAX_INIT_TRIES} failed.')
             tries += 1
         if tries >= self.MAX_INIT_TRIES:
