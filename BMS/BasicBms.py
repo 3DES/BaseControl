@@ -328,12 +328,11 @@ class BasicBms(ThreadObject):
                         keyList = list(self.bmsWerte[interfaceName]) # because we change size of dict in this loop
                         for key in keyList:
                             if type(self.bmsWerte[interfaceName][key]) == list:
-                                if not (key in self.listElements):
-                                    self.listElements.append(key)
-                                    if not (key in self.LIST_TO_VALUE_NAMES):
-                                        raise Exception(f"{interfaceName} has sent a list whith a unknown listname: {key}. We cannot map this name. Check self.LIST_TO_VALUE_NAMES!")
-                                # if there is a list element discover all cell voltages separately
-                                self.bmsWerte[interfaceName].update(self.convertList(self.LIST_TO_VALUE_NAMES[key], self.bmsWerte[interfaceName][key]))
+                                if key in self.LIST_TO_VALUE_NAMES:
+                                    if not (key in self.listElements):
+                                        self.listElements.append(key)
+                                    # if there is a list element discover all cell voltages separately
+                                    self.bmsWerte[interfaceName].update(self.convertList(self.LIST_TO_VALUE_NAMES[key], self.bmsWerte[interfaceName][key]))
                                 self.notDiscoverableInterfaceElements.append(f"{interfaceName}.{key}")    # add discover ignore entry
 
                         self.homeAutomation.mqttDiscoverySensor(self.bmsWerte, ignoreKeys = self.notDiscoverableInterfaceElements, subTopic = self.allBmsDataTopicExtension)

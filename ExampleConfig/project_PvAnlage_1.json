@@ -22,8 +22,8 @@
     {
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
-        "boostVoltage": 53.0,
-        "floatVoltage": 52.2,
+        "boostVoltage": 52.9,
+        "floatVoltage": 52.3,
         "interfaces":
         {
             "UartWrEffektaWest":
@@ -38,8 +38,8 @@
     {
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
-        "boostVoltage": 53.0,
-        "floatVoltage": 52.2,
+        "boostVoltage": 52.9,
+        "floatVoltage": 52.3,
         "interfaces":
         {
             "UartWrEffektaOst":
@@ -59,8 +59,8 @@
             {
                 "connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
                 "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.4:1.0-port0",
-                "boostVoltage": 53.0,          # optional
-                "floatVoltage": 52.2,          # optional, if both voltages are given we configure epever
+                "boostVoltage": 52.9,          # optional
+                "floatVoltage": 52.3,          # optional, if both voltages are given we configure epever
                 "address":     1
             }
         }

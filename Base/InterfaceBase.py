@@ -6,7 +6,7 @@ class InterfaceBase(ThreadObject):
     classdocs
     '''
 
-    MAX_INIT_TRIES = 10     # @TODO getter bauen
+    MAX_INIT_TRIES = 50     # @TODO getter bauen
 
     def __init__(self, threadName : str, configuration : dict):
         '''

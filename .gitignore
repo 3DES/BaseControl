@@ -8,3 +8,4 @@ json/
 _temp/
 Base/parser.out
 nohup.out
+.pydevproject
