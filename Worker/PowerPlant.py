@@ -850,6 +850,8 @@ class PowerPlant(Worker):
         sort the incoming msg to the localDeviceData variable
         handle expectedDevicesPresent variable
         set setable values wich are received global
+        
+        parameter mesage: str or dict
         """
 
         #if message["topic"].find("UsbRelaisWd") != -1:
@@ -909,15 +911,16 @@ class PowerPlant(Worker):
                         self.scriptValues["Error"] = False
                         self.aufPvSchaltenErlaubt = True
         else:
-            # incoming msg is for other devices
+            # incoming msg is from dicovered devices
             # check if a expected device sent a msg and store it
             for key in self.expectedDevices:
                 if key in message["topic"]:
-                    if key in self.localDeviceData: # Filter first run
+                    if self.localDeviceData["expectedDevicesPresent"]: # Filter first runs
                         # check FullChargeRequired from BMS for rising edge
                         if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]], message["content"], "FullChargeRequired"):
                             self.setScriptValues("FullChargeRequired", True)
-                    else:
+                    # add key to dict if its a new one
+                    if not (key in self.localDeviceData):
                         self.localDeviceData[key] = {}
                     # if a device sends partial data we have a problem if we copy the msg, so we update our dict instead
                     self.localDeviceData[key].update(message["content"])
@@ -932,11 +935,17 @@ class PowerPlant(Worker):
                 # set expectedDevicesPresent. If a device is not present we reset the value
                 self.localDeviceData["expectedDevicesPresent"] = True
                 # check if a expected device sent a msg and store it
-                for key in self.expectedDevices:
+                for device in self.expectedDevices:
                     # check if all devices are present
-                    if not (key in self.localDeviceData):
+                    if not (device in self.localDeviceData):
                         self.localDeviceData["expectedDevicesPresent"] = False
                         break   # one missing device found, so stop searching
+                    else:
+                        # check if device contains all neccessary keys
+                        for necKey in self.expectedDevices[device]:
+                            if not (necKey in self.localDeviceData[device]):
+                                self.localDeviceData["expectedDevicesPresent"] = False
+                                break   # one missing key found, so stop searching
                 if self.localDeviceData["expectedDevicesPresent"]:
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Starte PowerPlant!")
 
@@ -955,12 +964,13 @@ class PowerPlant(Worker):
         if type(self.configuration["inputs"]) != list:
             self.configuration["inputs"] = [self.configuration["inputs"]]
 
-        # Threadnames we have to wait for an initial message. The worker needs this data.
-        self.expectedDevices = []
-        self.expectedDevices.append(self.configuration["socMonitorName"])
-        self.expectedDevices.append(self.configuration["bmsName"])
+        # Threadnames and neccessary keys we have to wait for an initial message. The worker needs this data.
+        self.expectedDevices = {}
+        self.expectedDevices[self.configuration["socMonitorName"]] = ["Prozent"]
+        self.expectedDevices[self.configuration["bmsName"]] = ["BmsEntladeFreigabe", "ChargeDischargeManagementList"]
         # add managedEffekta List, function getCombinedEffektaData needs this data
-        self.expectedDevices += self.configuration["managedEffektas"]
+        for effekta in self.configuration["managedEffektas"]:
+            self.expectedDevices[effekta] = EffektaController.WORK_DATA_KEYS
 
         self.optionalDevices = []
         self.optionalDevices.append(self.configuration["weatherName"])

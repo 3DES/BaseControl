@@ -812,6 +812,7 @@ class MqttBase(Base.Base):
                 if self.name == "PowerPlant" and "schaltschwelle" in preString:
                     Supporter.debugPrint(f"pre :{preString}", color = "LIGHTRED", borderSize = 5)
                 message[contentTag] = self.extendedJson.parse(message[contentTag])                           # try to convert content into dict
+                #message[contentTag] = json.loads(message[contentTag])
                 if self.name == "PowerPlant" and "schaltschwelle" in preString:
                     Supporter.debugPrint(f"post:{message[contentTag]}", color = "LIGHTBLUE", borderSize = 5)
             except Exception as ex:
@@ -830,8 +831,7 @@ class MqttBase(Base.Base):
                         try:
                             Supporter.debugPrint(f"rep:{Base.ExtendedJsonParser.ExtendedJsonParser().parse(preString)}", color = "LIGHTBLUE", borderSize = 5)
                         except Exception as ex2:
-                            Supporter.debugPrint(f"exc:{ex}", color = "LIGHTBLUE", borderSize = 5)
-
+                            Supporter.debugPrint(f"exc:{ex2}", color = "LIGHTBLUE", borderSize = 5)
 
         return message
 

@@ -62,7 +62,7 @@ class BasicBms(ThreadObject):
         self.mqttPublish(self.createOutTopic(self.getObjectTopic(), self.MQTT_SUBTOPIC.TRIGGER_WATCHDOG), {"cmd":"clearWdRelay"}, globalPublish = False, enableEcho = False)
         raise Exception(exceptionMessage)
 
-    def convertList(self, listType : str, list : list) -> dict:
+    def convertList(self, listType : str, inputList : list) -> dict:
         '''
         expects a list with values and converts it into a dictionary, e.g.
         listType == CellVoltage
@@ -72,11 +72,11 @@ class BasicBms(ThreadObject):
         resultDict = {}
 
         # add cell voltages for this interface
-        for listNumber, listValue in enumerate(list):
+        for listNumber, listValue in enumerate(inputList):
             resultDict[f"{listType}{listNumber}"] = listValue
 
         # add maximum delta for this interface
-        resultDict[f"{listType}Delta"] = round(max(list) - min(list), 3)
+        resultDict[f"{listType}Delta"] = round(max(inputList) - min(inputList), 3)
 
         return resultDict
 
@@ -87,6 +87,7 @@ class BasicBms(ThreadObject):
         entladeFreigabeList = []
         ladeFreigabeList = []
         fullChargeReqList = []
+        chDchManagementList = []
         self.globalBmsWerte["merged"]["Current"] = 0
         self.globalBmsWerte["merged"]["Prozent"] = 0
         divideProzent = 0
@@ -122,6 +123,8 @@ class BasicBms(ThreadObject):
                 vMaxSeen = True
             if "FullChargeRequired" in self.bmsWerte[interfaceName]:
                 fullChargeReqList.append(self.bmsWerte[interfaceName]["FullChargeRequired"])
+            if "ChargeDischargeManagementList" in self.bmsWerte[interfaceName]:
+                chDchManagementList += self.bmsWerte[interfaceName]["ChargeDischargeManagementList"]
 
             # convert a list element in to single values to be shown and logged in homeassistant, original list element will stay unchanged
             for key in self.listElements:
@@ -154,6 +157,14 @@ class BasicBms(ThreadObject):
         self.globalBmsWerte["merged"]["BmsLadeFreigabe"] = all(ladeFreigabeList)
         if len(fullChargeReqList):
             self.globalBmsWerte["merged"]["FullChargeRequired"] = any(fullChargeReqList)
+
+        if len(chDchManagementList) == 0:
+            self.globalBmsWerte["merged"]["ChargeDischargeManagementList"] = []
+        elif len(chDchManagementList) == 1:
+            self.globalBmsWerte["merged"]["ChargeDischargeManagementList"] = chDchManagementList
+        elif len(chDchManagementList) >= 2:
+            self.globalBmsWerte["merged"]["ChargeDischargeManagementList"] = self.dictMerger(chDchManagementList)
+
 
     def triggerWatchdog(self):
         # this function checks all bms toggleSeen bits, this bit was set from threadMethod if interface toggled the bit toggleIfMsgSeen.

@@ -186,6 +186,12 @@ class ExtendedJsonParser(object):
                     p[3] = self.HIDE_STRING
         p[0] = { p[1] : p[3] }
 
+    def p_list_empty(self, p) :
+        '''
+        list : LIST_BEGIN LIST_END
+        '''
+        p[0] = []
+
     def p_list(self, p) :
         '''
         list : LIST_BEGIN commalist LIST_END
