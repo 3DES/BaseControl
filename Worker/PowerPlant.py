@@ -183,19 +183,7 @@ class PowerPlant(Worker):
         self.setScriptValues("wetterSchaltschwelleNetz", self._MIN_GOOD_WEATHER_HOURS)    # Einheit Sonnnenstunden
 
     def sendEffektaData(self, data, effektas):
-        for index, inverter in enumerate(effektas):
-            # nach Ueberarbeitung kann diese Ersetzung wieder entfallen, aktuell ist das aber die einfachste Loesung!
-            if self.configuration["indexedInverters"]:
-                # in case of indexed inverters the MUCHGC commands have to be indexed, i.e.
-                # MUCHGC\d30 -> MUCHGC030 for the first inverter (whichever it is, there seems to be no real logic how they are indexed)
-                #            -> MUCHGC130 for the second one
-                #            -> MUCHGC230 for the third one
-                regex = re.compile(r"^(MUCHGC)(\d)(\d+)$")
-
-                for item in data['setValue']:
-                    if (m := regex.match(item['cmd'])):
-                        item.update({'cmd': f"{m.group(1)}{index}{m.group(3)}"})
-            ##print(f"{data}")
+        for inverter in effektas:
             self.mqttPublish(self.createInTopic(self.get_projectName() + "/" + inverter), data, globalPublish = False, enableEcho = False)
 
     def schalteAlleWrAufAkku(self, effektas):
@@ -1231,7 +1219,7 @@ class PowerPlant(Worker):
         # global publish geht NUR an global subscriber
         # ABER a global subscriber subscribed automatisch a local, somit geht global und local immer an alle global subscriber und local nur an de local
 
-        for device in self.expectedDevices + self.optionalDevices:
+        for device in list(self.expectedDevices) + self.optionalDevices:
             subscribeTo = self.createOutTopic(self.createProjectTopic(device))
 
             # subscribeTo muss ggf. auch auf sub topics subscriben, wegen "AccuControl/EasyMeterGridSide/out/homeautomation"
