@@ -16,8 +16,8 @@ class BasicBms(ThreadObject):
                                                 either: keys from interface (>Vmin< >Vmax<) or (>voltagelist<) in combination with parameters vMin, vMax, vMinTimer
                                                 or:     key from interface >BmsEntladeFreigabe<
 
-    Optional is                                 FullChargeRequired and BmsLadeFreigabe which is also merged to globalBmsData["merged"]
-    Optional is                                 any other value or a list (the listname and valuename must be named in self.LIST_TO_VALUE_NAMES)
+    Optional is                                 ChargeDischargeManagement and BmsLadeFreigabe which is also merged to globalBmsData["merged"]
+    Optional is                                 any other value or a list (the listname and valuename optional have to be named in self.LIST_TO_VALUE_NAMES. If not named in self.LIST_TO_VALUE_NAMES the list will not be pubished)
 
     From SocMonitor:
     Required:                                   none, upper checks are disabled
@@ -42,6 +42,8 @@ class BasicBms(ThreadObject):
     '''
 
     allBmsDataTopicExtension = "allData"
+    mergeMethod = {"Vmin" : min, "Vmax" : max, "Tmin" : min, "Tmax": max, "Current": sum, "Power": sum,"toggleIfMsgSeen": all, "FullChargeRequired": any, "BmsLadeFreigabe": all, "BmsEntladeFreigabe": all, "ChargeVoltage" : min, "DischargeVoltage" : max, "ChargeCurrent" : sum, "DischargeCurrent" : sum}
+    RecommendetChDchManagementList = ["FullChargeRequired", "ChargeVoltage", "DischargeVoltage", "ChargeCurrent", "DischargeCurrent"]
 
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -50,7 +52,36 @@ class BasicBms(ThreadObject):
         super().__init__(threadName, configuration)
         self.tagsIncluded(["parameters"], optional = True, default = {})
         self.tagsIncluded(["balancingHysteresisTime"], optional = True, default = 60)
-        self.LIST_TO_VALUE_NAMES = {"VoltageList":"CellVoltage", "CurrentList":"ModuleCurrent"}
+        self.LIST_TO_VALUE_NAMES = {"VoltageList":"CellVoltage", "CurrentList":"ModuleCurrent", "PackVoltageList":"PackVoltage"}
+
+    @classmethod
+    def dictMerger(cls, listOfDicts : list) -> dict:
+        '''
+        A given list of dicts will be merged with logical operations to one dict.
+        If keys are not included in all src dicts a info is published to the logger.
+        The logical merge method is given in cls.mergeMethod. If a key is not included here a error is published to logger
+        
+        param: list of dict
+        return: dict
+        '''
+        mergedDict = {}
+        mergekeyList = []
+        for ChDchDict in listOfDicts:
+            mergekeyList += list(ChDchDict)
+        mergekeyList = list(set(mergekeyList))
+        for dictElementName in mergekeyList:
+            tempList = []
+            if dictElementName in list(cls.mergeMethod):
+                mergedDict[dictElementName] = None
+                for subDict in listOfDicts:
+                    if dictElementName in subDict:
+                        tempList.append(subDict[dictElementName])
+                    else:
+                        cls.logger.info(cls, f"Dict key --{dictElementName}-- isn't present in all BMS data!")
+                mergedDict[dictElementName] = cls.mergeMethod[dictElementName](tempList)
+            else:
+                cls.logger.error(cls, f"Dict key --{dictElementName}-- couldn't be merged! Missing method! Fix mergeMethod.")
+        return mergedDict
 
     def getSocMonitorTopic(self):
         return self.createOutTopic(self.getObjectTopic(self.configuration["socMonitor"]))
@@ -86,7 +117,6 @@ class BasicBms(ThreadObject):
         vMaxList = []
         entladeFreigabeList = []
         ladeFreigabeList = []
-        fullChargeReqList = []
         chDchManagementList = []
         self.globalBmsWerte["merged"]["Current"] = 0
         self.globalBmsWerte["merged"]["Prozent"] = 0
@@ -117,14 +147,10 @@ class BasicBms(ThreadObject):
             if "VoltageList" in self.bmsWerte[interfaceName]:
                 vMinList.append(min(self.bmsWerte[interfaceName]["VoltageList"]))
                 vMaxList.append(max(self.bmsWerte[interfaceName]["VoltageList"]))
-
-
                 vMinSeen = True
                 vMaxSeen = True
-            if "FullChargeRequired" in self.bmsWerte[interfaceName]:
-                fullChargeReqList.append(self.bmsWerte[interfaceName]["FullChargeRequired"])
-            if "ChargeDischargeManagementList" in self.bmsWerte[interfaceName]:
-                chDchManagementList += self.bmsWerte[interfaceName]["ChargeDischargeManagementList"]
+            if "ChargeDischargeManagement" in self.bmsWerte[interfaceName]:
+                chDchManagementList += self.bmsWerte[interfaceName]["ChargeDischargeManagement"]
 
             # convert a list element in to single values to be shown and logged in homeassistant, original list element will stay unchanged
             for key in self.listElements:
@@ -155,15 +181,13 @@ class BasicBms(ThreadObject):
 
         self.globalBmsWerte["merged"]["BmsEntladeFreigabe"] = all(entladeFreigabeList)
         self.globalBmsWerte["merged"]["BmsLadeFreigabe"] = all(ladeFreigabeList)
-        if len(fullChargeReqList):
-            self.globalBmsWerte["merged"]["FullChargeRequired"] = any(fullChargeReqList)
 
         if len(chDchManagementList) == 0:
-            self.globalBmsWerte["merged"]["ChargeDischargeManagementList"] = []
+            self.globalBmsWerte["merged"]["ChargeDischargeManagement"] = []
         elif len(chDchManagementList) == 1:
-            self.globalBmsWerte["merged"]["ChargeDischargeManagementList"] = chDchManagementList
+            self.globalBmsWerte["merged"]["ChargeDischargeManagement"] = chDchManagementList
         elif len(chDchManagementList) >= 2:
-            self.globalBmsWerte["merged"]["ChargeDischargeManagementList"] = self.dictMerger(chDchManagementList)
+            self.globalBmsWerte["merged"]["ChargeDischargeManagement"] = self.dictMerger(chDchManagementList)
 
 
     def triggerWatchdog(self):
@@ -388,3 +412,4 @@ class BasicBms(ThreadObject):
 
     def threadBreak(self):
         time.sleep(0.6)
+

@@ -4,6 +4,7 @@ import pylontech       # pip install pylontech
 #from pylontech import PylontechStack
 from Interface.Uart.Pylontech.pylontech_stack import PylontechStack
 from GridLoad.SocMeter import SocMeter
+from BMS.BasicBms import BasicBms
 
 class Pylontech485Interface(InterfaceBase):
     '''
@@ -17,8 +18,9 @@ class Pylontech485Interface(InterfaceBase):
         '''
         super().__init__(threadName, configuration)
         self.removeMqttRxQueue()
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[], "PackVoltageList":[], "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
-
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[], "PackVoltageList":[], "ChargeDischargeManagement":{}, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
+        self.ChDchManagementList = ["StatusFullChargeRequired", "ChargeVoltage", "DischargeVoltage", "ChargeCurrent", "DischargeCurrent"]
+        self.TranslateDict = {"StatusFullChargeRequired":"FullChargeRequired"}
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount", "VminCellWarn", "VmaxCellWarn", "VminWarnTimer", "VmaxWarnTimer"])
@@ -131,10 +133,34 @@ class Pylontech485Interface(InterfaceBase):
             if self.LogIndex >= self.configuration["NumLogfiles"]:
                 self.LogIndex = 0
 
-            for module in data["ChargeDischargeManagementList"]:
-                if module["StatusFullChargeRequired"]:
-                    self.BmsWerte["FullChargeRequired"] = True
-    
+            # filter some values from ChargeDischargeManagementList and merge them
+            tempList =[]
+            for moduleChDchList in data["ChargeDischargeManagementList"]:
+                tempDict = {}
+                for key in self.ChDchManagementList:
+                    if key in self.TranslateDict:
+                        tempDict[self.TranslateDict[key]] = moduleChDchList[key]
+                    else:
+                        tempDict[key] = moduleChDchList[key]
+                tempList.append(tempDict)
+
+            '''
+                tempList with two pylontechs: 
+                  [{'VER': 32, 'ADR': 2, 'ID': 70, 'RTN': 0, 'LENGTH': 20, 'PAYLOAD': b'02D002AFC800FAFF06C0', 
+                 'CommandValue': 2, 'ChargeVoltage': 53.25, 'DischargeVoltage': 45.0, 'ChargeCurrent': 25.0, 'DischargeCurrent': 
+                 -25.0, 'StatusChargeEnable': True, 'StatusDischargeEnable': True, 'StatusChargeImmediately1': False, 
+                 'StatusChargeImmediately2': False, 'StatusFullChargeRequired': False}, {'VER': 32, 'ADR': 3, 'ID': 70, 'RTN': 0, 
+                 'LENGTH': 20, 'PAYLOAD': b'03D002AFC80000FF06C0', 'CommandValue': 3, 'ChargeVoltage': 53.25, 
+                 'DischargeVoltage': 45.0, 'ChargeCurrent': 0.0, 'DischargeCurrent': -25.0, 'StatusChargeEnable': True, 
+                 'StatusDischargeEnable': True, 'StatusChargeImmediately1': False, 'StatusChargeImmediately2': False, 
+                 'StatusFullChargeRequired': False}]
+            '''
+
+            if len(tempList) >= 2:
+                self.BmsWerte["ChargeDischargeManagement"] = BasicBms.dictMerger(tempList)
+            else:
+                self.BmsWerte["ChargeDischargeManagement"] = tempList
+
             self.BmsWerte["Prozent"] = data["Calculated"]["Remain_Percent"]
             self.BmsWerte["Ah"] = data["Calculated"]["RemainCapacity_Ah"]
             self.BmsWerte["Power"] = data["Calculated"]["Power_W"]
@@ -143,7 +169,7 @@ class Pylontech485Interface(InterfaceBase):
     
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
         except Exception as exception:
-            self.logger.error(self, f"Error reading {self.name} inteface.")
+            self.logger.error(self, f"Error reading {self.name} interface.")
             self.logger.error(self, f"{exception}")
             if self.timer(name = "timeoutPylontechRead", timeout = 60):
                 raise Exception(f'{self.name} connection is broken since 60s!')

@@ -917,7 +917,7 @@ class PowerPlant(Worker):
                 if key in message["topic"]:
                     if self.localDeviceData["expectedDevicesPresent"]: # Filter first runs
                         # check FullChargeRequired from BMS for rising edge
-                        if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]], message["content"], "FullChargeRequired"):
+                        if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]]["ChargeDischargeManagement"], message["content"]["ChargeDischargeManagement"], "FullChargeRequired"):
                             self.setScriptValues("FullChargeRequired", True)
                     # add key to dict if its a new one
                     if not (key in self.localDeviceData):
@@ -967,7 +967,7 @@ class PowerPlant(Worker):
         # Threadnames and neccessary keys we have to wait for an initial message. The worker needs this data.
         self.expectedDevices = {}
         self.expectedDevices[self.configuration["socMonitorName"]] = ["Prozent"]
-        self.expectedDevices[self.configuration["bmsName"]] = ["BmsEntladeFreigabe", "ChargeDischargeManagementList"]
+        self.expectedDevices[self.configuration["bmsName"]] = ["BmsEntladeFreigabe", "ChargeDischargeManagement"]
         # add managedEffekta List, function getCombinedEffektaData needs this data
         for effekta in self.configuration["managedEffektas"]:
             self.expectedDevices[effekta] = EffektaController.WORK_DATA_KEYS

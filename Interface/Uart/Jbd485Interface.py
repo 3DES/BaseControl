@@ -16,7 +16,7 @@ class Jbd485Interface(InterfaceBase):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "FullChargeRequired":False, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
+        self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "ChargeDischargeManagement":{"FullChargeRequired":False}, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
         self.CHG_FET_DISABLE_TIME = 60*60*3
         self.FULL_CHG_REQ_TIMER = 60*60*24*30
         self.CHARGE_FET_RECOVER_VOLTAGE = 3.40
@@ -27,6 +27,7 @@ class Jbd485Interface(InterfaceBase):
 
         # detect falling edge
         if not chgFetState and self.old_dsg_fet_en:
+            self.chg_fet_disable_count += 1
             self.chg_fet_disable_count += 1
 
         self.old_dsg_fet_en = chgFetState
@@ -133,12 +134,12 @@ class Jbd485Interface(InterfaceBase):
 
         # If FullChgReqTimer is triggered we send one FullChargeRequired request
         if self.timer("FullChgReqTimer", timeout=self.FULL_CHG_REQ_TIMER):
-            self.BmsWerte["FullChargeRequired"] = True
+            self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = True
 
         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
 
-        if self.BmsWerte["FullChargeRequired"]:
-            self.BmsWerte["FullChargeRequired"] = False
+        if self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"]:
+            self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = False
 
     def threadBreak(self):
         time.sleep(1.5)

@@ -16,7 +16,7 @@ class SocMeterUartInterface(BasicUartInterface):
         # We have to create configuration bevore we call super class. The Parameter configuration have to be given because it doesn't exist yet.
         self.tagsIncluded(["baudrate"], configuration =  configuration, optional = True, default = 115200)
         super().__init__(threadName, configuration)
-        self.SocMonitorWerte = {"Ah":-1, "Current":0, "FullChargeRequired":False, "Prozent":SocMeter.InitAkkuProz}
+        self.SocMonitorWerte = {"Ah":-1, "Current":0, "ChargeDischargeManagement":{"FullChargeRequired":False}, "Prozent":SocMeter.InitAkkuProz}
         self.cmdList = []
         self.FULL_CHG_REQ_TIMER = 60*60*24*30
 
@@ -93,11 +93,11 @@ class SocMeterUartInterface(BasicUartInterface):
 
         # If FullChgReqTimer is triggered we send one FullChargeRequired request
         if self.timer("FullChgReqTimer", timeout=self.FULL_CHG_REQ_TIMER):
-            self.SocMonitorWerte["FullChargeRequired"] = True
+            self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = True
 
         if lastLine:
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SocMonitorWerte, globalPublish = False, enableEcho = False)
 
-            if self.SocMonitorWerte["FullChargeRequired"]:
-                self.SocMonitorWerte["FullChargeRequired"] = False
+            if self.SocMonitorWerte["ChargeDischargeManagement"]["FullChargeRequired"]:
+                self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = False
 
