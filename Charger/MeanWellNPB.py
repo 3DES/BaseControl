@@ -306,7 +306,7 @@ class MeanWellNPB(ThreadObject):
         @param command   the command all trailing digits have to be removed
         @return          trimmed command or original command if there was no trailing digit
         '''
-        regex = f"^([^\d]+)\d+$"
+        regex = r"^([^\d]+)\d+$"
         if match := re.search(regex, command):
             command = match.group(1)
         return command
@@ -320,7 +320,7 @@ class MeanWellNPB(ThreadObject):
         @param command   the command the trailing digits should be taken and returned
         @return          trailing digits or 0 if there aren't any
         '''
-        regex = f"^[^\d]+(\d+)$"
+        regex = r"^[^\d]+(\d+)$"
         digit = 0
         if match := re.search(regex, command):
             digit = int(match.group(1))

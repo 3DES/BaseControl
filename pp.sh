@@ -58,21 +58,23 @@
 SECRETS_FILE=json/secure.sh
 
 if [ -z $MAX_BACKUPS ]; then
-    MAX_BACKUPS=5
+    MAX_BACKUPS=25
 fi
 
-# start parameters
-EXECUTE="__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter user|password|\+49"
-#EXECUTE="__main__.py -w -l=5 -p5 --json-dump --json-dump-filter user|password|\+49 --log-filter=Victron"
-#EXECUTE="__main__.py -w -l=4 -p=2 --json-dump --json-dump-filter user|password|\+49 --log-filter Bms"
-    # from command line you have to execute:
-    #   python3 __main__.py -w -l=5 -p=3 --json-dump --json-dump-filter "user|password|\+49"
-    # but here the quotation marks are not allowed, otherwise they will become part of the regex!
-#EXECUTE='__main__.py -w -l=5 -p=3 --json-dump'
-#EXECUTE='__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter-none'
-#EXECUTE="__main__.py -w -l=5 -p=3"
-#EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu #--json-dump"
-#EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu --json-dump"
+if [ -z $EXECUTE ]; then
+    # start parameters
+    EXECUTE="__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter user|password|\+49"
+    #EXECUTE="__main__.py -w -l=5 -p5 --json-dump --json-dump-filter user|password|\+49 --log-filter=Victron"
+    #EXECUTE="__main__.py -w -l=4 -p=2 --json-dump --json-dump-filter user|password|\+49 --log-filter Bms"
+        # from command line you have to execute:
+        #   python3 __main__.py -w -l=5 -p=3 --json-dump --json-dump-filter "user|password|\+49"
+        # but here the quotation marks are not allowed, otherwise they will become part of the regex!
+    #EXECUTE='__main__.py -w -l=5 -p=3 --json-dump'
+    #EXECUTE='__main__.py -w -l=5 -p=3 --json-dump --json-dump-filter-none'
+    #EXECUTE="__main__.py -w -l=5 -p=3"
+    #EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu #--json-dump"
+    #EXECUTE="__main__.py -w -l=5 -p=5 -f BmsInterfaceAccu --json-dump"
+fi
 ############################################
 
 

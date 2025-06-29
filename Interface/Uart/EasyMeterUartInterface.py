@@ -44,7 +44,7 @@ class EasyMeterUartInterface(BasicUartInterface):
         # clear serial so we receive completely new stuff
         self.serialReset_input_buffer()
         self.received = b""
-        
+
         published = False
 
         while not published:

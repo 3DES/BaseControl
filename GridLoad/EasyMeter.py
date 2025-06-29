@@ -47,6 +47,24 @@ class EasyMeter(ThreadObject):
     L1_VOLTAGE_KEY       = "32.7.0"
     L2_VOLTAGE_KEY       = "52.7.0"
     L3_VOLTAGE_KEY       = "72.7.0"
+
+    # "0.0.0"              -> '\x77\x07\x01\x00\x00\x00\x00\xFF\x01\x01\x01\x01\x0F(.{14})\x01',           -> 'w\x07\x01\x00\x00\x00\x00\xFF\x01\x01\x01\x01\x0F(.{14})\x01',          
+    # "0.0.9"              -> '\x77\x07\x01\x00\x00\x00\x09\xFF\x01\x01\x01\x01\x0B(.{10})\x01',           -> 'w\x07\x01\x00\x00\x00\x09\xFF\x01\x01\x01\x01\x0B(.{10})\x01',          
+    # RECEIVED_ENERGY_KEY  -> '\x77\x07\x01\x00\x01\x08\x00\xFF\x64...\x01\x62\x1E\x52\xFC\x59(.{8})\x01', -> 'w\x07\x01\x00\x01\x08\x00\xFFd...\x01b\x1ER\xFCY(.{8})\x01',
+    # DELIVERED_ENERGY_KEY -> '\x77\x07\x01\x00\x02\x08\x00\xFF\x64...\x01\x62\x1E\x52\xFC\x59(.{8})\x01', -> 'w\x07\x01\x00\x02\x08\x00\xFFd...\x01b\x1ER\xFCY(.{8})\x01',
+    # "1.8.1"              -> '\x77\x07\x01\x00\x01\x08\x01\xFF\x01\x01\x62\x1E\x52\xFC\x59(.{8})\x01',    -> 'w\x07\x01\x00\x01\x08\x01\xFF\x01\x01b\x1ER\xFCY(.{8})\x01',   
+    # "1.8.2"              -> '\x77\x07\x01\x00\x01\x08\x02\xFF\x01\x01\x62\x1E\x52\xFC\x59(.{8})\x01',    -> 'w\x07\x01\x00\x01\x08\x02\xFF\x01\x01b\x1ER\xFCY(.{8})\x01',   
+    # CURRENT_POWER_KEY    -> '\x77\x07\x01\x00\x10\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    -> 'w\x07\x01\x00\x10\x07\x00\xFF\x01\x01b\x1BR\xFEY(.{8})\x01',   
+    # CURRENT_POWER_L1_KEY -> '\x77\x07\x01\x00\\\x24\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',  -> 'w\x07\x01\x00\\$\x07\x00\xFF\x01\x01b\x1BR\xFEY(.{8})\x01', 
+    # CURRENT_POWER_L2_KEY -> '\x77\x07\x01\x00\x38\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    -> 'w\x07\x01\x008\x07\x00\xFF\x01\x01b\x1BR\xFEY(.{8})\x01',   
+    # CURRENT_POWER_L3_KEY -> '\x77\x07\x01\x00\x4C\x07\x00\xFF\x01\x01\x62\x1B\x52\xFE\x59(.{8})\x01',    -> 'w\x07\x01\x00L\x07\x00\xFF\x01\x01b\x1BR\xFEY(.{8})\x01',   
+    # L1_VOLTAGE_KEY       -> '\x77\x07\x01\x00\x20\x07\x00\xFF\x01\x01\x62\x23\x52\xFF\x63(.{2})\x01',    -> 'w\x07\x01\x00 \x07\x00\xFF\x01\x01b#R\xFFc(.{2})\x01',   
+    # L2_VOLTAGE_KEY       -> '\x77\x07\x01\x00\x34\x07\x00\xFF\x01\x01\x62\x23\x52\xFF\x63(.{2})\x01',    -> 'w\x07\x01\x004\x07\x00\xFF\x01\x01b#R\xFFc(.{2})\x01',   
+    # L3_VOLTAGE_KEY       -> '\x77\x07\x01\x00\x48\x07\x00\xFF\x01\x01\x62\x23\x52\xFF\x63(.{2})\x01',    -> 'w\x07\x01\x00H\x07\x00\xFF\x01\x01b#R\xFFc(.{2})\x01',   
+    # "199.130.3"          -> '\x77\x07\x81\x81\xC7\x82\x03\xFF\x01\x01\x01\x01\x04(.{3})\x01',            -> 'w\x07\x81\x81\xC7\x82\x03\xFF\x01\x01\x01\x01\x04(.{3})\x01',           
+    # "199.130.5"          -> '\x77\x07\x81\x81\xC7\x82\x05\xFF\x01\x01\x01\x01\x83\x02(.{48})\x01',       -> 'w\x07\x81\x81\xC7\x82\x05\xFF\x01\x01\x01\x01\x83\x02(.{48})\x01',      
+    # "199.240.6"          -> '\x77\x07\x81\x81\xC7\xF0\x06\xFF\x01\x01\x01\x01\x04(.{3})\x01',            -> 'w\x07\x81\x81\xC7\xF0\x06\xFF\x01\x01\x01\x01\x04(.{3})\x01',              
+    
     SML_VALUES = {
         # key = OBIS no., "fullname" = OBIS number with leading values                                                   
         # "resolution" = 1 -> 0.1, 2 -> 0.01, ... n -> 10^(-n), hex = hexstring, dump = printable characters + others as hex value
@@ -318,11 +336,55 @@ class EasyMeter(ThreadObject):
                                     self.energyData[key] += chr(x) + " "
                             self.energyData[key] = self.energyData[key].strip()
                         else:
-                            value = str(int.from_bytes(match[0], byteorder = "big", signed = self.SML_VALUES[key]["signed"]))
-                            if self.SML_VALUES[key]["resolution"] == 0:
-                                self.energyData[key] = int(self.energyData[key])
-                            else:
-                                self.energyData[key] = float(value[:-self.SML_VALUES[key]["resolution"]] + "." + value[-self.SML_VALUES[key]["resolution"]:])
+                            try:
+                                intValue = "xxx"
+                                value = "xxx"
+                                sign = "xxx"
+                                filledUpValue = "xxx"
+                                intPart = "xxx"
+                                decimalPart = "xxx"
+
+                                if self.SML_VALUES[key]["resolution"] == 0:
+                                    self.energyData[key] = int(self.energyData[key])
+                                else:
+                                    # prepare bytes to float value
+                                    intValue = int.from_bytes(match[0], byteorder = "big", signed = self.SML_VALUES[key]["signed"])
+                                    value = str(abs(intValue))
+                                    sign = "-" if intValue < 0 else ""                                  # does the value have a sign?
+                                    if self.SML_VALUES[key]["resolution"] >= len(value):
+                                        filledUpValue = value.zfill(self.SML_VALUES[key]["resolution"] + 1)     # fill in leading zeros
+                                    else:
+                                        filledUpValue = value
+                                    intPart = filledUpValue[:-self.SML_VALUES[key]["resolution"]] or "0"        # values in front of decimal point or 0 if there are none
+                                    decimalPart = filledUpValue[-self.SML_VALUES[key]["resolution"]:]
+
+                                    self.energyData[key] = float(f"{sign}{intPart}.{decimalPart}")
+
+#                                    Supporter.debugPrint(f"\n" +
+#                                                         f"key:[{key}]\n" +
+#                                                         f"resolution   :[{self.SML_VALUES[key]['resolution']}]\n" + 
+#                                                         f"match        :[{match}]\n" + 
+#                                                         f"intValue     :[{intValue}]\n" + 
+#                                                         f"sign         :[{sign}]\n" + 
+#                                                         f"value        :[{value}]\n" + 
+#                                                         f"filledUpValue:[{filledUpValue}]\n" + 
+#                                                         f"intPart      :[{intPart}]\n" + 
+#                                                         f"decimalPart  :[{decimalPart}]\n" + 
+#                                                         f"data         :[{data}]\n" +
+#                                                         f"float        :[{self.energyData[key]}]")
+                            except Exception as e:
+                                Supporter.debugPrint(f"\n" +
+                                                     f"key:[{key}]\n" +
+                                                     f"resolution   :[{self.SML_VALUES[key]['resolution']}]\n" + 
+                                                     f"match        :[{match}]\n" + 
+                                                     f"intValue     :[{intValue}]\n" + 
+                                                     f"sign         :[{sign}]\n" + 
+                                                     f"value        :[{value}]\n" + 
+                                                     f"filledUpValue:[{filledUpValue}]\n" + 
+                                                     f"intPart      :[{intPart}]\n" + 
+                                                     f"decimalPart  :[{decimalPart}]\n" + 
+                                                     f"data         :[{data}]")
+                                raise Exception(e)
                         #Supporter.debugPrint(f"matched: {key}={self.energyData[key]}")
                     data = re.sub(matcher, b"", data)
             # data that is currently not handled, e.g. lead-in, lead-out, and maybe forgotten values

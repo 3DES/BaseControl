@@ -12,8 +12,7 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
     classdocs
     '''
     MATCHED_KEYS = sorted(["I", "SOC", "V", "Alarm", "AR", "H4", "H5", "H6", "H7", "H8"])     # "T"
-    
-    
+
     CURRENT_TEXT         = "Current"        # "I"
     PERCENT_TEXT         = "Prozent"        # "SOC"
     VOLTAGE_TEXT         = "Voltage"        # "V"
@@ -24,7 +23,22 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
     AH_DRAWN_TEXT        = "Ah"             # "H6"
     MIN_VOLTAGE_TEXT     = "VminAccu"       # "H7"
     MAX_VOLTAGE_TEXT     = "VmaxAccu"       # "H8"
+    CHARGE_CURRENT_TEXT  = "ChargeCurrent"  # "I"        (self created value, not from Victron!)
+    CHARGE_POWER_TEXT    = "ChargePower"    # "W"        (self created value, not from Victron!)
 
+    # values receivable from Victron shunt:
+    keys = [
+        CURRENT_TEXT,
+        PERCENT_TEXT,
+        VOLTAGE_TEXT,
+        ALARM_TEXT,
+        ALARM_REASON_TEXT,
+        CHARGE_CYCLES_TEXT,
+        FULL_DISCHARGES_TEXT,
+        AH_DRAWN_TEXT,
+        MIN_VOLTAGE_TEXT,
+        MAX_VOLTAGE_TEXT,
+    ]
 
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -33,7 +47,6 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
         super().__init__(threadName, configuration)
 
         self.SocMonitorWerte = {"Current":0, "Prozent":SocMeter.InitAkkuProz}
-        self.cmdList = []       # @todo brauchen wir diese Variable?
 
         self.matchedValues = {}
         self.data = b""     # bytearray("")
@@ -92,15 +105,15 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
 
     def prepareHomeAutomation(self, force : bool = False):
         # ensure all needed keys have already been prepared, otherwise return with False
-        keys = [self.CURRENT_TEXT, self.PERCENT_TEXT, self.VOLTAGE_TEXT, self.ALARM_TEXT, self.ALARM_REASON_TEXT, self.CHARGE_CYCLES_TEXT, self.FULL_DISCHARGES_TEXT, self.AH_DRAWN_TEXT, self.MIN_VOLTAGE_TEXT, self.MAX_VOLTAGE_TEXT]
+        keys = [self.CURRENT_TEXT, self.PERCENT_TEXT, self.VOLTAGE_TEXT, self.ALARM_TEXT, self.ALARM_REASON_TEXT, self.CHARGE_CYCLES_TEXT, self.FULL_DISCHARGES_TEXT, self.AH_DRAWN_TEXT, self.MIN_VOLTAGE_TEXT, self.MAX_VOLTAGE_TEXT, self.CHARGE_CURRENT_TEXT, self.CHARGE_POWER_TEXT]
 
         for key in keys:
             if key not in self.SocMonitorWerte:
-                #Supporter.debugPrint(f"{key} is still missed in self.energyData!", color = "RED")
+                self.logger.warning(self, f"missing Victron value {key}")
                 return False
 
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_TEXT,         self.SocMonitorWerte[self.CURRENT_TEXT],                                 compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5),  force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.PERCENT_TEXT,         self.SocMonitorWerte[self.PERCENT_TEXT],         compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1),  force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.PERCENT_TEXT,         self.SocMonitorWerte[self.PERCENT_TEXT],         compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = .1), force = force)
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.VOLTAGE_TEXT,         self.SocMonitorWerte[self.VOLTAGE_TEXT],         compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = .2), force = force)
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.ALARM_TEXT,           self.SocMonitorWerte[self.ALARM_TEXT],           compareValue = changed, compareMethod = lambda a, b: a != b,                                          force = force)
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.ALARM_REASON_TEXT,    self.SocMonitorWerte[self.ALARM_REASON_TEXT],    compareValue = changed, compareMethod = lambda a, b: a != b,                                          force = force)
@@ -109,6 +122,8 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.AH_DRAWN_TEXT,        self.SocMonitorWerte[self.AH_DRAWN_TEXT],        compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5),  force = force)
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.MIN_VOLTAGE_TEXT,     self.SocMonitorWerte[self.MIN_VOLTAGE_TEXT],     compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1),  force = force)
         changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.MAX_VOLTAGE_TEXT,     self.SocMonitorWerte[self.MAX_VOLTAGE_TEXT],     compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1),  force = force)
+        self.homeAutomationValues[self.CHARGE_CURRENT_TEXT] = self.SocMonitorWerte[self.CURRENT_TEXT]           # change detected automatically via "self.CURRENT_TEXT"
+        self.homeAutomationValues[self.CHARGE_POWER_TEXT]   = self.SocMonitorWerte[self.CHARGE_POWER_TEXT]      # change detected automatically via "self.CURRENT_TEXT" and/or "self.VOLTAGE_TEXT"
 
         return changed
 
@@ -182,8 +197,8 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
 
 
     def threadInitMethod(self):
-        self.homeAutomationValues = { self.CURRENT_TEXT : 0,   self.PERCENT_TEXT : 0,   self.VOLTAGE_TEXT : 0,   self.ALARM_TEXT : 0,      self.ALARM_REASON_TEXT : "---",  self.CHARGE_CYCLES_TEXT : 0,      self.FULL_DISCHARGES_TEXT : 0,      self.AH_DRAWN_TEXT : 0,    self.MIN_VOLTAGE_TEXT : 0,   self.MAX_VOLTAGE_TEXT : 0 }
-        homeAutomationUnits       = { self.CURRENT_TEXT : "A", self.PERCENT_TEXT : "%", self.VOLTAGE_TEXT : "V", self.ALARM_TEXT : "none", self.ALARM_REASON_TEXT : "none", self.CHARGE_CYCLES_TEXT : "none", self.FULL_DISCHARGES_TEXT : "none", self.AH_DRAWN_TEXT : "Ah", self.MIN_VOLTAGE_TEXT : "V", self.MAX_VOLTAGE_TEXT : "V" }
+        self.homeAutomationValues = { self.CURRENT_TEXT : 0,   self.PERCENT_TEXT : 0,   self.VOLTAGE_TEXT : 0,   self.ALARM_TEXT : 0,      self.ALARM_REASON_TEXT : "---",  self.CHARGE_CYCLES_TEXT : 0,      self.FULL_DISCHARGES_TEXT : 0,      self.AH_DRAWN_TEXT : 0,    self.MIN_VOLTAGE_TEXT : 0,   self.MAX_VOLTAGE_TEXT : 0,   self.CHARGE_CURRENT_TEXT : 0,   self.CHARGE_POWER_TEXT : 0   }
+        homeAutomationUnits       = { self.CURRENT_TEXT : "A", self.PERCENT_TEXT : "%", self.VOLTAGE_TEXT : "V", self.ALARM_TEXT : "none", self.ALARM_REASON_TEXT : "none", self.CHARGE_CYCLES_TEXT : "none", self.FULL_DISCHARGES_TEXT : "none", self.AH_DRAWN_TEXT : "Ah", self.MIN_VOLTAGE_TEXT : "V", self.MAX_VOLTAGE_TEXT : "V", self.CHARGE_CURRENT_TEXT : "A", self.CHARGE_POWER_TEXT : "W" }
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
         #self.mqttSubscribeTopic(self.homeAutomationTopic, globalSubscription = True)
@@ -268,8 +283,8 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
             if (self.matchedValues["SOC"] == b'---'):
                 self.setShuntSocValue()         # set shunt SOC value to default value if there is no other value available (neither from shunt nor from home automation)
             else:
-                self.SocMonitorWerte[self.PERCENT_TEXT]         = int(self.matchedValues["SOC"]) / 10
                 self.SocMonitorWerte[self.CURRENT_TEXT]         = round(int(self.matchedValues["I"]) / 1000, 2)
+                self.SocMonitorWerte[self.PERCENT_TEXT]         = int(self.matchedValues["SOC"]) / 10
                 self.SocMonitorWerte[self.VOLTAGE_TEXT]         = round(int(self.matchedValues["V"]) / 1000, 2)
                 self.SocMonitorWerte[self.ALARM_TEXT]           = str(self.matchedValues["Alarm"])
                 self.SocMonitorWerte[self.ALARM_REASON_TEXT]    = str(self.matchedValues["AR"])
@@ -278,14 +293,17 @@ class VictronSmartShuntUartInterface(BasicUartInterface):
                 self.SocMonitorWerte[self.AH_DRAWN_TEXT]        = round(int(self.matchedValues["H6"]) / 1000, 2)
                 self.SocMonitorWerte[self.MIN_VOLTAGE_TEXT]     = round(int(self.matchedValues["H7"]) / 1000, 2)
                 self.SocMonitorWerte[self.MAX_VOLTAGE_TEXT]     = round(int(self.matchedValues["H8"]) / 1000, 2)
-    
-                #raise Exception(f"SOC values are: {self.SocMonitorWerte}")
-    
+
+                # some redundant or calculated values
+                self.SocMonitorWerte[self.CHARGE_CURRENT_TEXT]  = self.SocMonitorWerte[self.CURRENT_TEXT]                                                           # identical but another name in home assistant for better understanding
+                self.SocMonitorWerte[self.CHARGE_POWER_TEXT]    = int(self.SocMonitorWerte[self.CHARGE_CURRENT_TEXT] * self.SocMonitorWerte[self.VOLTAGE_TEXT])     # power calculated from the actual current and the actual voltage
+
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SocMonitorWerte, globalPublish = False, enableEcho = False)
     
                 if self.prepareHomeAutomation():
                     self.logger.debug(self, f"read Victron values {self.homeAutomationValues}")
                     self.publishHomeAutomation()
+                    
 
 
     def threadBreak(self):
