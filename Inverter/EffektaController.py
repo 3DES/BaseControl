@@ -173,7 +173,7 @@ class EffektaController(ThreadObject):
                 if EffektaData[name]["ActualMode"] != "B":
                     globalEffektaData["BatteryModeAnd"] = False
         except Exception as ex:
-            self.logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentlyHandledKey}, floatmode:{floatmode}")
+            cls.logger.error(cls, f"Wir konnten CombinedEffektaData nicht bilden. Exception:{ex}, EffektaData:{EffektaData}, Aktueller key:{currentlyHandledKey}, floatmode:{floatmode}")
         return globalEffektaData
 
     def threadInitMethod(self):
