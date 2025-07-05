@@ -40,7 +40,7 @@ class EffektaController(ThreadObject):
     GRID_CHARGER_OFF = "gridChargerOff"
     SWITCH_TO_BATTERY = "switchToBattery"
     SWITCH_TO_GRID = "switchToGrid"
-    WORK_DATA_KEYS = ["ActualMode", "AcOutSpannung", "Netzspannung"]        # needet to call funktion getCombinedEffektaData()
+    WORK_DATA_KEYS = ["ActualMode", "AcOutSpannung", "Netzspannung", "DeviceStatus2"]        # needet to call funktion getCombinedEffektaData()
     
 
 

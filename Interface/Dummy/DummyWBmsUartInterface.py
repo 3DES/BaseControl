@@ -22,7 +22,7 @@ class DummyWBmsUartInterface(InterfaceBase):
 
     def threadInitMethod(self):
         #self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True, "BmsLadeFreigabe":True}
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "CurrentList":[3, 6, 15, -10], "VoltageList":[3.33,3.22,3.55,3.77], "toggleIfMsgSeen":False, "FullChargeRequired":False, "BmsEntladeFreigabe":True}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Ladephase": "none", "Current":0.0, "Prozent":51, "CurrentList":[3, 6, 15, -10], "VoltageList":[3.33,3.22,3.55,3.77], "toggleIfMsgSeen":False, "ChargeDischargeManagement":{"FullChargeRequired":False}, "BmsEntladeFreigabe":True}
 
 
     def threadMethod(self):
@@ -54,7 +54,7 @@ class DummyWBmsUartInterface(InterfaceBase):
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
 
         #if self.timer(name = "timerFullChargeRequiredTest", timeout = 40):
-        #       self.BmsWerte["FullChargeRequired"] = True
+        #       self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = True
 
 
 

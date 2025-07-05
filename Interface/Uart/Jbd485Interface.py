@@ -2,7 +2,6 @@ from Base.InterfaceBase import InterfaceBase
 import time
 from GridLoad.SocMeter import SocMeter
 import serial
-import json
 from Interface.Uart.Jbd.jbd import JBDUP
 from Base.Supporter import Supporter
 

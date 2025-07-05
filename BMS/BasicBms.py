@@ -150,7 +150,7 @@ class BasicBms(ThreadObject):
                 vMinSeen = True
                 vMaxSeen = True
             if "ChargeDischargeManagement" in self.bmsWerte[interfaceName]:
-                chDchManagementList += self.bmsWerte[interfaceName]["ChargeDischargeManagement"]
+                chDchManagementList.append(self.bmsWerte[interfaceName]["ChargeDischargeManagement"])
 
             # convert a list element in to single values to be shown and logged in homeassistant, original list element will stay unchanged
             for key in self.listElements:
