@@ -128,4 +128,19 @@ class Crc(object):
         else:
             return ((string[1] << 8) | string[0])
 
-
+    @classmethod
+    def modbusCrc(cls, msg: str):
+        """
+        copied from https://stackoverflow.com/a/75328573
+        to calculate the needed checksum
+        """
+        crc = 0xFFFF
+        for n in range(len(msg)):
+            crc ^= msg[n]
+            for _ in range(8):
+                if crc & 1:
+                    crc >>= 1
+                    crc ^= 0xA001
+                else:
+                    crc >>= 1
+        return crc.to_bytes(2, "little")

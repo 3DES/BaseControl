@@ -2,11 +2,8 @@ from Interface.Uart.BasicUartInterface import BasicUartInterface
 import time
 from GridLoad.SocMeter import SocMeter
 from BMS.BasicBms import BasicBms
-from Base.Supporter import Supporter
-from .SerialBattery.helpers import helpers
+import Base.Crc
 from struct import unpack_from
-from typing import Union
-import sys
 
 class JkPbInverterBmsInterface(BasicUartInterface):
     '''
@@ -348,7 +345,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         """
         modbus_msg = bytes([self.configuration["address"]])
         modbus_msg += command
-        modbus_msg += helpers.modbusCrc(self, modbus_msg)
+        modbus_msg += Base.Crc.Crc.modbusCrc(modbus_msg)
 
         self.flush()
         self.serialWrite(modbus_msg)
