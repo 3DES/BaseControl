@@ -223,7 +223,7 @@ class WetterOnline(ThreadObject):
                     if "Tag_4" in self.wetterdaten:
                         self.wetterdaten["Tag_3"] = self.wetterdaten["Tag_4"]
                     # Wir füllen von hinten mit None auf
-                    self.wetterdaten["Tag_4"] = None
+                    self.wetterdaten["Tag_4"] = {}
 
         if publishWeather:
             outTopic = self.createOutTopic(self.getObjectTopic())
