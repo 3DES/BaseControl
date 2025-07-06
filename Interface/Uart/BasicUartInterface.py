@@ -189,7 +189,7 @@ class BasicUartInterface(InterfaceBase):
         self.receivedData = b""
 
 
-    def serialRead(self, length : int = 0, regex : bytes = None, timeout : float = None, dump : bool = False):
+    def serialRead(self, length : int = 0, regex : bytes = None, timeout : int = None, dump : bool = False):
         '''
         Reads data from serial until length bytes have been received or timeout has been reached
         Don't mix serialRead() and serialReadLine()
@@ -228,21 +228,20 @@ class BasicUartInterface(InterfaceBase):
                             # only send first "length" bytes, rest stays in received data until read is called again or flush has been called
                             returnData = self.receivedData[:length]
                             self.receivedData = self.receivedData[length:]
-                            break       # leave loop since data has been found
                         else:
                             # send all data
                             returnData = self.receivedData
+                            self.receivedData = b""
                         #Supporter.debugPrint(f"serialRead read ({Supporter.getSecondsSince(startTime)}s) [{returnData}]")
+                        break       # leave loop since data has been found
 
                 # if timeout is <= 0, no length and no regex has been given, leave loop after first read without debug log
                 if timeout <= 0 and not length and regex is None:
                     break       # leave loop because of single read
                 elif Supporter.getSecondsSince(startTime) > timeout:
                     # if timeout has been given check if time is over (this works also if timeout was 0 and self.configuration["timeout"] was also 0)
-                    self.receivedData = b""
                     self.logger.debug(self, f"timeout {len(self.receivedData)} {timeout} {self.receivedData}")
                     break       # leave loop because of timeout
-                time.sleep(0.1)
         except Exception as exception:
             self.logger.warning(self, f"Exception caught in serialRead method: {exception}, re-init serial")
             self.reInitSerial()
