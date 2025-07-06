@@ -77,7 +77,7 @@ class BasicBms(ThreadObject):
                     if dictElementName in subDict:
                         tempList.append(subDict[dictElementName])
                     else:
-                        cls.logger.info(cls, f"Dict key --{dictElementName}-- isn't present in all BMS data!")
+                        cls.logger.info(cls, f"Dict key --{dictElementName}-- isn't present in all BMS interface data!")
                 mergedDict[dictElementName] = cls.mergeMethod[dictElementName](tempList)
             else:
                 cls.logger.error(cls, f"Dict key --{dictElementName}-- couldn't be merged! Missing method! Fix mergeMethod.")

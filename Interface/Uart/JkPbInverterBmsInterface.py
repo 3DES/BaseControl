@@ -59,29 +59,49 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             # If FullChgReqTimer is triggered we send one FullChargeRequired request
             if self.timer("FullChgReqTimer", timeout=self.FULL_CHG_REQ_TIMER):
                 self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = True
+            else:
+                self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = False
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
         except Exception as e:
             self.logger.error(self, f"Error reading {self.name} inteface. Exception was: {e}")
             if self.timer(name = "timeoutJbdRead", timeout = 300):
                 raise Exception(f'{self.name} connection to bms: {self.bmsName} is broken since 60s!')
 
-        if self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"]:
-            self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = False
-
     def initLocalBmsData(self):
         self.localBmsData =[]
         for _ in range(self.configuration["numBatterys"]):
-            self.localBmsData.append({})
+            self.localBmsData.append({"ChargeDischargeManagement":{}})
 
     def initResponseDataList(self):
         self.expectedResponsedMsg = {}
-        initList = []
-        for _ in range(self.configuration["numBatterys"]):
-            initList.append(False)
         if self.isSlavemode():
-            self.expectedResponsedMsg = dict.fromkeys(self.msgTypesSlaveMode, initList)
+            cmdList = self.msgTypesSlaveMode
         else:
-            self.expectedResponsedMsg = dict.fromkeys(self.msgTypesMasterMode, initList)
+            cmdList = self.msgTypesMasterMode
+
+        for cmd in cmdList:
+            for _ in range(self.configuration["numBatterys"]):
+                self.expectedResponsedMsg[cmd] = []
+                self.expectedResponsedMsg[cmd].append(False)
+
+    '''
+    xx address
+    yy crc
+    zz messageTypeResponse      (01, 02, 03)
+    gg messageTypeRequest       (1E, 20, 1C)
+    
+    Anfragen an den Slave:
+           xx 10 16 gg 00 01 02 00 00 yy yy
+           xx 10 16 gg 00 01 02 00 00 yy yy
+    Slave Antwort addresse
+    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
+    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
+    
+    
+    addresse in Message von Master (add == xx == 0) welche autonom ohne anfrage gesendet wird:
+    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
+    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
+    '''
 
     def isSlavemode(self):
         return self.configuration["address"] > 0
@@ -97,7 +117,21 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         return data[0] == 0x55 and data[1] == 0xAA and data[2] == 0xEB and data[3] == 0x90
 
     def getMsgTypeFromDataBlock(self, data):
+        # caller have to ensure that data is a response
         return unpack_from("<B", data, 4)[0]
+
+    def getAddressFromDataBlock(self, data):
+        # caller have to ensure that data is a response
+        #xx 10 16 20 00 01 yy yy /end                 xx == address     yy == crc
+        return unpack_from("<B", data, (len(data)-8))[0]
+
+    def recalculateChargeDischargeManagement(self):
+        '''
+        if all bms data received then:
+        check for each bms if BmsEntladeFreigabe or BmsLadeFreigabe is not set and set charge or disccharge current to 0 in ChargeDischargeManagement List
+        check if BMS request floatMode and set voltage (perhaps here or in process.. funktion)
+        '''
+        pass
 
     def getJkData(self):
         '''
@@ -107,8 +141,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         if self.isSlavemode():
             for commandName in self.expectedResponsedMsg:
                 self.send_serial_data_jkbms_pb(self.commands[commandName]["rawCmd"])
+                time.sleep(0.1) # wait for response
                 self.readAndProcessData()
-                #time.sleep(0.5)
                 self.serialReset_input_buffer()
         else:
             # In Master Mode (Address == 0) we only have to listen. The Master Bms will request all the data
@@ -154,6 +188,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         if allDataReceived:
             self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
             self.initResponseDataList()
+            # bevore merging, overwrite some values if neccesary
+            self.recalculateChargeDischargeManagement()
             if self.isSlavemode():
                 self.BmsWerte.update(self.localBmsData[0])
             else:
@@ -172,6 +208,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         VolBalanTrig = unpack_from("<i", status_data, 26)[0] / 1000
         VolSOC_full = unpack_from("<i", status_data, 30)[0] / 1000
         VolSOC_empty = unpack_from("<i", status_data, 34)[0] / 1000
+        VolRCV = unpack_from("<i", status_data, 38)[0] / 1000                   # requested charge voltage boost
+        VolRFV = unpack_from("<i", status_data, 42)[0] / 1000                   # requested charge voltage float
         VolSysPwrOff = unpack_from("<i", status_data, 46)[0] / 1000
         CurBatCOC = unpack_from("<i", status_data, 50)[0] / 1000                # max_battery_charge_current
         TIMBatCOCPDly = unpack_from("<i", status_data, 54)[0]
@@ -197,6 +235,11 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         SCPDelay = unpack_from("<i", status_data, 134)[0]
 
         self.cell_count = CellCount
+        self.localBmsData[listIndex]["ChargeDischargeManagement"]["ChargeCurrent"] = CurBatCOC
+        self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeCurrent"] = CurBatDcOC
+        # todo set rcv or rfv appending on requested charge mode. Jk publish this via can. eventually here too.
+        self.localBmsData[listIndex]["ChargeDischargeManagement"]["ChargeVoltage"] = round(VolRCV * self.cell_count, 2)
+        self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
 
     def processAbout(self, status_data, listIndex):
         messageType = unpack_from("<B", status_data, 4)[0]
@@ -249,12 +292,11 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         balancing = 1 if bal != 0 else 0
         #self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "ChargeDischargeManagement":{"FullChargeRequired":False}, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
 
-        self.localBmsData[listIndex]["VoltageList"] = cellList
-        self.localBmsData[listIndex]["Current"] = current
-        self.localBmsData[listIndex]["Prozent"] = soc
-        self.localBmsData[listIndex]["BmsEntladeFreigabe"] = True if discharge == 1 else False
-        self.localBmsData[listIndex]["BmsLadeFreigabe"] = True if charge == 1 else False
-
+        self.localBmsData[listIndex]["VoltageList"] = cellList                                      # -> Ok
+        self.localBmsData[listIndex]["Current"] = current                                           # -> Ok
+        self.localBmsData[listIndex]["Prozent"] = soc                                               # -> Ok
+        self.localBmsData[listIndex]["BmsEntladeFreigabe"] = True if discharge == 1 else False      # -> Ok
+        self.localBmsData[listIndex]["BmsLadeFreigabe"] = True if charge == 1 else False            # -> Ok
 
         # show wich cells are balancing
 #        if self.get_min_cell() is not None and self.get_max_cell() is not None:
@@ -318,7 +360,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
     def read_serial_data(self):
         
         data = self.serialRead(timeout=0.5)
-        
+
         return data
         
 #        regex = f""

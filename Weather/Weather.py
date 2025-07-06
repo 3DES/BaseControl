@@ -222,7 +222,7 @@ class WetterOnline(ThreadObject):
                         self.wetterdaten["Tag_2"] = self.wetterdaten["Tag_3"]
                     if "Tag_4" in self.wetterdaten:
                         self.wetterdaten["Tag_3"] = self.wetterdaten["Tag_4"]
-                    # Wir füllen von hinten mit None auf
+                    # Wir füllen von hinten mit einem leeren Dict auf
                     self.wetterdaten["Tag_4"] = {}
 
         if publishWeather:
