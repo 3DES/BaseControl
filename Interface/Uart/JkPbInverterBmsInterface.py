@@ -9,9 +9,6 @@ class JkPbInverterBmsInterface(BasicUartInterface):
     '''
     classdocs
     '''
-    LENGTH_POS = 2  # ignored
-    LENGTH_SIZE = "H"  # ignored
-
     def __init__(self, threadName : str, configuration : dict):
         '''
         Constructor
@@ -26,6 +23,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                          "command_status":{"rawCmd": b"\x10\x16\x20\x00\x01\x02\x00\x00", "respLenght":299, "resptype":2}
                         }
         # Data List to ensure that all data arrived and in correct order esp for startup
+        # With command_settings we request cell count, which is needed for some calculations
         self.msgTypesMasterMode = ["command_settings", "command_status"]
         self.msgTypesSlaveMode =  ["command_settings", "command_status", "command_about"]
         self.expectedResponsedMsg = {}
@@ -35,7 +33,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.tagsIncluded(["interface", "address"])
         self.tagsIncluded(["numBatterys"],  optional = True, default = 1)
         if self.configuration["address"] > 0 and self.configuration["numBatterys"] != 1:
-            raise Exception("If address is bigger than 0 then slave mode is active and we can only read 1 battery. Check numBatterys and address in project.json!")
+            raise Exception("address > 0 and numBatterys != 1 means slave mode is active. We can only read 1 battery in slave mode! Check numBatterys and address in project.json!")
+        if self.configuration["numBatterys"] > 1:
+            raise Exception("Only one Battery is supported yet. See --todo merger-- in JkPbInverterBmsInterface.py")
         super().threadInitMethod()
         self.initResponseDataList()
         self.initLocalBmsData()
@@ -49,23 +49,26 @@ class JkPbInverterBmsInterface(BasicUartInterface):
 
             if "cmd" in newMqttMessageDict["content"]:
                 if newMqttMessageDict["content"]["cmd"] == "resetSoc":
-                    # Reset FullChgReqTimer because we are in Floatmode now
+                    # Reset FullChgReqTimer because we are in Floatmode now (depending on worker)
                     if self.timerExists("FullChgReqTimer"):
                         self.timer("FullChgReqTimer", remove=True)
-                    # todo reset battery pack to max capacity value if charge fet is on. Else ignore this cmd because battery is momentary not connected to system. 
-
         try:
             self.getJkData()
-            # If FullChgReqTimer is triggered we send one FullChargeRequired request
-            if self.timer("FullChgReqTimer", timeout=self.FULL_CHG_REQ_TIMER):
-                self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = True
-            else:
-                self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = False
-            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
         except Exception as e:
             self.logger.error(self, f"Error reading {self.name} inteface. Exception was: {e}")
             if self.timer(name = "timeoutJbdRead", timeout = 300):
                 raise Exception(f'{self.name} connection to bms: {self.bmsName} is broken since 60s!')
+
+    def threadBreak(self):
+        time.sleep(3)
+
+    def sendInternalMqtt(self):
+        # If FullChgReqTimer is triggered we send one FullChargeRequired request
+        if self.timer("FullChgReqTimer", timeout=self.FULL_CHG_REQ_TIMER):
+            self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = True
+        else:
+            self.BmsWerte["ChargeDischargeManagement"]["FullChargeRequired"] = False
+        self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)
 
     def initLocalBmsData(self):
         self.localBmsData =[]
@@ -103,24 +106,53 @@ class JkPbInverterBmsInterface(BasicUartInterface):
     55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
     '''
 
+    def read_serial_data(self):
+        '''
+        read serial data and returns a complete request or response message. Retrun -> bytes
+        '''
+        #regex = b'(?P<resp>\x55\xaa\xeb\x90.*?\x10\x16(\x1e|\x20|\x1c)\x00\x01..)|(?P<req>.\x10\x16(\x1e|\x20|\x1c)\x00\x01\x02\x00\x00..)'
+        regex = b'(?P<resp>\x55\xaa\xeb\x90.*?\x10\x16(\x1e|\x20|\x1c)\x00\x01..)'
+        ret = {"data":b'', "type":""}
+        if match := self.serialRead(timeout=0.5, regex = regex):
+            #if not (match.group('req') is None):
+            #    ret["data"] =  match.group('req')
+            #    ret["type"] = "req"
+            if not (match.group('resp') is None):
+                ret["data"] = match.group('resp')
+                ret["type"] = "resp"
+        return ret
+
+    def send_serial_data_jkbms_pb(self, command: str):
+        """
+        use the read_serial_data() function to read the data and then do BMS specific checks (crc, start bytes, etc)
+        :param command: the command to be sent to the bms
+        :return: True if everything is fine, else False
+        """
+        modbus_msg = bytes([self.configuration["address"]])
+        modbus_msg += command
+        modbus_msg += Base.Crc.Crc.modbusCrc(modbus_msg)
+
+        self.flush()
+        self.serialWrite(modbus_msg)
+
     def isSlavemode(self):
         return self.configuration["address"] > 0
 
-    def getAddressFromResponse(self, data):
+    def getAddressFromRequest(self, data):
         return unpack_from("<B", data, 0)[0]
 
     def isRequest(self, data):
         # xx 10 16 20 00 01 02 00 00 yy yy            xx == address     yy == crc
-        return data[1] == 0x10 and data[2] == 0x16 and data[3] == 0x20 and data[4] == 0x00 and data[5] == 0x01 and data[6] == 0x02 and data[7] == 0x00 and data[8] == 0x00
+        return data[1] == 0x10 and data[2] == 0x16 and (data[3] == 0x20 or data[3] == 0x1E or data[3] == 0x1C) and data[4] == 0x00 and data[5] == 0x01 and data[6] == 0x02 and data[7] == 0x00 and data[8] == 0x00
 
     def isResonse(self, data):
         return data[0] == 0x55 and data[1] == 0xAA and data[2] == 0xEB and data[3] == 0x90
 
-    def getMsgTypeFromDataBlock(self, data):
+    def getResponseType(self, data):
         # caller have to ensure that data is a response
         return unpack_from("<B", data, 4)[0]
 
-    def getAddressFromDataBlock(self, data):
+    def getAddressFromResponse(self, data):
         # caller have to ensure that data is a response
         #xx 10 16 20 00 01 yy yy /end                 xx == address     yy == crc
         return unpack_from("<B", data, (len(data)-8))[0]
@@ -131,7 +163,11 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         check for each bms if BmsEntladeFreigabe or BmsLadeFreigabe is not set and set charge or disccharge current to 0 in ChargeDischargeManagement List
         check if BMS request floatMode and set voltage (perhaps here or in process.. funktion)
         '''
-        pass
+        for pack in range(len(self.localBmsData)):
+            if not self.localBmsData[pack]["BmsLadeFreigabe"]:
+                self.localBmsData[pack]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
+            if not self.localBmsData[pack]["BmsEntladeFreigabe"]:
+                self.localBmsData[pack]["ChargeDischargeManagement"]["DischargeCurrent"] = 0
 
     def getJkData(self):
         '''
@@ -149,52 +185,62 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             self.readAndProcessData()
 
     def readAndProcessData(self):
-        # todo listen vergleichen, wenn ungleich dann loopen
-        dataBlock = self.read_serial_data()
+        while(True):
+            dataBlock = self.read_serial_data()
 
-        if len(dataBlock) < 5:
-            raise Exception("Empty message!")
-
-        if self.isResonse(dataBlock):
-            msgType = self.getMsgTypeFromDataBlock(dataBlock)
-            localDatalistIndex = 0
-            if msgType == self.commands["command_settings"]["resptype"]:
-                self.processSettings(dataBlock, localDatalistIndex)
-                # We got the data and update it in self.BmsWerte
-                self.expectedResponsedMsg["command_settings"][0] = True
-            elif msgType == self.commands["command_about"]["resptype"]:
-                self.processAbout(dataBlock, localDatalistIndex)
-                # We got the data and update it in self.BmsWerte
-                self.expectedResponsedMsg["command_about"][0] = True
-            elif msgType == self.commands["command_status"]["resptype"]:
-                self.processStatus(dataBlock, localDatalistIndex)
-                # We got the data and update it in self.BmsWerte
-                self.expectedResponsedMsg["command_status"][0] = True
-            else:
-                self.logger.error(self, f"Error processing {self.name} message. Unknown data type in response. Data was: {dataBlock}")
-        elif self.isRequest(dataBlock):
-            address = self.getAddressFromResponse(dataBlock)
-            # todo implement for master (address == 0) mode
-        else:
-            self.logger.error(self, f"Error handling {self.name} message. Unknown message type. Data was: {dataBlock}")
-
-        # check if all data were received and toggle the alive bit
-        allDataReceived = True
-        for cmd in list(self.expectedResponsedMsg):
-            if not all(self.expectedResponsedMsg[cmd]):
-                allDataReceived = False
+            if len(dataBlock["data"]) < 5:
                 break
 
-        if allDataReceived:
-            self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
-            self.initResponseDataList()
-            # bevore merging, overwrite some values if neccesary
-            self.recalculateChargeDischargeManagement()
-            if self.isSlavemode():
-                self.BmsWerte.update(self.localBmsData[0])
+            if dataBlock["type"] == "resp":
+                if self.isSlavemode():
+                    localDatalistIndex = 0
+                else:
+                    localDatalistIndex = self.getAddressFromResponse(dataBlock["data"])
+                responseType = self.getResponseType(dataBlock["data"])
+                if responseType == self.commands["command_settings"]["resptype"]:
+                    self.processSettings(dataBlock["data"], localDatalistIndex)
+                    # We got the data and update it in self.BmsWerte
+                    self.expectedResponsedMsg["command_settings"][localDatalistIndex] = True
+                elif responseType == self.commands["command_about"]["resptype"]:
+                    self.processAbout(dataBlock["data"], localDatalistIndex)
+                    # We got the data and update it in self.BmsWerte
+                    self.expectedResponsedMsg["command_about"][localDatalistIndex] = True
+                elif responseType == self.commands["command_status"]["resptype"]:
+                    self.processStatus(dataBlock["data"], localDatalistIndex)
+                    # We got the data and update it in self.BmsWerte
+                    self.expectedResponsedMsg["command_status"][localDatalistIndex] = True
+                else:
+                    self.logger.error(self, f"Error processing {self.name} message. Unknown data type in response. Data was: {dataBlock}")
+            elif dataBlock["type"] == "req":
+                self.logger.info(self, f"Request skipped")
             else:
-                self.BmsWerte.update(BasicBms.dictMerger(self.localBmsData))
-            self.initLocalBmsData()
+                self.logger.error(self, f"Error handling {self.name} message. Unknown message type. Data was: {dataBlock}")
+
+            # check if all data were received and toggle the alive bit
+            allDataReceived = True
+            for cmd in list(self.expectedResponsedMsg):
+                if not all(self.expectedResponsedMsg[cmd]):
+                    allDataReceived = False
+                    break
+
+            if allDataReceived:
+                self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
+                self.initResponseDataList()
+                # bevore merging, overwrite some values if neccesary
+                self.recalculateChargeDischargeManagement()
+                # todo merger für mehrere BMS einbauen, dictmerger funktioniert hier nicht weil es veschiedene MergeMethoden nicht gibt und es subdicts gibt Evtl den merger aus basicBMS als cls method umbauen und verwenden
+                #self.BmsWerte.update(BasicBms.dictMerger(self.localBmsData))
+                self.BmsWerte.update(self.localBmsData[0])
+                self.initLocalBmsData()
+                self.serialReset_input_buffer()
+                self.sendInternalMqtt()
+                self.logger.info(self, "sende mqtt")
+                break
+
+            # In Slave Mode there is only one response in the buffer
+            if self.isSlavemode():
+                break
+
 
     def processSettings(self, status_data, listIndex):
         messageType = unpack_from("<B", status_data, 4)[0]
@@ -237,7 +283,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.cell_count = CellCount
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["ChargeCurrent"] = CurBatCOC
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeCurrent"] = CurBatDcOC
-        # todo set rcv or rfv appending on requested charge mode. Jk publish this via can. eventually here too.
+        # todo set rcv or rfv appending on requested charge mode. Jk publish this via CAN. I couldn't find the bit here.
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["ChargeVoltage"] = round(VolRCV * self.cell_count, 2)
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
 
@@ -249,7 +295,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         serial_nr = status_data[86:97].decode("utf-8")
         vendor_id = status_data[6:18].decode("utf-8")
         hw_version = (status_data[22:26].decode("utf-8") + " / " + status_data[30:35].decode("utf-8")).replace("\x00", "")
-        sw_version = status_data[30:34].decode("utf-8")  # will be overridden
+        sw_version = status_data[30:34].decode("utf-8")
 
     def processStatus(self, status_data, listIndex):
         messageType = unpack_from("<B", status_data, 4)[0]
@@ -356,41 +402,3 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         # check if low/high temp alarm arise during discharging
         high_temperature = (byte_data & 0x00008000) * 2
         low_temperature = 0
-
-    def read_serial_data(self):
-        
-        data = self.serialRead(timeout=0.5)
-
-        return data
-        
-#        regex = f""
-#        if match := self.serialRead(timeout = 5, regex = regex, dump = self.configuration["dumpSerial"]):
-#            data = match.group('data')
-#        #data = self.serialRead(length, timeout=0.1)##
-
-#            if data[0] == 0x55 and data[1] == 0xAA:
-#                print(data)
-#                return data
-#            else:
-#                self.logger.error(self, f"{self.name} Data lenght or header is incorrect!")
-#                return False
-#        else:
-#            self.logger.error(self, f"{self.name} No data received or incorrect.")
-#            return False
-
-
-    def send_serial_data_jkbms_pb(self, command: str):
-        """
-        use the read_serial_data() function to read the data and then do BMS specific checks (crc, start bytes, etc)
-        :param command: the command to be sent to the bms
-        :return: True if everything is fine, else False
-        """
-        modbus_msg = bytes([self.configuration["address"]])
-        modbus_msg += command
-        modbus_msg += Base.Crc.Crc.modbusCrc(modbus_msg)
-
-        self.flush()
-        self.serialWrite(modbus_msg)
-
-    def threadBreak(self):
-        time.sleep(3)

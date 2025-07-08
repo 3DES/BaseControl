@@ -58,12 +58,18 @@ class BasicBms(ThreadObject):
     def dictMerger(cls, listOfDicts : list) -> dict:
         '''
         A given list of dicts will be merged with logical operations to one dict.
+        A list with 1 item will be returned
         If keys are not included in all src dicts a info is published to the logger.
         The logical merge method is given in cls.mergeMethod. If a key is not included here a error is published to logger
         
         param: list of dict
         return: dict
         '''
+
+        # nothing to do
+        if len(listOfDicts) <= 1:
+            return listOfDicts
+
         mergedDict = {}
         mergekeyList = []
         for ChDchDict in listOfDicts:
