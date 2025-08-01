@@ -218,6 +218,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
 
             # check if all data were received and toggle the alive bit
             allDataReceived = True
+            # todo implement a minBms Parameter to accept offline bms/batterypacks with timeout
+            #numBmsPresent = self.expectedResponsedMsg[0].count(True)
             for cmd in list(self.expectedResponsedMsg):
                 if not all(self.expectedResponsedMsg[cmd]):
                     allDataReceived = False
@@ -234,7 +236,6 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                 self.initLocalBmsData()
                 self.serialReset_input_buffer()
                 self.sendInternalMqtt()
-                self.logger.info(self, "sende mqtt")
                 break
 
             # In Slave Mode there is only one response in the buffer
