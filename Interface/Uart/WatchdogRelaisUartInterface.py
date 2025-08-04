@@ -15,12 +15,12 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     This class is a Interface for a watchdog relay.
     This is a Arduino Nano with special Relays which have to be pulsed.
     If not the relay switch off.
-    If Nanos firmware is not triggered via uart it will switch also off.
+    If Nanos firmware is not triggered via uart it will switch also off all outputs.
     https://github.com/3DES/WatchdogBoard
     
     This class will forward a watchdog msg (normally from BaseControlls Watchdog) with crc to the usb Relay.
     This class checks the firmware of usb relay and update if its neccessary.
-    This class polls inputs an publish if ther is a new value
+    This class polls inputs an publish if there is a new value
 
     Messages:
     {"cmd":"readInputState"} publishes the localInputState
@@ -82,10 +82,13 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         self.tagsIncluded(["firmware"], optional = True, default = "firmware.hex")
         self.tagsIncluded(["avrdudePath"], optional = True, default = "avrdude")
         self.tagsIncluded(["debugVersion"], optional = True, default = False)
+        self.tagsIncluded(["testBypass"], optional = True, default = None)
         self.tagsIncluded(["interface"])
         self.firstLoop = True
         self.getDiagnosis = False
         self.wdEverTriggered = False
+        if self.configuration["testBypass"] is not None:
+            self.testBypassInput = "Input1"
 
 
     # some helper funktions
@@ -160,7 +163,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         elif msg[cmd] == "D":
             return ";".join(msg)
         elif msg[cmd] == "E":
-            self.logger.error(self, f"Relay respondet an error: {msg}")
+            self.logger.error(self, f"Relay responded an error: {msg}")
             if msg[errorType] == eERROR_INVALID_CRC:
                 # We actual dont make a difference between internal crc error or relais crc error. Just resend msg.
                 return {"Error":"crc"}
@@ -172,7 +175,8 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
     def processSerialCmd(self, cmd):
         # In some cases it takes about 1 minute to reinit serial. Trying reinit longer than 1 minute is useless because the wd resets after this time automatically.
         delayBetweenReinit = 5
-        maxTries = 20
+        # wd timeout is 60s, so we try 12 reinits
+        maxTries = 12
         for tries in range(maxTries):
             if tries > 3:
                 self.logger.error(self, f"We try to reinit serial because there are many errors.")
@@ -276,11 +280,6 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             return bytes.fromhex(ourFw).decode('utf-8')
 
     def updateArduino(self):
-        try:
-            self.clearWdRelay()
-        except:
-            self.logger.error(self, f"Arduino update. clearWdRelay() not possible! Try to update now.")
-
         self.serialClose()
         tries = 0
         while self.maxUpdateTries > tries:
@@ -303,6 +302,11 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         ourFw = self.getOurVersion()
         if hwFw != ourFw:
             self.logger.info(self, f"Watchdog firmware differs from ours. We will update. Ours: --{ourFw}-- Wd: --{hwFw}--")
+            if not hwFw == "newArduino":
+                try:
+                    self.clearWdRelay()
+                except:
+                    self.logger.error(self, f"Arduino update. clearWdRelay() not possible! Try to update now.")
             self.updateArduino()
 
             hwFw = self.getHwVersion()
@@ -341,13 +345,39 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
     # now the funktions to manage relay
     def testWdRelay(self):
+        def exitTestWithError(msg):
+            self.clearWdRelay()
+            self.setRelayStates({self.configuration["testBypass"]: "0"})
+            raise Exception(msg)
+        if self.configuration["testBypass"] is not None:
+            if self.localInputState[self.testBypassInput] == "0":
+                self.setRelayStates({self.configuration["testBypass"]: "1"})
+            else:
+                exitTestWithError(f"{self.name} TestBypass is not 0 at test beginn!")
+            # wait until relay switched on
+            time.sleep(0.4)
+            self.readAndPublishInputs()
+            if self.localInputState[self.testBypassInput] == "0":
+                exitTestWithError(f"{self.name} TestBypass is 0 after switching on!")
         result = self.sendCommand("T")
         if not result == "1":
             self.logger.error(self,f'Test command rejected! Watchdog Diagnosis: {self.sendCommand("D")}')
+        if self.configuration["testBypass"] is not None:
+            # wait until test is finished
+            time.sleep(4)
+            self.readAndPublishInputs()
+            if self.localInputState[self.testBypassInput] == "0":
+                exitTestWithError(f"{self.name} TestBypass is 0 after wd test!")
+            self.setRelayStates({self.configuration["testBypass"]: "0"})
+            # wait until relay switched off
+            time.sleep(2.5)
+            self.readAndPublishInputs()
+            if self.localInputState[self.testBypassInput] == "1":
+                exitTestWithError(f"{self.name} TestBypass is 1 after switching off!")
         return result
 
     def triggerWdRelay(self):
-        self.logger.info(self,f'trigger watchdog')
+        self.logger.debug(self,f'trigger watchdog')
         self.wdEverTriggered = True
         retval = self.sendRequest("W", "1")
         if not retval == "1":
@@ -358,6 +388,12 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
 
     def clearWdRelay(self):
         self.sendRequest("W", "0")
+
+    def readAndPublishInputs(self):
+        tempInputState = self.readInputState()
+        if self.localInputState != tempInputState:
+            self.localInputState = tempInputState
+            self.publishInputState()
 
     def readInputState(self):
         inputs = {}
@@ -372,6 +408,11 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 # If the watchdog is 0 we cannot set any relais. A clean timing is: trigger wd first and then set relais. This is not easy if this is done by different threads.
                 self.logger.error(self,f'Setting of relay -{relay}- to 1 maybe has no effect, wd was never triggered. Please see -triggerThread- in project.json. Or check timing!')
 
+    def checkTestBypass(self):
+        if (self.configuration["testBypass"] is not None) and (self.localInputState[self.testBypassInput] != "0"):
+            self.clearWdRelay()
+            raise Exception("testBypass readback input has a unexpected value (not 0)")
+
     def threadMethod(self):
         if self.firstLoop:
             time.sleep(self.bootTime)
@@ -380,10 +421,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             self.setRelayStates({"Relay0": "0", "Relay1": "0", "Relay2": "0", "Relay3": "0", "Relay4": "0", "Relay5": "0", "Relay6": "0"})
 
         # Polling inputs in each loop and publish if there is a new value
-        tempInputState = self.readInputState()
-        if self.localInputState != tempInputState:
-            self.localInputState = tempInputState
-            self.publishInputState()
+        self.readAndPublishInputs()
 
         # check if a new msg is waiting
         while not self.mqttRxQueue.empty():
@@ -399,12 +437,15 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                 elif "clearWdRelay" == newMqttMessageDict["content"]["cmd"]:
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"clearWdRelay":self.clearWdRelay()}, globalPublish = False, enableEcho = False)
                 elif "checkWdState" == newMqttMessageDict["content"]["cmd"]:
+                    self.checkTestBypass()
                     if self.wdEverTriggered:
-                        if tempInputState["Input0"] != "1":
+                        if self.localInputState["Input0"] != "1":
                             raise Exception(f"Watchdog testinput is not high. Maybe there is a hardware problem or wd was not triggered for a too long time.")
                     else:
                         self.logger.info(self,f"Watchdog testinput could not be tested because it was never triggered. Maybe wd is not used or tested before trigger.")
             elif "setRelay" in newMqttMessageDict["content"]:
+                if (self.configuration["testBypass"] is not None) and (self.configuration["testBypass"] in newMqttMessageDict["content"]["setRelay"]):
+                    raise Exception(f'{self.configuration["testBypass"]} is configured twice. Please check project.json!')
                 self.setRelayStates(newMqttMessageDict["content"]["setRelay"])
 
     def threadBreak(self):

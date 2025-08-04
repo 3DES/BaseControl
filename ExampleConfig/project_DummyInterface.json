@@ -129,6 +129,8 @@
                 #"interface":    "/dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2.4:1.0-port0",
                 "interface":    "COM5"
                 #"baudrate":     9600                    # optional
+                #"testBypass":   "Relay0"                # optional to bypass wd relay during wd relay test. Input1 is used for bypass readback.
+
             }
         }
     },
