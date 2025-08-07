@@ -440,6 +440,8 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
                     self.checkTestBypass()
                     if self.wdEverTriggered:
                         if self.localInputState["Input0"] != "1":
+                            # if input is broken, the watchdog is not cleared yet
+                            self.clearWdRelay()
                             raise Exception(f"Watchdog testinput is not high. Maybe there is a hardware problem or wd was not triggered for a too long time.")
                     else:
                         self.logger.info(self,f"Watchdog testinput could not be tested because it was never triggered. Maybe wd is not used or tested before trigger.")

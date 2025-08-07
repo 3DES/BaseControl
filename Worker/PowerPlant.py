@@ -61,7 +61,7 @@ class PowerPlant(Worker):
                     sends {"cmd":"resetSoc"} to SocMonitor if floatMode from inverter is set (rising edge)
             OutTopic:
                     localRelaisData:        {"BasicUsbRelais.gpioCmd":{"relWr": "0", "relPvAus": "1", "relNetzAus": "0"}}
-                    localPowerRelaisData:   {"BasicUsbRelais.gpioCmd":{"relPowerPlantWaiting": "0", "relPowerPlantRunning": "0", "RelNichtHeizen": "0", "RelLastAktiv": "0", "RelStufe1": "1", "RelStufe2": "0", "RelStufe3": "0"}}
+                    localPowerRelaisData:   {"BasicUsbRelais.gpioCmd":{"relStartPv": "0", "relPrecharge": "0", "relStartBattery": "0", relPowerPlantWaiting": "0", "relPowerPlantRunning": "0", "RelNichtHeizen": "0", "RelLastAktiv": "0", "RelStufe1": "1", "RelStufe2": "0", "RelStufe3": "0"}}
     '''
 
 
@@ -88,6 +88,14 @@ class PowerPlant(Worker):
         STATE_EXTERNAL_PV_LOADER_ONLY          = 2    # enough external PV power to load battery with separate loader
         STATE_EXTERNAL_PV_LOADER_AND_INVERTERS = 3    # enough external PV power to load battery with separate loader and inverters
         STATE_EXTERNAL_PV_INVERTERS_ONLY       = 4    # enough external PV power to load battery with inverters only what is usually used to prevent too many write cycles to inverters, so first the loader is activated, then the inverters are activated and if power gets less the loader is the first that will be deactivated
+
+    class dcBoxStartStates(CEnum):
+        STATE_WAIT_FOR_EM_STOP_OK                   = 0
+        STATE_PRECHARGE                             = 1
+        STATE_START_DC_RELAY                        = 2
+        STATE_WAIT_FOR_DC_STARTUP                   = 3
+        STATE_WAIT_FOR_PV_RELAY_STARTUP             = 4
+        STATE_DC_STARTUP_FINISHED                   = 5
 
     _MIN_GOOD_WEATHER_HOURS = 6     # it's good weather if forecasted sun hours are more than this value
     _HUNDRED_PERCENT = 100          # just to make magic numbers more readable
@@ -279,7 +287,7 @@ class PowerPlant(Worker):
                 self.localDeviceData["absolvedBalanceTime"] = 0
         self.localDeviceData["minBalanceTimeFinished"] = self.localDeviceData["minBalanceTimeFinished"] or self.configuration["debug"]
 
-    def getInputValueByName(self, inputName : str):
+    def getInputValueByName(self, inputName : str, optional : bool = False):
         '''
         Searches given inputName in all inputs devices
         
@@ -290,13 +298,48 @@ class PowerPlant(Worker):
         allValuesOne = False
         found = False
         for device in self.configuration["inputs"]:
-            if inputName in self.localDeviceData[device]["inputs"]:
+            if not device in self.localDeviceData:
+                self.logger.error(self, f"Reading input failed. Device {device} is missing")
+            elif inputName in self.localDeviceData[device]["inputs"]:
                 if found:
                     allValuesOne &= (int(self.localDeviceData[device]["inputs"][inputName], base = 10))    # only True when all found values are 1
                 else:
                     allValuesOne |= (int(self.localDeviceData[device]["inputs"][inputName], base = 10))    # only True when all found values are 1
                 found = True    # value at least found once
+        if not found and not optional:
+            self.logger.error(self, f"Reading input failed. Input {inputName} is missing")
         return found and allValuesOne
+
+    def startDcBox(self):
+        if self.configuration["manualDcBoxStart"]:
+            return
+
+        try:
+            self.dcStartupState
+        except:
+            self.dcStartupState = self.dcBoxStartStates.STATE_WAIT_FOR_EM_STOP_OK
+
+        if self.dcStartupState == self.dcBoxStartStates.STATE_WAIT_FOR_EM_STOP_OK:
+            if self.getInputValueByName("NotAusOk") == True or self.configuration["debug"]:
+                self.dcStartupState = self.dcBoxStartStates.STATE_PRECHARGE
+                self.modifyExcessRelaisData("relPrecharge", self.EIN, True)
+        elif self.dcStartupState == self.dcBoxStartStates.STATE_PRECHARGE:
+            if self.timer(name = "prechargeTimer", timeout = self.configuration["prechargeTime"], removeOnTimeout = True):
+                self.modifyExcessRelaisData("relStartBattery", self.EIN, True)
+                time.sleep(0.5)
+                self.modifyExcessRelaisData("relPrecharge", self.AUS, True)
+                self.dcStartupState = self.dcBoxStartStates.STATE_WAIT_FOR_DC_STARTUP
+        elif self.dcStartupState == self.dcBoxStartStates.STATE_WAIT_FOR_DC_STARTUP:
+            if self.timer(name = "dcRelayStartTimer", timeout = 8, removeOnTimeout = True):
+                self.modifyExcessRelaisData("relStartBattery", self.AUS, True)
+                self.modifyExcessRelaisData("relStartPv", self.EIN, True)
+                self.dcStartupState = self.dcBoxStartStates.STATE_WAIT_FOR_PV_RELAY_STARTUP
+        elif self.dcStartupState == self.dcBoxStartStates.STATE_WAIT_FOR_PV_RELAY_STARTUP:
+            if self.timer(name = "pvRelayStartTimer", timeout = 2, removeOnTimeout = True):
+                self.modifyExcessRelaisData("relStartPv", self.AUS, True)
+                self.dcStartupState = self.dcBoxStartStates.STATE_DC_STARTUP_FINISHED
+        elif self.dcStartupState == self.dcBoxStartStates.STATE_DC_STARTUP_FINISHED:
+            self.localDeviceData["dcBoxStarted"] = True
 
     def modifyRelaisData(self, relayStates = None, expectedStates = None) -> bool:
         '''
@@ -1084,6 +1127,8 @@ class PowerPlant(Worker):
             if not self.localDeviceData["expectedDevicesPresent"]:
                 # set expectedDevicesPresent. If a device is not present we reset the value
                 self.localDeviceData["expectedDevicesPresent"] = True
+                if not self.localDeviceData["dcBoxStarted"]:
+                    self.localDeviceData["expectedDevicesPresent"] = False
                 # check if a expected device sent a msg and store it
                 for device in self.expectedDevices:
                     # check if all devices are present
@@ -1119,6 +1164,8 @@ class PowerPlant(Worker):
         self.tagsIncluded(["managedEffektas", "initModeEffekta", "socMonitorName", "bmsName"])
         self.tagsIncluded(["weatherName"], optional = True, default = "noWeatherConfigured")
         self.tagsIncluded(["debug"], optional = True, default = False)
+        self.tagsIncluded(["manualDcBoxStart"], optional = True, default = True)
+        self.tagsIncluded(["prechargeTime"], optional = True, default = 1)
         self.tagsIncluded(["HeaterWeatherControlledTime"], optional = True, default = 7)        # never heat before 7 o'clock in the morning
         self.tagsIncluded(["inputs"], optional = True, default = [])
         self.tagsIncluded(["resetFullchargeRequiredWithFloatmode"], optional = True, default = False)
@@ -1181,7 +1228,7 @@ class PowerPlant(Worker):
             self.REL_PV_AUS_open   = self.AUS
 
         # init some variables
-        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "combinedEffektaData":{},"minBalanceTimeFinished": False, self.configuration["weatherName"]:{}, "absolvedBalanceTime": 0}
+        self.localDeviceData = {"expectedDevicesPresent": False, "initialMqttTimeout": False, "initialRelaisTimeout": False, "AutoInitRequired": True, "combinedEffektaData":{},"minBalanceTimeFinished": False, self.configuration["weatherName"]:{}, "absolvedBalanceTime": 0, "dcBoxStarted": self.configuration["manualDcBoxStart"]}
         # init lists of direct set-able values, sensors or commands
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0, "wetterSchaltschwelleHeizung":9}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
@@ -1255,6 +1302,9 @@ class PowerPlant(Worker):
             self.localDeviceData["initialMqttTimeout"] = True   # ensures that the previous "if" becomes True now since timer has already removed itself
             self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
             self.logger.info(self, "MQTT init timeout, no data received from MQTT broker, probably there wasn't any retained message.")
+
+        if not self.localDeviceData["dcBoxStarted"]:
+            self.startDcBox()
 
         # if all devices have sent their work data and timeout values for external MQTT data, the worker will be executed
         if self.localDeviceData["expectedDevicesPresent"] and self.localDeviceData["initialMqttTimeout"]:
@@ -1378,12 +1428,15 @@ class PowerPlant(Worker):
         else:
             TIMEOUT = 3 * 60
             if self.timer(name = "timeoutExpectedDevices", timeout = TIMEOUT):
-                self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Es haben sich nicht alle erwarteten Devices gemeldet!")
+                if not self.localDeviceData["dcBoxStarted"]:
+                    self.publishAndLog(Logger.LOG_LEVEL.ERROR, f'Parameter manualDcBoxStart == False and the DC Box could not be started. NotAusOk state was: {self.getInputValueByName("NotAusOk")}')
+                    self.publishAndLog(Logger.LOG_LEVEL.ERROR, f'If NotAusOk == False this input is low or it is not present')
 
                 for device in self.expectedDevices:
                     if not device in self.localDeviceData:
-                        self.publishAndLog(Logger.LOG_LEVEL.ERROR, f"Device: {device} fehlt!")
-                raise Exception(f"Some devices are missed after timeout of {TIMEOUT}s!")
+                        self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Not all devices are present after timeout!")
+                        self.publishAndLog(Logger.LOG_LEVEL.ERROR, f"Device: {device} is missing!")
+                raise Exception(f"Some devices or states are missing after timeout of {TIMEOUT}s!")
 
 
     def threadBreak(self):

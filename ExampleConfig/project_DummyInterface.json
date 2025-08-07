@@ -49,6 +49,8 @@
         #"inputs":"WdUsbRelais",
         "weatherName": "Wetter",                            # optional
         "initModeEffekta": "Auto"                           # Auto, Akku, Netz.    Fallback if SocMonitor just start up: Netz
+        #"manualDcBoxStart": false                          # optional to start a DC box with DC relays for battery, solar and precharge
+        #"prechargeTime": 2                                 # precharge time for upper funktion
     },
 
     "Bms":
