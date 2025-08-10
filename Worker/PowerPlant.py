@@ -330,7 +330,7 @@ class PowerPlant(Worker):
                 self.modifyExcessRelaisData("relPrecharge", self.AUS, True)
                 self.dcStartupState = self.dcBoxStartStates.STATE_WAIT_FOR_DC_STARTUP
         elif self.dcStartupState == self.dcBoxStartStates.STATE_WAIT_FOR_DC_STARTUP:
-            if self.timer(name = "dcRelayStartTimer", timeout = 8, removeOnTimeout = True):
+            if self.timer(name = "dcRelayStartTimer", timeout = 10, removeOnTimeout = True):
                 self.modifyExcessRelaisData("relStartBattery", self.AUS, True)
                 self.modifyExcessRelaisData("relStartPv", self.EIN, True)
                 self.dcStartupState = self.dcBoxStartStates.STATE_WAIT_FOR_PV_RELAY_STARTUP
@@ -1035,8 +1035,11 @@ class PowerPlant(Worker):
             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
             self.publishAndLog(Logger.LOG_LEVEL.INFO, "AutoInit: Schalte auf Akku")
 
-    def checkForKeyAndCheckRisingEdge(self, oldDataDict : dict, newMessageDict : dict, key) -> bool:
-        return (key in oldDataDict) and (key in newMessageDict) and newMessageDict[key] and not oldDataDict[key]
+    def checkForKeyAndCheckRisingEdge(self, oldDataDict : dict, newMessageDict : dict, key : str, nestedKey : str = None) -> bool:
+        if nestedKey is not None:
+            return (nestedKey in oldDataDict) and (nestedKey in newMessageDict) and (key in oldDataDict[nestedKey]) and (key in newMessageDict[nestedKey]) and newMessageDict[nestedKey][key] and not oldDataDict[nestedKey][key]
+        else:
+            return (key in oldDataDict) and (key in newMessageDict) and newMessageDict[key] and not oldDataDict[key]
 
     def handleMessage(self, message):
         """
@@ -1110,7 +1113,7 @@ class PowerPlant(Worker):
                 if key in message["topic"]:
                     if self.localDeviceData["expectedDevicesPresent"]: # Filter first runs
                         # check FullChargeRequired from BMS for rising edge
-                        if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]]["ChargeDischargeManagement"], message["content"]["ChargeDischargeManagement"], "FullChargeRequired"):
+                        if key == self.configuration["bmsName"] and self.checkForKeyAndCheckRisingEdge(self.localDeviceData[self.configuration["bmsName"]], message["content"], "FullChargeRequired", "ChargeDischargeManagement"):
                             self.setScriptValues("FullChargeRequired", True)
                     # add key to dict if its a new one
                     if not (key in self.localDeviceData):
@@ -1121,7 +1124,9 @@ class PowerPlant(Worker):
             # check if an optional device sent a msg and store it
             for key in self.optionalDevices:
                 if key in message["topic"]:
-                    self.localDeviceData[key] = message["content"]
+                    if not (key in self.localDeviceData):
+                        self.localDeviceData[key] = {}
+                    self.localDeviceData[key].update(message["content"])
 
             # check if all expected devices sent data
             if not self.localDeviceData["expectedDevicesPresent"]:
@@ -1287,6 +1292,7 @@ class PowerPlant(Worker):
         # Test if file logging is working
         self.logger.info(self, "Test Log entry")
         self.logger.writeLogBufferToDisk(f"logfiles/test_error.log")
+
 
     def threadMethod(self):
         self.sendeMqtt = False

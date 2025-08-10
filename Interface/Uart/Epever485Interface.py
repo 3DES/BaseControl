@@ -65,11 +65,13 @@ class Epever485Interface(InterfaceBase):
         else:
             self.logger.info(self, "No Voltage Parameters given!")
 
-    def initEpeverWithRetry(self, retries = InterfaceBase.MAX_INIT_TRIES):
+    def initEpeverWithRetry(self, retries = InterfaceBase.MAX_INIT_TRIES, setParameters = False):
         tries = 0
         while tries < retries:
             try:
                 self.controller = EpeverChargeController(self.configuration["interface"], self.configuration["address"])
+                if setParameters:
+                    self.readAndSetParameters()
                 break
             except:
                 time.sleep(10)
@@ -83,8 +85,7 @@ class Epever485Interface(InterfaceBase):
         self.tagsIncluded(["address"], optional = True, default = 1)
         self.tagsIncluded(["boostVoltage"], optional = True, default = 0)
         self.tagsIncluded(["floatVoltage"], optional = True, default = 0)
-        self.initEpeverWithRetry()
-        self.readAndSetParameters()
+        self.initEpeverWithRetry(setParameters = True)
 
     def threadMethod(self):
         # check if a new msg is waiting

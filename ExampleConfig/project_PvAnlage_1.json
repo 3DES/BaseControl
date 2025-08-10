@@ -106,7 +106,7 @@
         "class":        "GPIO.BasicUsbRelais.BasicUsbRelais",
         "gpioHandler": ["PowerPlant"],
         "triggerThread":   "Bms",
-        "relMapping":{"relStartBattery": "Relay2", "relPrecharge": "Relay1", "relStartPv": "Relay3" "relPowerPlantWaiting": "Relay5", "relPowerPlantRunning": "Relay6"},
+        "relMapping":{"relStartBattery": "Relay2", "relPrecharge": "Relay1", "relStartPv": "Relay5", "relPowerPlantWaiting": "Relay3", "relPowerPlantRunning": "Relay6"},
         "inputMapping":{"Input2":"NotAusOk"},
         "interfaces":
         {
@@ -114,7 +114,7 @@
             {
                 "connection":   "Interface.Uart.WatchdogRelaisUartInterface.WatchdogRelaisUartInterface",
                 "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.3:1.0-port0",
-                "testBypass":   "Relay0"                # optional to bypass wd relay during wd relay test. Input1 is used for bypass readback.
+                "testBypass":   "Relay0",                # optional to bypass wd relay during wd relay test. Input1 is used for bypass readback.
                 "rebind":       false    # todo prüfen. Es wird der jbd mit rausgehauen (logisch) die Class hat dann ein Problem beim wiederverbinden
             }
         }
@@ -168,7 +168,7 @@
         "initModeEffekta": "Auto",                          # Auto, Akku, Netz.  Fallback: Netz
         "inputs":["UsbRelais", "WdDcVerteiler"],
         "manualDcBoxStart": false,
-        "prechargeTime": 2                                 # precharge time for upper funktion
+        "prechargeTime": 3                                 # precharge time for upper funktion
     },
 
     "Wetter":
