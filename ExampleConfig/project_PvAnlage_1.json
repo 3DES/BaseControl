@@ -22,8 +22,8 @@
     {
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
-        "boostVoltage": 56.4,
-        "floatVoltage": 55.7,
+        "boostVoltage": 55.7,
+        "floatVoltage": 55.0,
         "interfaces":
         {
             "UartWrEffektaWest":
@@ -38,8 +38,8 @@
     {
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
-        "boostVoltage": 56.4,
-        "floatVoltage": 55.7,
+        "boostVoltage": 55.7,
+        "floatVoltage": 55.0,
         "interfaces":
         {
             "UartWrEffektaOst":
@@ -59,8 +59,8 @@
             {
                 "connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
                 "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.4:1.0-port0",
-                "boostVoltage": 56.4,          # optional
-                "floatVoltage": 55.7,          # optional, if both voltages are given we configure epever
+                "boostVoltage": 55.7,          # optional
+                "floatVoltage": 55.0,          # optional, if both voltages are given we configure epever
                 "address":     1
             }
         }
@@ -69,7 +69,7 @@
     "Bms":
     {
         "class":                        "BMS.BasicBms.BasicBms",
-        "parameters":                   {"vBal": 3.51},
+        "parameters":                   {"vBal": 3.49},
         "balancingHysteresisTime":      10,
         "interfaces":
         {
@@ -153,8 +153,7 @@
             "WdUsbRelais",
             "Wetter",
             "WdUsbRelaisDcInterface"
-        ],
-        "logUpTime":          60            # every 60 seconds create up time message
+        ]
     },
 
     "PowerPlant":

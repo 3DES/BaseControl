@@ -62,7 +62,7 @@ class EffektaController(ThreadObject):
 
     @classmethod
     def getSetValueKeys(cls, cmd, value = "", extern = False):
-        return {"cmd":cmd, "value":value, "success": False, "extern":extern}
+        return {"cmd":cmd, "value":value, "response": "", "success": False, "extern":extern}
 
     @classmethod
     def getQueryKeys(cls, cmd, extern = False):
@@ -190,8 +190,8 @@ class EffektaController(ThreadObject):
 
         # todo Ladespannungen zurück lesen  und checken
         # send some paramters
-        self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeBoostVoltageCmd, value = str(round(self.configuration["boostVoltage"], 1)), extern = True), globalPublish = False, enableEcho = False)
-        self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeFloatVoltageCmd, value = str(round(self.configuration["floatVoltage"], 1)), extern = True), globalPublish = False, enableEcho = False)
+        self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeBoostVoltageCmd, value = str(round(self.configuration["boostVoltage"], 1)), extern = False), globalPublish = False, enableEcho = False)
+        self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeFloatVoltageCmd, value = str(round(self.configuration["floatVoltage"], 1)), extern = False), globalPublish = False, enableEcho = False)
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomation.mqttDiscoverySensor(self.EffektaData["EffektaWerte"])
@@ -268,12 +268,16 @@ class EffektaController(ThreadObject):
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["setValue"]["success"], globalPublish = True, enableEcho = False)
                     elif not newMqttMessageDict["content"]["setValue"]["success"]:
                         self.logger.error(self, f'setValue to inverter {self.name} was not successfull. Cmd was: {newMqttMessageDict["content"]}')
+                        # With internal parameters we don't allow errors. Because for example charging parameters are very sensible.
+                        raise Exception(f"Could not send value to inverter. Check Connection!")
                 elif "query" in newMqttMessageDict["content"]:
                     if newMqttMessageDict["content"]["query"]["extern"]:
                         # if we get a extern msg from our interface we will forward it to the mqtt as global
                         self.mqttPublish(self.createOutTopic(self.getObjectTopic()), newMqttMessageDict["content"]["query"], globalPublish = True, enableEcho = False)
                     elif len(newMqttMessageDict["content"]["query"]["response"]) == 0:
-                        self.logger.error(self, f'query to inverter {self.name} was not successfull. Cmd was: {newMqttMessageDict["content"]}')
+                        self.logger.error(self, f'Query to inverter {self.name} was not successfull. No data received or missmatched CRC! Cmd was: {newMqttMessageDict["content"]}')
+                    elif newMqttMessageDict["content"]["query"]["response"] == "NAK":
+                        self.logger.error(self, f'Query to inverter {self.name} was rejected. Cmd was: {newMqttMessageDict["content"]}')
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMUCHGCR":
                         EffektaController.ValideChargeValues = sorted(newMqttMessageDict["content"]["query"]["response"].split())
                     elif newMqttMessageDict["content"]["query"]["cmd"] == "QMOD":

@@ -10,6 +10,9 @@ class EffektaUartInterface(BasicUartInterface):
     b'QPIGS\xb7\xa9\r'
     b'QMODI\xc1\r'
     '''
+    RETRIES_CRC_ERROR  = 2
+    RETRIES_NO_MESSAGE = 15
+    RETRY_WAIT_TIME    = 5
 
     def __init__(self, threadName : str, configuration : dict):
         '''
@@ -47,46 +50,49 @@ class EffektaUartInterface(BasicUartInterface):
 
         cmd = self.getCommand(cmd)
         self.logger.debug(self, f"getEffektaData: {cmd}")
+        retval = ""
+        tries = 0
+        maxtries = 1
 
-        self.serialWrite(cmd)
+        while((len(retval) == 0) and (tries < maxtries)):
+            if self.timer(name = "retryTimer", timeout = self.RETRY_WAIT_TIME, removeOnTimeout = True, firstTimeTrue = True):
+                if tries > 1:
+                    self.logger.error(self, f"Retry sending command to Effekta")
+                tries += 1
+                self.serialWrite(cmd)
+                serialInput = self.serialReadLine()
 
-        serialInput = self.serialReadLine()
-
-        if len(serialInput):
-            serialInputByte = bytearray(serialInput)
-            lenght = len(serialInputByte)
-            receivedCrc = bytearray(b'')
-            receivedCrc = serialInputByte[lenght - 3 : lenght - 1]
-            del serialInputByte[lenght - 3 : lenght - 0]
-    
-            if bytes(receivedCrc) == self.getEffektaCRC(Supporter.decode(serialInputByte)):
-                del serialInputByte[0]
-                data = Supporter.decode(serialInputByte)
-                self.logger.debug(self, f"CRC ok. Data: {data}")
-                if data == "NAK":
-                    return ""
+                if len(serialInput):
+                    serialInputByte = bytearray(serialInput)
+                    lenght = len(serialInputByte)
+                    receivedCrc = bytearray(b'')
+                    receivedCrc = serialInputByte[lenght - 3 : lenght - 1]
+                    del serialInputByte[lenght - 3 : lenght - 0]
+                    if bytes(receivedCrc) == self.getEffektaCRC(Supporter.decode(serialInputByte)):
+                        del serialInputByte[0]
+                        retval = Supporter.decode(serialInputByte)
+                        self.logger.debug(self, f"CRC ok. Data: {retval}")
+                    else:
+                        self.logger.error(self, f"CRC Error: received: {serialInput}, command: {cmd}, length: {len(serialInput)}")
+                        retval = ""
+                        # Falls die CRC Prüfung nach einem NO_Message Fehler fehlschlägt wollen wir den maxtries nicht überschreiben
+                        if maxtries != self.RETRIES_NO_MESSAGE:
+                            maxtries = self.RETRIES_CRC_ERROR
                 else:
-                    return data
-            else:
-                self.logger.error(self, f"CRC Error: received: {serialInput}, command: {cmd}, length: {len(serialInput)}")
-                return ""
-        else:
-            self.logger.error(self, f"length error, 0 bytes received, command: {cmd}")
-            self.reInitSerial()     # Es gab den Fall, dass die Serial so kaputt war dass sie keine Daten mehr lieferte -> crc error. Es half ein close open
-            return ""
-            
+                    self.logger.error(self, f"length error, 0 bytes received, command: {cmd}")
+                    self.reInitSerial()     # Es gab den Fall, dass die Serial so kaputt war dass sie keine Daten mehr lieferte -> crc error. Es half ein close open
+                    retval = ""
+                    maxtries = self.RETRIES_NO_MESSAGE
 
-    def setEffektaData(self, cmd, value = ""):
-        
-        retVal = self.getEffektaData(cmd + value)
-        
-        if "ACK" == retVal:
-            self.logger.debug(self, "setEffektaData: ok")
+        return retval
+
+    def checkForSuccess(self, response):
+        if "ACK" == response:
+            self.logger.debug(self, "Response was OK")
             return True
         else:
-            self.logger.error(self, f"setEffektaData: failed.-> -cmd: {cmd} -value: {value} -ret: {retVal}")
+            self.logger.error(self, f"Response was not OK")
             return False
-
 
     def threadMethod(self):
         while not self.mqttRxQueue.empty():
@@ -115,7 +121,10 @@ class EffektaUartInterface(BasicUartInterface):
                     cmdList = newMqttMessageDict["content"]["setValue"]
                 for cmd in cmdList:
                     self.cmdCounter += 1
-                    cmd["success"] = self.setEffektaData(cmd["cmd"], cmd["value"])
+                    cmd["response"] = self.getEffektaData(cmd["cmd"] + cmd["value"])
+                    cmd["success"] = self.checkForSuccess(cmd["response"]) 
+                    if cmd["success"] == False:
+                        self.logger.error(self, f"Error sending value, command was: {cmd}")
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"setValue":cmd}, globalPublish = False, enableEcho = False)
 
     def threadBreak(self):
