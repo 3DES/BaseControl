@@ -39,6 +39,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         super().threadInitMethod()
         self.initResponseDataList()
         self.initLocalBmsData()
+        # self.sendAndCheckCmd(b"\x10\x15\x08\x00\x01\x02\x00\x0F") # set UART3 to DisplayMode schreibt aufs richtige Register setzt aber nicht den richtigen wert 15 laut app
 
         #self.logger.info(self, f"Bms: {result}")
 
@@ -54,9 +55,11 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                         self.timer("FullChgReqTimer", remove=True)
         try:
             self.getJkData()
+            if self.timerExists("timeoutJkRead"):
+                self.timer(name = "timeoutJkRead", remove = True)
         except Exception as e:
             self.logger.error(self, f"Error reading {self.name} inteface. Exception was: {e}")
-            if self.timer(name = "timeoutJbdRead", timeout = 300):
+            if self.timer(name = "timeoutJkRead", timeout = 300):
                 raise Exception(f'{self.name} connection to bms: {self.bmsName} is broken since 60s!')
 
     def threadBreak(self):
@@ -184,11 +187,30 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             # In Master Mode (Address == 0) we only have to listen. The Master Bms will request all the data
             self.readAndProcessData()
 
+    def sendAndCheckCmd(self, cmd):
+        if self.isSlavemode():
+            self.send_serial_data_jkbms_pb(cmd)
+            time.sleep(1) # wait for response 300ms
+            response = self.serialRead(timeout=0.5)
+            # self.readAndProcessData()
+            if len(response) < 5:
+                self.logger.error(self, "No data received!")
+            # todo check data
+            '''
+            on error example: b'\x01\x90\x03\x0c\x01'
+            ok: tx: b'\x01\x10\x15\x08\x00\x01\x02\x00\x00\xe3\xd9'   rx: b'\x01\x10\x15\x08\x00\x01\x84\x07'
+            '''
+            self.serialReset_input_buffer()
+        else:
+            raise Exception("WriteCmd isn't tested in Master mode")
+
     def readAndProcessData(self):
         while(True):
             dataBlock = self.read_serial_data()
 
             if len(dataBlock["data"]) < 5:
+                if self.isSlavemode():
+                    self.logger.error(self, "No data received!")
                 break
 
             if dataBlock["type"] == "resp":
@@ -285,7 +307,10 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["ChargeCurrent"] = CurBatCOC
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeCurrent"] = CurBatDcOC
         # todo set rcv or rfv appending on requested charge mode. Jk publish this via CAN. I couldn't find the bit here.
-        self.localBmsData[listIndex]["ChargeDischargeManagement"]["ChargeVoltage"] = round(VolRCV * self.cell_count, 2)
+        #self.localBmsData[listIndex]["ChargeDischargeManagement"]["ChargeVoltage"] = 
+        self.localBmsData[listIndex]["ChargeDischargeManagement"]["BoostVoltage"] = round(VolRCV * self.cell_count, 2)
+        self.localBmsData[listIndex]["ChargeDischargeManagement"]["FloatVoltage"] = round(VolRFV * self.cell_count, 2)
+        #self.localBmsData[listIndex]["ChargeDischargeManagement"]["BoostChargeTime"] = 
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
 
     def processAbout(self, status_data, listIndex):

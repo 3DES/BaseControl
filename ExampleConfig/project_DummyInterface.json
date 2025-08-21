@@ -24,8 +24,9 @@
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
         # "inverterIndex":2,                # optional inverter index needed if parallel kit is built in. L1 is not index 1!!
-        "boostVoltage": 53.5,
-        "floatVoltage": 52.0,
+        "boostVoltage": 53.5,               # optional if bmsName sends this parameters, the minimum of this parameter will be written
+        "boostTime"   : 30,                 # optional if bmsName sends this parameters, the minimum of this parameter will be written
+        "floatVoltage": 52.0,               # optional if bmsName sends this parameters, the minimum of this parameter will be written
         "interfaces":
         {
             "UartWrEffektaWest":
@@ -61,6 +62,7 @@
         #"parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60},                  # optional 
         "parameters":    {"vMin": 2.8, "vMax": 3.8, "vMinTimer": 60, "vBal": 3.5},      # optional, vbal will manage relBalance. you can map it to a gpio, vmin rises an exception and set internal BmsEntladeFreigabe to false after vMinTimer time occured, vMax rises an exception after 10s
         "balancingHysteresisTime":      30,                                              # optional
+        "socMonitorParallel":   true,                                                   # optional default true. You can connect a additional soc monitor for one pack (parallel) or for all packs, so bms socs are ignored.
         "interfaces":
         {
             "BmsEins":

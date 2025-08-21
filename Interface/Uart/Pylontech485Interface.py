@@ -20,7 +20,7 @@ class Pylontech485Interface(InterfaceBase):
         self.removeMqttRxQueue()
         self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[], "PackVoltageList":[], "ChargeDischargeManagement":{}, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
         self.ChDchManagementList = ["StatusFullChargeRequired", "ChargeVoltage", "DischargeVoltage", "ChargeCurrent", "DischargeCurrent"]
-        self.TranslateDict = {"StatusFullChargeRequired":"FullChargeRequired"}
+        self.TranslateDict = {"StatusFullChargeRequired":"FullChargeRequired", "ChargeVoltage":"BoostVoltage"}
 
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "battCount", "VminCellWarn", "VmaxCellWarn", "VminWarnTimer", "VmaxWarnTimer"])
@@ -142,7 +142,9 @@ class Pylontech485Interface(InterfaceBase):
                         tempDict[self.TranslateDict[key]] = moduleChDchList[key]
                     else:
                         tempDict[key] = moduleChDchList[key]
+                tempDict["BoostVoltage"] = round(tempDict["BoostVoltage"] * 0.995, 2)     # coose a little lower value to prevent blowing fuses at 54.0V
                 tempList.append(tempDict)
+
 
             '''
                 tempList with two pylontechs: 
@@ -159,7 +161,7 @@ class Pylontech485Interface(InterfaceBase):
             if len(tempList) >= 2:
                 self.BmsWerte["ChargeDischargeManagement"] = BasicBms.dictMerger(tempList)
             else:
-                self.BmsWerte["ChargeDischargeManagement"] = tempList
+                self.BmsWerte["ChargeDischargeManagement"] = tempList[0]
 
             self.BmsWerte["Prozent"] = data["Calculated"]["Remain_Percent"]
             self.BmsWerte["Ah"] = data["Calculated"]["RemainCapacity_Ah"]

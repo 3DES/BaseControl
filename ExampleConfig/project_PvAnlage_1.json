@@ -22,8 +22,7 @@
     {
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
-        "boostVoltage": 55.7,
-        "floatVoltage": 55.0,
+        "boostTime"   : 30,                 # optional if bmsName sends this parameters, the minimum of this parameter will be written
         "interfaces":
         {
             "UartWrEffektaWest":
@@ -38,8 +37,7 @@
     {
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
-        "boostVoltage": 55.7,
-        "floatVoltage": 55.0,
+        "boostTime"   : 30,                 # optional if bmsName sends this parameters, the minimum of this parameter will be written
         "interfaces":
         {
             "UartWrEffektaOst":
@@ -59,8 +57,8 @@
             {
                 "connection":   "Interface.Uart.Epever485Interface.Epever485Interface",
                 "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.4:1.0-port0",
-                "boostVoltage": 55.7,          # optional
-                "floatVoltage": 55.0,          # optional, if both voltages are given we configure epever
+                "boostVoltage": 56.0,          # optional
+                "floatVoltage": 54.6,          # optional, if both voltages are given we configure epever
                 "address":     1
             }
         }
@@ -69,7 +67,7 @@
     "Bms":
     {
         "class":                        "BMS.BasicBms.BasicBms",
-        "parameters":                   {"vBal": 3.49},
+        "parameters":                   {"vBal": 3.45},
         "balancingHysteresisTime":      10,
         "interfaces":
         {

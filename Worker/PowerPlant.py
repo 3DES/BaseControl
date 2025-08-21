@@ -306,7 +306,7 @@ class PowerPlant(Worker):
                 else:
                     allValuesOne |= (int(self.localDeviceData[device]["inputs"][inputName], base = 10))    # only True when all found values are 1
                 found = True    # value at least found once
-        if not found and not optional:
+        if not found and not optional and not self.configuration["debug"]:
             self.logger.error(self, f"Reading input failed. Input {inputName} is missing")
         return found and allValuesOne
 

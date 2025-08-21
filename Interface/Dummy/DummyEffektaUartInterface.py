@@ -18,7 +18,7 @@ class DummyEffektaUartInterface(InterfaceBase):
     def threadInitMethod(self):
         self.Netzbetrieb = False
         self.battCap = 0
-        pass
+        self.cmdCounter = 0
 
     def threadMethod(self):
         while not self.mqttRxQueue.empty():
@@ -62,6 +62,11 @@ class DummyEffektaUartInterface(InterfaceBase):
                         cmd["response"] = "002 010 030 020 040 050 060"
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"query":cmd}, globalPublish = False, enableEcho = False)
             elif "setValue" in newMqttMessageDict["content"]:
+                if self.cmdCounter >= 50:
+                    raise Exception("Too much commands to inverter per hour!")
+                if self.timer(name = "resetMsgCounter", timeout = 60*60):
+                    self.timer(name = "resetMsgCounter", remove = True)
+                    self.cmdCounter = 0
                 if type(newMqttMessageDict["content"]["setValue"]) == dict:
                     cmdList = [newMqttMessageDict["content"]["setValue"]]
                 else:

@@ -23,6 +23,7 @@
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
         "boostVoltage": 53.0,
+        "boostTime"   : 30,                 # optional if bmsName sends this parameters, the minimum of this parameter will be written
         "floatVoltage": 52.2,
         "interfaces":
         {
@@ -39,6 +40,7 @@
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
         "boostVoltage": 53.0,
+        "boostTime"   : 30,                 # optional if bmsName sends this parameters, the minimum of this parameter will be written
         "floatVoltage": 52.2,
         "interfaces":
         {

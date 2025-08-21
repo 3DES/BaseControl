@@ -42,7 +42,7 @@ class BasicBms(ThreadObject):
     '''
 
     allBmsDataTopicExtension = "allData"
-    mergeMethod = {"Vmin" : min, "Vmax" : max, "Tmin" : min, "Tmax": max, "Current": sum, "Power": sum,"toggleIfMsgSeen": all, "FullChargeRequired": any, "BmsLadeFreigabe": all, "BmsEntladeFreigabe": all, "ChargeVoltage" : min, "DischargeVoltage" : max, "ChargeCurrent" : sum, "DischargeCurrent" : sum}
+    mergeMethod = {"Vmin" : min, "Vmax" : max, "Tmin" : min, "Tmax": max, "Current": sum, "Power": sum,"toggleIfMsgSeen": all, "FullChargeRequired": any, "BmsLadeFreigabe": all, "BmsEntladeFreigabe": all, "ChargeVoltage" : min, "FloatVoltage" : min, "BoostVoltage" : min, "DischargeVoltage" : max, "ChargeCurrent" : sum, "DischargeCurrent" : sum}
     RecommendetChDchManagementList = ["FullChargeRequired", "ChargeVoltage", "DischargeVoltage", "ChargeCurrent", "DischargeCurrent"]
 
     def __init__(self, threadName : str, configuration : dict):
@@ -55,13 +55,13 @@ class BasicBms(ThreadObject):
         self.LIST_TO_VALUE_NAMES = {"VoltageList":"CellVoltage", "CurrentList":"ModuleCurrent", "PackVoltageList":"PackVoltage"}
 
     @classmethod
-    def dictMerger(cls, listOfDicts : list) -> dict:
+    def dictMerger(cls, listOfDicts : list, additionalMergeMethods : dict = {}, verbose : bool = True) -> dict:
         '''
         A given list of dicts will be merged with logical operations to one dict.
         A list with 1 item will be returned
         If keys are not included in all src dicts a info is published to the logger.
-        The logical merge method is given in cls.mergeMethod. If a key is not included here a error is published to logger
-        
+        The logical merge method is given in cls.mergeMethod. If a key is not included here a exception is thrown.
+
         param: list of dict
         return: dict
         '''
@@ -70,23 +70,28 @@ class BasicBms(ThreadObject):
         if len(listOfDicts) <= 1:
             return listOfDicts
 
+        mergeMethods = {}
+        mergeMethods.update(cls.mergeMethod)
+        mergeMethods.update(additionalMergeMethods)
         mergedDict = {}
         mergekeyList = []
+        #create a list of all keys containing in the dicts
         for ChDchDict in listOfDicts:
-            mergekeyList += list(ChDchDict)
+            mergekeyList += list(ChDchDict.keys())
+        # remove double items
         mergekeyList = list(set(mergekeyList))
         for dictElementName in mergekeyList:
             tempList = []
-            if dictElementName in list(cls.mergeMethod):
+            if dictElementName in list(mergeMethods):
                 mergedDict[dictElementName] = None
                 for subDict in listOfDicts:
                     if dictElementName in subDict:
                         tempList.append(subDict[dictElementName])
-                    else:
+                    elif verbose:
                         cls.logger.info(cls, f"Dict key --{dictElementName}-- isn't present in all BMS interface data!")
-                mergedDict[dictElementName] = cls.mergeMethod[dictElementName](tempList)
+                mergedDict[dictElementName] = mergeMethods[dictElementName](tempList)
             else:
-                cls.logger.error(cls, f"Dict key --{dictElementName}-- couldn't be merged! Missing method! Fix mergeMethod.")
+                raise Exception(f"Dict key --{dictElementName}-- couldn't be merged! Missing method! Fix mergeMethod.")
         return mergedDict
 
     def getSocMonitorTopic(self):
@@ -147,9 +152,10 @@ class BasicBms(ThreadObject):
                 ladefreigabeSeen = True
             if "Current" in self.bmsWerte[interfaceName]:
                 self.globalBmsWerte["merged"]["Current"] += self.bmsWerte[interfaceName]["Current"]
-            if "Prozent" in self.bmsWerte[interfaceName]:
-                self.globalBmsWerte["merged"]["Prozent"] += self.bmsWerte[interfaceName]["Prozent"]
-                divideProzent += 1
+            if self.configuration["socMonitorParallel"] or interfaceName == self.configuration["socMonitor"]:
+                if "Prozent" in self.bmsWerte[interfaceName]:
+                    self.globalBmsWerte["merged"]["Prozent"] += self.bmsWerte[interfaceName]["Prozent"]
+                    divideProzent += 1
             if "VoltageList" in self.bmsWerte[interfaceName]:
                 vMinList.append(min(self.bmsWerte[interfaceName]["VoltageList"]))
                 vMaxList.append(max(self.bmsWerte[interfaceName]["VoltageList"]))
@@ -172,7 +178,7 @@ class BasicBms(ThreadObject):
                         raise Exception(f"Neither BmsEntladeFreigabe/BmsLadeFreigabe nor vMin/vMax nor voltageList received from interface {interfaceName}.")
 
         # calculate average percent value if necessary
-        if divideProzent:
+        if divideProzent >= 2:
             self.globalBmsWerte["merged"]["Prozent"] = round(self.globalBmsWerte["merged"]["Prozent"] / divideProzent, 2)
 
         self.globalBmsWerte["merged"]["Current"] = round(self.globalBmsWerte["merged"]["Current"], 1)
@@ -306,7 +312,11 @@ class BasicBms(ThreadObject):
         self.triggerWatchdog()      # At least if we called mergeBmsData(), checkAllBmsData() we will call triggerWatchdog() to ensure that all merge code was called
 
     def threadInitMethod(self):
-        self.tagsIncluded(["socMonitor"], optional = True)
+        self.tagsIncluded(["socMonitorParallel"], optional = True, default = True)
+        if self.configuration["socMonitorParallel"]:
+            self.tagsIncluded(["socMonitor"], optional = True)
+        else:
+            self.tagsIncluded(["socMonitor"])
         self.bmsWerte = {}                                  # local Bms interface data from each interface stored in its interface key
         self.notDiscoverableInterfaceElements = []          # ignore elements from all interfaces, e.g. "VoltageList" -> <interface1>.VoltageList, <interface2>.VoltageList, ...
         self.listElements = []                              # element in interface dict 

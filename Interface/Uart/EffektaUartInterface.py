@@ -111,8 +111,8 @@ class EffektaUartInterface(BasicUartInterface):
             elif "setValue" in newMqttMessageDict["content"]:
                 # @todo msg mitloggen, wg schreibzugriffe
                 if self.cmdCounter >= 50:
-                    raise Exception("Too much commands to inverter per hour!")
-                if self.timer(name = "resetMsgCounter", timeout = 60*60):
+                    raise Exception("Too much commands to inverter per day!")
+                if self.timer(name = "resetMsgCounter", timeout = 60*60*24):
                     self.timer(name = "resetMsgCounter", remove = True)
                     self.cmdCounter = 0
                 if type(newMqttMessageDict["content"]["setValue"]) == dict:
