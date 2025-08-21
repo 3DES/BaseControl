@@ -77,6 +77,11 @@ class DummyEffektaUartInterface(InterfaceBase):
                     elif cmd["cmd"] == EffektaController.VerbraucherAkku:
                         self.Netzbetrieb = False
                     self.logger.info(self, f'set Effekta Parameter: {cmd}')
+                    #if "PCVV" in cmd["cmd"]:
+                    #    cmd["success"] = False
+                    #    if cmd["success"] == False:
+                    #        self.logger.error(self, f"Error sending value, command was: {cmd}")
+                    #    self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"setValue":cmd}, globalPublish = False, enableEcho = False)
 
     #def threadBreak(self):
     #    pass

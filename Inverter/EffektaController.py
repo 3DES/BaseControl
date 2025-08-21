@@ -377,11 +377,17 @@ class EffektaController(ThreadObject):
                                     raise Exception(f'Not all charge parameters are present after merge! Missing: {key}')
                         # handle each parameter separate to reduce eeprom write cycles
                         if self.EffektaData["ChDchParameters"]["BoostVoltage"] != newParameters["BoostVoltage"]:
-                            self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeBoostVoltageCmd, value = str(round(newParameters["BoostVoltage"], 1)), extern = False), globalPublish = False, enableEcho = False)
+                            cmd = self.getSetValueDict(cmd = self.chargeBoostVoltageCmd, value = str(round(newParameters["BoostVoltage"], 1)), extern = False)
+                            self.logger.info(self, f"Set parameter BoostVoltage with cmd: {cmd}")
+                            self.mqttPublish(self.interfaceInTopics[0], cmd, globalPublish = False, enableEcho = False)
                         if self.EffektaData["ChDchParameters"]["FloatVoltage"] != newParameters["FloatVoltage"]:
-                            self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.chargeFloatVoltageCmd, value = str(round(newParameters["FloatVoltage"], 1)), extern = False), globalPublish = False, enableEcho = False)
+                            cmd = self.getSetValueDict(cmd = self.chargeFloatVoltageCmd, value = str(round(newParameters["FloatVoltage"], 1)), extern = False)
+                            self.logger.info(self, f"Set parameter FloatVoltage with cmd: {cmd}")
+                            self.mqttPublish(self.interfaceInTopics[0], cmd, globalPublish = False, enableEcho = False)
                         if self.EffektaData["ChDchParameters"]["BoostTime"] != newParameters["BoostTime"]:
-                            self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(cmd = self.prepareBoostChargeTimeCmd(newParameters["BoostTime"]), extern = False), globalPublish = False, enableEcho = False)
+                            cmd = self.getSetValueDict(cmd = self.prepareBoostChargeTimeCmd(newParameters["BoostTime"]), extern = False)
+                            self.logger.info(self, f"Set parameter BoostTime with cmd: {cmd}")
+                            self.mqttPublish(self.interfaceInTopics[0], cmd, globalPublish = False, enableEcho = False)
                         self.EffektaData["ChDchParameters"].update(newParameters)
                         self.sendInitialParamters = False
                     elif self.sendInitialParamters:

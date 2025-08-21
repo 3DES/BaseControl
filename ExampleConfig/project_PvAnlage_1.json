@@ -67,15 +67,21 @@
     "Bms":
     {
         "class":                        "BMS.BasicBms.BasicBms",
-        "parameters":                   {"vBal": 3.45},
-        "balancingHysteresisTime":      10,
         "interfaces":
         {
-            "BmsJbd":
+            "BmsJk":
             {
-                "connection":   "Interface.Uart.Jbd485Interface.Jbd485Interface",
-                "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.1:1.0-port0",
-                "battCount":    1
+                "connection":   "Interface.Uart.JkPbInverterBmsInterface.JkPbInverterBmsInterface",
+                "address":      1,
+                "numBatterys":  1,          # optional
+                "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.2:1.0-port0"
+            },
+            "BmsJk318":
+            {
+                "connection":   "Interface.Uart.JkPbInverterBmsInterface.JkPbInverterBmsInterface",
+                "address":      2,
+                "numBatterys":  1,          # optional
+                "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.1:1.0-port0"
             }
         }
     },
@@ -146,7 +152,8 @@
         [
             "UartWrEffektaWest",
             "UartWrEffektaOst",
-            "BmsJbd",
+            "BmsJk",
+            "BmsJk318",
             "EpeverInterface",
             "WdUsbRelais",
             "Wetter",
