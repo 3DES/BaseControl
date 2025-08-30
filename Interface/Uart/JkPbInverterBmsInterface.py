@@ -86,8 +86,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             cmdList = self.msgTypesMasterMode
 
         for cmd in cmdList:
+            self.expectedResponsedMsg[cmd] = []
             for _ in range(self.configuration["numBatterys"]):
-                self.expectedResponsedMsg[cmd] = []
                 self.expectedResponsedMsg[cmd].append(False)
 
     '''
@@ -327,6 +327,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         messageType = unpack_from("<B", status_data, 4)[0]
         if messageType != self.commands["command_status"]["resptype"]:
             raise Exception("Got unexpected message")
+        if self.cell_count <= 0:
+            raise Exception("Could not build cellList. self.cell_count was <= 0")
         # cell voltages
         cellList = []
         for c in range(self.cell_count):

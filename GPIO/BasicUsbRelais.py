@@ -34,6 +34,7 @@ class BasicUsbRelais(ThreadObject):
 
 
     _TIME_BETWEEN_TESTS = 4*24*60*60    # Watchdog Test every max 100h, we do it all 4d = 4*24*60*60
+    _WAIT_TIME_FOR_FIRST_TEST = 150     # wait with the first test until this time is gone, if the DCbox starts auomatically then we need a quiet long time here
     _MIN_TIME_BETWEEN_TESTS = 60        # parametrized time should not be lower that this amount of seconds
     _TIME_BETWEEN_CANDIDATES = 10       # when it's time for another test, a candidate waits 30 seconds until it starts its test when it got the test tocken from its predecessor
     _TIME_FOR_TEST = 20                 # after 20 seconds watchdog should have finished its test
@@ -127,7 +128,7 @@ class BasicUsbRelais(ThreadObject):
             if self.masterWatchDog:
                 if self.executedTestsCounter == 0:
                     if not self.configuration["noInitialTest"]:
-                        testTimeout = self._MIN_TIME_BETWEEN_TESTS
+                        testTimeout = self._WAIT_TIME_FOR_FIRST_TEST
 
             if self.timer(name = "timerTestWd", timeout = testTimeout, autoReset = True):
                 self.executedTestsCounter += 1
