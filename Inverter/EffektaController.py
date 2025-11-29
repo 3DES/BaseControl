@@ -375,6 +375,8 @@ class EffektaController(ThreadObject):
                             for key in self.CHARGE_DISCHARGE_PARAMETERS:
                                 if key not in newParameters:
                                     raise Exception(f'Not all charge parameters are present after merge! Missing: {key}')
+                        if newParameters["FloatVoltage"] > newParameters["BoostVoltage"]:
+                            raise Exception(f'FLoatVoltage is higher than BoostVoltage! FLoat: {newParameters["FloatVoltage"]}, Boost: {newParameters["BoostVoltage"]}. Check project.json or your battery.')
                         # handle each parameter separate to reduce eeprom write cycles
                         if self.EffektaData["ChDchParameters"]["BoostVoltage"] != newParameters["BoostVoltage"]:
                             cmd = self.getSetValueDict(cmd = self.chargeBoostVoltageCmd, value = str(round(newParameters["BoostVoltage"], 1)), extern = False)

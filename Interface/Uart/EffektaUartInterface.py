@@ -10,8 +10,8 @@ class EffektaUartInterface(BasicUartInterface):
     b'QPIGS\xb7\xa9\r'
     b'QMODI\xc1\r'
     '''
-    RETRIES_CRC_ERROR  = 2
-    RETRIES_NO_MESSAGE = 15
+    RETRIES_CRC_ERROR  = 5
+    RETRIES_NO_MESSAGE = 20
     RETRY_WAIT_TIME    = 5
 
     def __init__(self, threadName : str, configuration : dict):
@@ -57,7 +57,7 @@ class EffektaUartInterface(BasicUartInterface):
         while((len(retval) == 0) and (tries < maxtries)):
             if self.timer(name = "retryTimer", timeout = self.RETRY_WAIT_TIME, removeOnTimeout = True, firstTimeTrue = True):
                 if tries > 1:
-                    self.logger.error(self, f"Retry sending command to Effekta")
+                    self.logger.error(self, f"Retry sending command to Effekta {tries} von {maxtries}")
                 tries += 1
                 self.serialWrite(cmd)
                 serialInput = self.serialReadLine()
@@ -122,7 +122,7 @@ class EffektaUartInterface(BasicUartInterface):
                 for cmd in cmdList:
                     self.cmdCounter += 1
                     cmd["response"] = self.getEffektaData(cmd["cmd"] + cmd["value"])
-                    cmd["success"] = self.checkForSuccess(cmd["response"]) 
+                    cmd["success"] = self.checkForSuccess(cmd["response"])
                     if cmd["success"] == False:
                         self.logger.error(self, f"Error sending value, command was: {cmd}")
                     self.mqttPublish(self.createOutTopic(self.getObjectTopic()), {"setValue":cmd}, globalPublish = False, enableEcho = False)
