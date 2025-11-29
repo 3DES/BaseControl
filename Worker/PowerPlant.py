@@ -592,8 +592,8 @@ class PowerPlant(Worker):
                     self.timer(name = "timeoutAcOut", remove = True)    # timer hasn't timed out yet, so removeOnTimeout didn't get active, therefore, the timer has to be removed manually
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER:
-                stateMode = self.INVERTER_MODE
                 if self.timer(name = "waitForOutputVoltage", timeout = 10, removeOnTimeout = True):
+                    stateMode = self.INVERTER_MODE
                     self.modifyRelaisData(
                         {
                             self.REL_PV_AUS   : self.REL_PV_AUS_closed,       # enable inverters what makes utility relay switch over to inverter mode since inverter output voltages are up
@@ -1088,9 +1088,12 @@ class PowerPlant(Worker):
                         self.logger.error(self, f"Wrong datatype globally received, exception: {ex}")
 
             if message["content"] in self.manualCommands:
-                # if it is a dummy command. we do nothing
+                # if message is a dummy command we do nothing
                 if message["content"] != self.dummyCommand:
-                    if message["content"] in ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]:
+                    # We discard some messages if Error is present
+                    if message["content"] in ["WrAufAkku"] and self.scriptValues["Error"] == True:
+                        self.publishAndLog(Logger.LOG_LEVEL.INFO, f"Das Kommando wurde nicht ausgeführt, {self.name} Error ist aktiv!")
+                    elif message["content"] in ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]:
                         self.setScriptValues("AutoMode", False)
                         self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf Manuell gestellt")
                     if message["content"] == "NetzSchnellLadenEin":
@@ -1333,10 +1336,10 @@ class PowerPlant(Worker):
                 self.initTransferRelais()
                 self.modifyExcessRelaisData("relPowerPlantWaiting", self.AUS, True)
 
-            # Wir prüfen als erstes ob die Freigabe vom BMS da ist und kein Akkustand Error vorliegt
-            if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"] and not self.scriptValues["Error"]:
-                # Wir wollen erst prüfen ob das skript automatisch schalten soll.
-                if self.scriptValues["AutoMode"]:
+            # Wir prüfen als erstes ob die Freigabe vom BMS da ist
+            if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]:
+                # Wir wollen erst prüfen ob das skript automatisch schalten soll und ob kein error anliegt
+                if self.scriptValues["AutoMode"] and not self.scriptValues["Error"]:
                     # todo self.setScriptValues("Akkuschutz", False) Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
                     if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] > self.scriptValues["AkkuschutzAbschalten"]:
                         # above self.scriptValues["AkkuschutzAbschalten"] threshold then "Akkuschutz" is disabled
@@ -1390,7 +1393,6 @@ class PowerPlant(Worker):
                     if self.scriptValues["WrNetzladen"] and self.NetzLadenAusGesperrt == False and self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleNetzLadenAus"]:
                         self.schalteAlleWrNetzLadenAus(self.configuration["managedEffektas"])
                         self.publishAndLog(Logger.LOG_LEVEL.INFO, "NetzLadenaus %iP erreicht -> schalte Laden aus." %self.scriptValues["schaltschwelleNetzLadenAus"])
-
 
                 # Wenn das BMS die entladefreigabe wieder erteilt dann reseten wir EntladeFreigabeGesendet damit das nachste mal wieder gesendet wird
                 self.EntladeFreigabeGesendet = False
