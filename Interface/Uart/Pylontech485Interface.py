@@ -18,7 +18,7 @@ class Pylontech485Interface(InterfaceBase):
         '''
         super().__init__(threadName, configuration)
         self.removeMqttRxQueue()
-        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[], "PackVoltageList":[], "ChargeDischargeManagement":{}, "Prozent":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
+        self.BmsWerte = {"Vmin": 0.0, "Vmax": 6.0, "Tmin": -40.0, "Tmax": -40.0, "Current":0.0, "CurrentList":[], "VoltageList":[], "PackVoltageList":[], "ChargeDischargeManagement":{}, "Prozent":SocMeter.InitAkkuProz, "ProzentReal":SocMeter.InitAkkuProz, "Power":0.0,"toggleIfMsgSeen":False, "BmsLadeFreigabe":True, "BmsEntladeFreigabe":False}
         self.ChDchManagementList = ["StatusFullChargeRequired", "ChargeVoltage", "DischargeVoltage", "ChargeCurrent", "DischargeCurrent"]
         self.TranslateDict = {"StatusFullChargeRequired":"FullChargeRequired", "ChargeVoltage":"BoostVoltage"}
 
@@ -26,6 +26,8 @@ class Pylontech485Interface(InterfaceBase):
         self.tagsIncluded(["interface", "battCount", "VminCellWarn", "VmaxCellWarn", "VminWarnTimer", "VmaxWarnTimer"])
         self.tagsIncluded(["baudrate"], optional = True, default = 115200)
         self.tagsIncluded(["NumLogfiles"], optional = True, default = 20)
+        self.tagsIncluded(["SocOffset"], optional = True, default = 0.0)
+        self.tagsIncluded(["SocGain"], optional = True, default = 1.0)
         self.printError = True
         self.LogIndex = 0
         self.printRawData = False
@@ -44,7 +46,16 @@ class Pylontech485Interface(InterfaceBase):
         #print(p.update())
         #{'SerialNumbers': ['K221027C30801415'], 'Calculated': {'TotalCapacity_Ah': 50.0, 'RemainCapacity_Ah': 25.0, 'Remain_Percent': 50.0, 'Power_kW': 0.0, 'ChargePower_kW': 0, 'DischargePower_kW': -0.0}, 'AnaloglList': [{'VER': 32, 'ADR': 2, 'ID': 70, 'RTN': 0, 'LENGTH': 110, 'PAYLOAD': b'00020F0CDD0CDB0CDC0CDC0CDD0CDD0CDD0CDC0CDD0CDC0CDD0CDD0CDD0CDB0CDD050B680B460B450B440B580000C0EB61A802C3500000', 'InfoFlag': 0, 'CommandValue': 2, 'CellCount': 15, 'CellVoltages': [3.293, 3.291, 3.292, 3.292, 3.293, 3.293, 3.293, 3.292, 3.293, 3.292, 3.293, 3.293, 3.293, 3.291, 3.293], 'TemperatureCount': 5, 'Temperatures': [18.9, 15.5, 15.4, 15.3, 17.3], 'Current': 0.0, 'Voltage': 49.387, 'RemainCapacity': 25.0, 'CapDetect': '<=65Ah', 'ModuleTotalCapacity': 50.0, 'CycleNumber': 0}], 'ChargeDischargeManagementList': [{'VER': 32, 'ADR': 2, 'ID': 70, 'RTN': 0, 'LENGTH': 20, 'PAYLOAD': b'02D002AFC800FAFF06C0', 'CommandValue': 2, 'ChargeVoltage': 53.25, 'DischargeVoltage': 45.0, 'ChargeCurrent': 25.0, 'DischargeCurrent': -25.0, 'StatusChargeEnable': True, 'StatusDischargeEnable': True, 'StatusChargeImmediately1': False, 'StatusChargeImmediately2': False, 'StatusFullChargeRequired': False}], 'AlarmInfoList': [{'VER': 32, 'ADR': 2, 'ID': 70, 'RTN': 0, 'LENGTH': 66, 'PAYLOAD': b'00020F000000000000000000000000000000050000000000000000000E00000000', 'InfoFlag': 0, 'CommandValue': 2, 'CellCount': 15, 'CellAlarm': ['Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok', 'Ok'], 'TemperatureCount': 5, 'TemperatureAlarm': ['Ok', 'Ok', 'Ok', 'Ok', 'Ok'], 'ChargeCurentAlarm': 'Ok', 'ModuleVoltageAlarm': 'Ok', 'DischargeCurrentAlarm': 'Ok', 'Status1': 0, 'Status2': 14, 'Status3': 0, 'Status4': 0, 'Status5': 0}]}
 
-
+    def calculateSoc(self, pylontechSoc):
+        # calculates the soc value depending on offset and gain, because pylontech never reaches 100% with lower charge voltage and will be damaged with requeseted full charge voltage.
+        # There is also a problem with BmsEntladeFreigabe above 10%. This will be handled with a error in worker thread
+        calcSoc = pylontechSoc + self.configuration["SocOffset"]
+        calcSoc = calcSoc * self.configuration["SocGain"]
+        if calcSoc > 100.0:
+            calcSoc = 100.0
+        if calcSoc < 0.0:
+            calcSoc = 0.0
+        return calcSoc
 
     def threadMethod(self):
         try:
@@ -122,7 +133,6 @@ class Pylontech485Interface(InterfaceBase):
                 self.printRawData = True
                 self.BmsWerte["BmsLadeFreigabe"] = False
 
-
             if self.printRawData:
                 if self.timer(name = "WriteErrorLog", firstTimeTrue = True, timeout = 60*60*2):
                     self.logger.error(self, f'Error from Pylontec detected. Pylontec rawData:')
@@ -142,9 +152,8 @@ class Pylontech485Interface(InterfaceBase):
                         tempDict[self.TranslateDict[key]] = moduleChDchList[key]
                     else:
                         tempDict[key] = moduleChDchList[key]
-                tempDict["BoostVoltage"] = round(tempDict["BoostVoltage"] * 0.995, 2)     # coose a little lower value to prevent blowing fuses at 54.0V
+                tempDict["BoostVoltage"] = round(tempDict["BoostVoltage"] * 0.99, 2)     # coose a little lower value to prevent blowing fuses at 54.0V
                 tempList.append(tempDict)
-
 
             '''
                 tempList with two pylontechs: 
@@ -163,10 +172,11 @@ class Pylontech485Interface(InterfaceBase):
             else:
                 self.BmsWerte["ChargeDischargeManagement"] = tempList[0]
 
-            self.BmsWerte["Prozent"] = data["Calculated"]["Remain_Percent"]
+            self.BmsWerte["Prozent"] = self.calculateSoc(data["Calculated"]["Remain_Percent"])
+            self.BmsWerte["ProzentReal"] = data["Calculated"]["Remain_Percent"]
             self.BmsWerte["Ah"] = data["Calculated"]["RemainCapacity_Ah"]
             self.BmsWerte["Power"] = data["Calculated"]["Power_W"]
-    
+
             self.BmsWerte["toggleIfMsgSeen"] = not self.BmsWerte["toggleIfMsgSeen"]
     
             self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.BmsWerte, globalPublish = False, enableEcho = False)

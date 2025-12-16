@@ -134,8 +134,10 @@
                 "battCount":        5,
                 "VmaxCellWarn":     3.60,           # if this voltage and VmaxTimer is exceeded BmsLadeFreigabe is set to False. We use this to prevent a complete shutdown.
                 "VmaxWarnTimer":    10,
-                "VminCellWarn":     3.05,            # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
-                "VminWarnTimer":    40
+                "VminCellWarn":     3.05,           # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
+                "VminWarnTimer":    40,
+                "SocOffset":        -5.0,           # Offset for Soc recalculation
+                "SocGain":          1.06            # Gain for Soc recalculatioin
             }
         }
     },
