@@ -13,6 +13,6 @@
     },
     "Wetter":
     {
-        "weatherUrl": "https://www.wetteronline.de/wetter/berlin?prefpar=sun"
+        "DwdStationId":    12345
     }
 }

@@ -1,13 +1,10 @@
 import time
-import datetime
-import requests
-import re
 from Base.ThreadObject import ThreadObject
 from Base.Supporter import Supporter
 
+from Weather.dwd_forecast import DWD
 
-
-class WetterOnline(ThreadObject):
+class WetterDwd(ThreadObject):
     '''
     classdocs
     '''
@@ -16,163 +13,44 @@ class WetterOnline(ThreadObject):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.tagsIncluded(["weatherUrl"])
+        self.DAY_PREFIX = "Tag_"
+        self.FORECAST_DAYS = 4
+        self.REQUEST_TIME = 4*60*60   # We request all 4 hours
+        self.tagsIncluded(["DwdStationId"])
+        self.dwd = DWD()
 
+    def getInitialWeatherDict(self):
+        tempWeather = {}
+        for day in range(self.FORECAST_DAYS):
+            tempWeather[f"{self.DAY_PREFIX}{day}"] = {}
+            tempWeather[f"{self.DAY_PREFIX}{day}"]["Sonnenstunden"] = 0
+        return tempWeather
 
-    def getSonnenStunden(self):
-        now = datetime.datetime.now()
+    def getSunArray(self, station_id, force_cache_refresh=False):
+        self.dx = self.dwd.station_forecast(
+            station_id, force_cache_refresh=force_cache_refresh
+        )
+        if self.dx is None:
+            return None
 
-        tabellenName = "table id=\"sun"
-        sucheBeenden = "<\/tr>"
-        tabellenTeil = "tr id=\"asd24"
-        # <td data-tt-args="[&quot;Donnerstag, 16.07.&quot;,0]"
-        tabellenDatum = r"""td data-tt-args=\"\[&quot;(.+)&quot;"""
-        # <div>\n  0 h\n </div>\n
-        #tabelleSonnenStunden = r"""<div>\n(.+)\n\s+</div>"""
-        tabelleSonnenStunden = r"""<div>"""
-        #tabelleSonnenStunden = r"""\S\s\S"""
+        self.dxl = self.dx
+        self.dxl["TTT"] = self.dxl["TTT"].apply(lambda x: x - 273.15)
+        sunListHour = self.dxl["SunD1"].to_list()
+        # convert sunList to percent per hour
+        sunListHour[:] = [x / 3600 for x in sunListHour]
 
-        """
-        
-        This is the text which will be parsed.
-        
-        
-        
-      </tbody>
-     </table>
-    
-     <!-- Sonnenscheindauer, Aufgang und Untergang, UV -->
-     <table id="sun">
-        <tbody>    
-        
-        ...
-        
-            </tr>
-        <tr id="asd24">
-            <td data-tt-args="[&quot;Freitag, 17.07.&quot;,0]" data-tt-function="TTasdwrapper">
-     <div>
-      5 h
-     </div>
-     <span class="label">Sonnenstunden</span>
-    </td>
-    <td data-tt-args="[&quot;Samstag, 18.07.&quot;,1]" data-tt-function="TTasdwrapper">
-     <div>
-      7 h
-     </div>
-     <span class="label">Sonnenstunden</span>
-    </td>
-    <td data-tt-args="[&quot;Sonntag, 19.07.&quot;,2]" data-tt-function="TTasdwrapper">
-     <div>
-      6 h
-     </div>
-     <span class="label">Sonnenstunden</span>
-    </td>
-    <td data-tt-args="[&quot;Montag, 20.07.&quot;,3]" data-tt-function="TTasdwrapper">
-     <div>
-      13 h
-     </div>
-     <span class="label">Sonnenstunden</span>
-    </td>
-    """
+        return sunListHour
 
+    def calculateSunPerDay(self, sunArray):
+        sunPerDay = self.getInitialWeatherDict()
+        for day in range(self.FORECAST_DAYS):
+            tempSun = 0
+            for hour in range(24):
+                tempSun += sunArray[hour + (day*24)]
+            sunPerDay[f"Tag_{day}"] = {}
+            sunPerDay[f"Tag_{day}"][f"Sonnenstunden"] = int(tempSun)
 
-        # hole website
-        v = requests.get(self.configuration["weatherUrl"])
-        
-        # konvertiere von bytes zu string
-        webstring = v.content.decode('utf-8')
-
-        # mache eine Liste mit den einzelnen Zeilen
-        li = webstring.splitlines()
-        
-        
-        richtigeTabelleGefunden = False
-        richtigeTabellenTeilGefunden = False
-        tabelleDatumGefunden = False
-        tabelleSonnenStundenGefunden = False
-        tag = 0
-        wetterDaten = {}
-        datum = ""
-        sonnenStunden = ""
-        
-        for line in li:
-        
-            if re.findall(tabellenName, line):
-                self.logger.debug(self, "Tabelle gefunden")
-                #myPrint(line)
-                richtigeTabelleGefunden = True
-            
-            if richtigeTabelleGefunden:
-                
-                if re.findall(tabellenTeil, line):
-                    richtigeTabellenTeilGefunden = True
-                    self.logger.debug(self, "TabellenTeil gefunden")
-                    
-                if richtigeTabellenTeilGefunden:
-                    #myPrint(line)
-                    match = re.findall(tabellenDatum, line)
-                    if match:
-                        self.logger.debug(self, "Datum gefunden")
-                        datum = match[0]
-                        tabelleDatumGefunden = True
-      
-                if tabelleSonnenStundenGefunden:
-                    sonnenStunden = line
-                    tabelleSonnenStundenGefunden = False
-                    tabelleDatumGefunden = False
-                    tempDate = datum.split()
-                    temp = tempDate[1].split(".")
-                    extDay = int(temp[0])
-                    extMonth = int(temp[1])
-                    tempSun = sonnenStunden.split()
-                    if extMonth == now.month:
-                        if (extDay == now.day):
-                            wetterDaten["Tag_0"] = {}
-                            wetterDaten["Tag_0"]["Sonnenstunden"] = int(tempSun[0])
-                            wetterDaten["Tag_0"]["Datum"] = tempDate[1]
-                        elif (extDay == now.day + 1):
-                            tag = 1
-                            wetterDaten["Tag_1"] = {}
-                            wetterDaten["Tag_1"]["Sonnenstunden"] = int(tempSun[0])
-                            wetterDaten["Tag_1"]["Datum"] = tempDate[1]                  
-                        elif (extDay == now.day + 2):
-                            tag = 2
-                            wetterDaten["Tag_2"] = {}
-                            wetterDaten["Tag_2"]["Sonnenstunden"] = int(tempSun[0])
-                            wetterDaten["Tag_2"]["Datum"] = tempDate[1]     
-                        elif (extDay == now.day + 3):
-                            tag = 3
-                            wetterDaten["Tag_3"] = {}
-                            wetterDaten["Tag_3"]["Sonnenstunden"] = int(tempSun[0])
-                            wetterDaten["Tag_3"]["Datum"] = tempDate[1]      
-                        elif (extDay == now.day + 4):
-                            tag = 4
-                            wetterDaten["Tag_4"] = {}
-                            wetterDaten["Tag_4"]["Sonnenstunden"] = int(tempSun[0])
-                            wetterDaten["Tag_4"]["Datum"] = tempDate[1]      
-                    elif extMonth == now.month + 1 or (now.month == 12 and extMonth == 1):
-                            tag = tag + 1
-                            wetterDaten["Tag_%i"%tag] = {}
-                            wetterDaten["Tag_%i"%tag]["Sonnenstunden"] = int(tempSun[0])
-                            wetterDaten["Tag_%i"%tag]["Datum"] = tempDate[1]                             
-                    self.logger.debug(self, "Datum: %s" %datum)
-                    self.logger.debug(self, "Sonne: %s" %sonnenStunden)
-                    self.logger.debug(self, "******")
-
-                if tabelleDatumGefunden:
-                    match = re.findall(tabelleSonnenStunden, line)
-                    if match:
-                        match = re.findall(tabelleSonnenStunden, line)
-                        if match:
-                            self.logger.debug(self, "Sonnenstunden gefunden")
-                            tabelleSonnenStundenGefunden = True
-                        
-            if re.findall(sucheBeenden, line) and richtigeTabellenTeilGefunden:
-                richtigeTabelleGefunden = False
-                richtigeTabellenTeilGefunden = False
-                tabelleDatumGefunden = False
-    
-        return wetterDaten
+        return sunPerDay
 
     def discoverNestedDict(self, nestedDict, equalSubKey):
         for key in nestedDict:
@@ -180,7 +58,7 @@ class WetterOnline(ThreadObject):
                 self.homeAutomation.mqttDiscoverySensor([f"{key}.{equalSubKey}"])
 
     def threadInitMethod(self):
-        self.wetterdaten = {"lastrequest":0}
+        self.wetterdaten = {}
         self.initWeather = True
 
     def threadMethod(self):
@@ -188,48 +66,21 @@ class WetterOnline(ThreadObject):
         while not self.mqttRxQueue.empty():
             newMqttMessageDict = self.readMqttQueue(error = False)
 
-        publishWeather = False
-        now = datetime.datetime.now()
-
-        # Wir wollen das Wetter um 15 und um 6 Uhr holen
-        if (now.hour == 14 and self.wetterdaten["lastrequest"] != 14) or (now.hour == 5 and self.wetterdaten["lastrequest"] != 5) or (now.hour == 19 and self.wetterdaten["lastrequest"] != 19) or self.initWeather:
-            self.wetterdaten["lastrequest"] = now.hour
-            publishWeather = True
+        if self.timer(name = "Wetterabfrage", startTime = Supporter.getTimeOfToday(hour = 1), reSetup = True, timeout = self.REQUEST_TIME) or self.initWeather:
             try:
-                self.wetterdaten.update(self.getSonnenStunden())
-                #tempWetter = getSonnenStunden()
-                #self.wetterdaten.update( (k,v) for k,v in tempWetter.items() if v is not None)
-            except:
-                self.logger.error(self, "Wetter Daten konnten nicht geholt werden! Internet, Lan oder Funktion getSonnenStunden() prüfen.")
+                self.wetterdaten.update(self.calculateSunPerDay(self.getSunArray(self.configuration["DwdStationId"])))
+            except Exception as e:
+                self.logger.error(self, f"Wetter Daten konnten nicht geholt werden! Internet, Netzwerk oder Funktion getSunArray() prüfen. {e}")
+                self.wetterdaten.update(self.getInitialWeatherDict())
 
             # Initial wollen wir unsere Sensoren bei der Homeautomation anlegen
-            if "Tag_1" in self.wetterdaten and self.initWeather:
+            if self.initWeather:
                 self.discoverNestedDict(self.wetterdaten, "Sonnenstunden")
             self.initWeather = False
 
-        # Wenn der Tag_1 dem aktuellen Tag entspricht dann müssen wir die Tage um eins verrutschen
-        # wir fragen zurest ab ob der key vorhanden ist denn es kann sein dass das Dict leer ist.
-        if "Tag_1" in self.wetterdaten:
-            if "Datum" in self.wetterdaten["Tag_1"]:
-                tempDate = self.wetterdaten["Tag_1"]["Datum"].split(".")
-                if now.day == int(tempDate[0]):
-                    publishWeather = True
-                    if "Tag_1" in self.wetterdaten:
-                        self.wetterdaten["Tag_0"] = self.wetterdaten["Tag_1"]
-                    if "Tag_2" in self.wetterdaten:
-                        self.wetterdaten["Tag_1"] = self.wetterdaten["Tag_2"]
-                    if "Tag_3" in self.wetterdaten:
-                        self.wetterdaten["Tag_2"] = self.wetterdaten["Tag_3"]
-                    if "Tag_4" in self.wetterdaten:
-                        self.wetterdaten["Tag_3"] = self.wetterdaten["Tag_4"]
-                    # Wir füllen von hinten mit einem leeren Dict auf
-                    self.wetterdaten["Tag_4"] = {}
-
-        if publishWeather:
             outTopic = self.createOutTopic(self.getObjectTopic())
             self.mqttPublish(outTopic, self.wetterdaten, globalPublish = True, enableEcho = False)
             self.mqttPublish(outTopic, self.wetterdaten, globalPublish = False, enableEcho = False)
-            #Supporter.debugPrint(f"published to {outTopic} [{self.wetterdaten}]")
 
 
     def threadBreak(self):

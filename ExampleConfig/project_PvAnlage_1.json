@@ -177,7 +177,7 @@
 
     "Wetter":
     {
-        "class": "Weather.Weather.WetterOnline"
+        "class": "Weather.Weather.WetterDwd"
     },
 
     "@import": [

@@ -154,7 +154,9 @@
 #                "VminCellWarn":    2.8,            # if this voltage and VminTimer is exceeded BmsEntladeFreigabe is set to False. We use this to prevent a complete shutdown.
 #                "VminTimer":       40,
 #                "NumLogfiles":     20,             # optional
-#                "baudrate":        115200          # optional
+#                "baudrate":        115200,         # optional
+#                "SocOffset":        -5.0,          # optional Offset for Soc recalculation
+                 "SocGain":          1.06           # optional Gain for Soc recalculatioin
 #            }
 #        }
 #    },
@@ -225,7 +227,7 @@
 
     "Wetter":
     {
-        "class": "Weather.Weather.WetterOnline"
+        "class": "Weather.Weather.WetterDwd"
     },
 
     "@import": [
