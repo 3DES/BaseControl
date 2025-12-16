@@ -592,6 +592,7 @@ class PowerPlant(Worker):
                     self.timer(name = "timeoutAcOut", remove = True)    # timer hasn't timed out yet, so removeOnTimeout didn't get active, therefore, the timer has to be removed manually
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_FINISCH_TRANSFER_TO_INVERTER:
+                stateMode = self.TRANSFER_TO_INVERTER
                 if self.timer(name = "waitForOutputVoltage", timeout = 10, removeOnTimeout = True):
                     stateMode = self.INVERTER_MODE
                     self.modifyRelaisData(
