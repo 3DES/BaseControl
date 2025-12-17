@@ -9,3 +9,5 @@ _temp/
 Base/parser.out
 nohup.out
 .pydevproject
+logfiles/test_error.log
+cache/
