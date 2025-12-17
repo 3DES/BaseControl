@@ -143,4 +143,4 @@ class Crc(object):
                     crc ^= 0xA001
                 else:
                     crc >>= 1
-        return crc.to_bytes(2, "little")
+        return crc

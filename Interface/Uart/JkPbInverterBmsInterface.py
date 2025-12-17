@@ -92,21 +92,17 @@ class JkPbInverterBmsInterface(BasicUartInterface):
 
     '''
     xx address
-    yy crc
+    yy crc from request
     zz messageTypeResponse      (01, 02, 03)
     gg messageTypeRequest       (1E, 20, 1C)
     
     Anfragen an den Slave:
            xx 10 16 gg 00 01 02 00 00 yy yy
            xx 10 16 gg 00 01 02 00 00 yy yy
-    Slave Antwort addresse
-    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
-    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
-    
-    
+
+    Antwort vom Slave (Wenn es einen Master BMS gibt dann frägt dieses selbst ab und wir müssen nur zuhören): 
     addresse in Message von Master (add == xx == 0) welche autonom ohne anfrage gesendet wird:
-    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
-    55 AA EB 90 zz ........ xx 10 16 gg 00 01 yy yy /end
+    55 AA EB 90 zz zz ........ ww xx 10 16 gg 00 01 yy yy /end
     '''
 
     def read_serial_data(self):
@@ -133,10 +129,11 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         """
         modbus_msg = bytes([self.configuration["address"]])
         modbus_msg += command
-        modbus_msg += Base.Crc.Crc.modbusCrc(modbus_msg)
+        crc = Base.Crc.Crc.modbusCrc(modbus_msg)
+        modbus_msg += crc.to_bytes(2, "little")
 
-        self.flush()
         self.serialWrite(modbus_msg)
+        self.flush()
 
     def isSlavemode(self):
         return self.configuration["address"] > 0
@@ -145,7 +142,6 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         return unpack_from("<B", data, 0)[0]
 
     def isRequest(self, data):
-        # xx 10 16 20 00 01 02 00 00 yy yy            xx == address     yy == crc
         return data[1] == 0x10 and data[2] == 0x16 and (data[3] == 0x20 or data[3] == 0x1E or data[3] == 0x1C) and data[4] == 0x00 and data[5] == 0x01 and data[6] == 0x02 and data[7] == 0x00 and data[8] == 0x00
 
     def isResonse(self, data):
@@ -157,9 +153,19 @@ class JkPbInverterBmsInterface(BasicUartInterface):
 
     def getAddressFromResponse(self, data):
         # caller have to ensure that data is a response
-        #xx 10 16 20 00 01 yy yy /end                 xx == address     yy == crc
+        # returns address from given response xx
         return unpack_from("<B", data, (len(data)-8))[0]
 
+    def getRequestCrcInResponse(self, data):
+        # caller have to ensure that data is a response
+        # returns the repeated crc from request in response yy yy
+        return unpack_from("<H", data, (len(data)-2))[0]
+
+    def getRequestInResponse(self, data):
+        # caller have to ensure that data is a response
+        # returns the reeated request from a response
+        length = len(data)
+        return data[(len(data)-8):-2]
     def recalculateChargeDischargeManagement(self):
         '''
         if all bms data received then:
@@ -211,6 +217,12 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             if len(dataBlock["data"]) < 5:
                 if self.isSlavemode():
                     self.logger.error(self, "No data received!")
+                break
+
+            # Check CRC yy yy in response. This is repeated from request
+            if Base.Crc.Crc.modbusCrc(self.getRequestInResponse(dataBlock["data"])) != self.getRequestCrcInResponse(dataBlock["data"]):
+                self.logger.error(self, f'Request crc error in response msg (yy yy)! Calculated: {Base.Crc.Crc.modbusCrc(self.getRequestInResponse(dataBlock["data"]))}, From data: {self.getRequestCrcInResponse(dataBlock["data"])}')
+                self.logger.error(self, f'Raw data: {dataBlock["data"].hex("-")}')
                 break
 
             if dataBlock["type"] == "resp":
@@ -317,7 +329,6 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         messageType = unpack_from("<B", status_data, 4)[0]
         if messageType != self.commands["command_about"]["resptype"]:
             raise Exception("Got unexpected message")
-        messageType = unpack_from("<B", status_data, 4)[0]
         serial_nr = status_data[86:97].decode("utf-8")
         vendor_id = status_data[6:18].decode("utf-8")
         hw_version = (status_data[22:26].decode("utf-8") + " / " + status_data[30:35].decode("utf-8")).replace("\x00", "")

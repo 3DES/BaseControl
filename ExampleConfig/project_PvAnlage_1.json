@@ -67,6 +67,7 @@
     "Bms":
     {
         "class":                        "BMS.BasicBms.BasicBms",
+        "parameters":    {"vMin": 2.5, "vMax": 3.8, "vMinTimer": 60},
         "interfaces":
         {
             "BmsJk":
