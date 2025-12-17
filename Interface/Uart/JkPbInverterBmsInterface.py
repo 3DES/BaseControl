@@ -156,12 +156,22 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         # returns address from given response xx
         return unpack_from("<B", data, (len(data)-8))[0]
 
-    def getRequestCrcInResponse(self, data):
+    def getModbusCrcFromResponse(self, data):
         # caller have to ensure that data is a response
         # returns the repeated crc from request in response yy yy
         return unpack_from("<H", data, (len(data)-2))[0]
 
-    def getRequestInResponse(self, data):
+    def getModbusDataFromResponse(self, data):
+        # caller have to ensure that data is a response 
+        # returns the reeated request from a response without crc
+        if len(data) > 8:
+            return data[(len(data)-8):-2]
+        else:
+            return data[:-2]
+
+    def checkModbusCrc(self, data):
+        return Base.Crc.Crc.modbusCrc(self.getModbusDataFromResponse(data)) == self.getModbusCrcFromResponse(data)
+
         # caller have to ensure that data is a response
         # returns the reeated request from a response
         length = len(data)
@@ -201,6 +211,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             # self.readAndProcessData()
             if len(response) < 5:
                 self.logger.error(self, "No data received!")
+            if not self.checkModbusCrc(response):
+                self.logger.error(self, "Wrong crc received. sendAndCheckCmd() ERROR CHECK UNTESTED!!!")
+            # todo test crc check
             # todo check data
             '''
             on error example: b'\x01\x90\x03\x0c\x01'
@@ -220,7 +233,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                 break
 
             # Check CRC yy yy in response. This is repeated from request
-            if Base.Crc.Crc.modbusCrc(self.getRequestInResponse(dataBlock["data"])) != self.getRequestCrcInResponse(dataBlock["data"]):
+            if not self.checkModbusCrc(dataBlock["data"]):
                 self.logger.error(self, f'Request crc error in response msg (yy yy)! Calculated: {Base.Crc.Crc.modbusCrc(self.getRequestInResponse(dataBlock["data"]))}, From data: {self.getRequestCrcInResponse(dataBlock["data"])}')
                 self.logger.error(self, f'Raw data: {dataBlock["data"].hex("-")}')
                 break
