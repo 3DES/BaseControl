@@ -211,6 +211,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             # self.readAndProcessData()
             if len(response) < 5:
                 self.logger.error(self, "No data received!")
+                self.logger.error(self, f'Error message {self.name} message. Data bullshit! Data was: {response}, dataLen: {len(response["data"])}')
+                self.logger.error(self, f'Error message {self.name} message. localBmsData: {self.localBmsData}, cmd: {cmd}')
+                self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_JkMessageError.log")
             if not self.checkModbusCrc(response):
                 self.logger.error(self, "Wrong crc received. sendAndCheckCmd() ERROR CHECK UNTESTED!!!")
             # todo test crc check
@@ -230,6 +233,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             if len(dataBlock["data"]) < 5:
                 if self.isSlavemode():
                     self.logger.error(self, "No data received!")
+                    self.logger.error(self, f'Error message {self.name} message. Data bullshit! Data was: {dataBlock}, dataLen: {len(dataBlock["data"])}')
+                    self.logger.error(self, f'Error message {self.name} message. localBmsData: {self.localBmsData}')
+                    self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_JkMessageError.log")
                 break
 
             # Check CRC yy yy in response. This is repeated from request
@@ -262,6 +268,11 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                 self.logger.info(self, f"Request skipped")
             else:
                 self.logger.error(self, f"Error handling {self.name} message. Unknown message type. Data was: {dataBlock}")
+
+            if self.localBmsData[localDatalistIndex]["Prozent"] == 0:
+                self.logger.error(self, f'Error message {self.name} message. Data bullshit! Data was: {dataBlock}, dataLen: {len(dataBlock["data"])}')
+                self.logger.error(self, f'Error message {self.name} message. localBmsData: {self.localBmsData}')
+                self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_JkMessageError.log")
 
             # check if all data were received and toggle the alive bit
             allDataReceived = True
