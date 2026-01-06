@@ -52,7 +52,7 @@ class BasicBms(ThreadObject):
         super().__init__(threadName, configuration)
         self.tagsIncluded(["parameters"], optional = True, default = {})
         self.tagsIncluded(["balancingHysteresisTime"], optional = True, default = 60)
-        self.LIST_TO_VALUE_NAMES = {"VoltageList":"CellVoltage", "CurrentList":"ModuleCurrent", "PackVoltageList":"PackVoltage"}
+        self.LIST_TO_VALUE_NAMES = {"VoltageList":"CellVoltage", "TemperatureList":"CellTemperature", "CurrentList":"ModuleCurrent", "PackVoltageList":"PackVoltage"}
 
     @classmethod
     def dictMerger(cls, listOfDicts : list, additionalMergeMethods : dict = {}, verbose : bool = True) -> dict:

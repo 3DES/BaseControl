@@ -67,7 +67,7 @@
     "Bms":
     {
         "class":                        "BMS.BasicBms.BasicBms",
-        "parameters":    {"vMin": 2.5, "vMax": 3.8, "vMinTimer": 60},
+        "parameters":    {"vMin": 2.5, "vMax": 3.7, "vMinTimer": 60},
         "interfaces":
         {
             "BmsJk":
@@ -168,7 +168,7 @@
         "managedEffektas": ["West", "Ost"],
         "socMonitorName": "Bms",
         "bmsName": "Bms",
-        "resetFullchargeRequiredWithFloatmode": true,       # optional, if FullChargeRequired is used to reference soc monitor it is neccessary to reset this bit if floatMode from the inverter is detected, if FullChargeRequired is used to balance battery and the bms or interface is able to send finally 100% soc. E.g. soc is 90% due balancing and 100% at the end of balancing.
+        "resetFullchargeRequiredWithFloatmode": false,       # optional, if FullChargeRequired is used to reference soc monitor it is neccessary to reset this bit if floatMode from the inverter is detected, if FullChargeRequired is used to balance battery and the bms or interface is able to send finally 100% soc. E.g. soc is 90% due balancing and 100% at the end of balancing.
         "weatherName": "Wetter",                            # optional
         "initModeEffekta": "Auto",                          # Auto, Akku, Netz.  Fallback: Netz
         "inputs":["UsbRelais", "WdDcVerteiler"],

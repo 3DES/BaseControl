@@ -87,6 +87,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         self.firstLoop = True
         self.getDiagnosis = False
         self.wdEverTriggered = False
+        # If testBypass is configured and used we initialize the self.testBypassInput with Input1 
         if self.configuration["testBypass"] is not None:
             self.testBypassInput = "Input1"
 
