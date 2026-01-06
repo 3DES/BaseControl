@@ -8,3 +8,5 @@ colorama==0.4.*
 ply==3.*
 pyhid-usb-relay==1.*
 wetterdienst==0.112.0
+geopy==2.4.1
+pandas==2.3.3

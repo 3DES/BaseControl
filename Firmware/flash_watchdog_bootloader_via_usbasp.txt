@@ -1,0 +1,12 @@
+1. connect usbasp with arduino nano
+2. plug usbasp to usb port
+3. plug arduino nano to usb port
+4. execute
+        avrdude -c usbasp -p m328p -P usb -b 115200 -U flash:w:optiboot_atmega328.hex:i
+5. unplug usbasp from usb port
+6. unplug arduino nano from usb port
+7. disconnect usbasp from arduino nano
+8. plug arduino nano to usb port
+9. execute
+        avrdude -c arduino -p m328p -P /dev/ttyUSB0 -b 115200 -U flash:w:firmware.hex:a
+10. do not forget to replace diode D1 on the nano board with a 0R resistor or a 600mA polyfuse
