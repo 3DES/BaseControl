@@ -66,6 +66,10 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.initResponseDataList()
         self.initLocalBmsData()
         # self.sendAndCheckCmd(b"\x10\x15\x08\x00\x01\x02\x00\x0F") # set UART3 to DisplayMode schreibt aufs richtige Register setzt aber nicht den richtigen wert 15 laut app
+        self.setableSwitch = {"DchEnable":True, "ChEnable":True}
+        self.homeAutomation.mqttDiscoverySwitch(self.setableSwitch)
+        # subscribe Global to get commands from extern
+        self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()), globalSubscription = True)
 
         #self.logger.info(self, f"Bms: {result}")
 
@@ -79,6 +83,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                     # Reset FullChgReqTimer because we are in Floatmode now (depending on worker)
                     if self.timerExists("FullChgReqTimer"):
                         self.timer("FullChgReqTimer", remove=True)
+            elif type(newMqttMessageDict["content"]) == dict:
+                self.setableSwitch.update(newMqttMessageDict["content"])
+                # todo switch wieder raus schicken
         try:
             self.getJkData()
             if self.timerExists("timeoutJkRead"):
@@ -119,6 +126,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
     '''
     xx address
     yy crc from request
+    ww bytesum of response
     zz messageTypeResponse      (01, 02, 03)
     gg messageTypeRequest       (1E, 20, 1C)
     
@@ -129,6 +137,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
     Antwort vom Slave (Wenn es einen Master BMS gibt dann frägt dieses selbst ab und wir müssen nur zuhören): 
     addresse in Message von Master (add == xx == 0) welche autonom ohne anfrage gesendet wird:
     55 AA EB 90 zz zz ........ ww xx 10 16 gg 00 01 yy yy /end
+    |                         |   --->  add to get ww
     '''
 
     def read_serial_data(self):
@@ -198,21 +207,42 @@ class JkPbInverterBmsInterface(BasicUartInterface):
     def checkModbusCrc(self, data):
         return Base.Crc.Crc.modbusCrc(self.getModbusDataFromResponse(data)) == self.getModbusCrcFromResponse(data)
 
+    def getCrcFromResponse(self, data):
         # caller have to ensure that data is a response
-        # returns the reeated request from a response
-        length = len(data)
-        return data[(len(data)-8):-2]
+        # returns sum of response bytes (ww)
+        return unpack_from("<B", data, (len(data)-9))[0]
+
+    def calculateCrcFromResponse(self, data):
+        # caller have to ensure that data is a response
+        # this is not a crc, only a sum of bytes
+        # returns calculated sum of response bytes (ww)
+        # 55 AA EB 90 ... xx 02 10 16  
+        # |               |  <- addieren
+        byteSum = 0
+        dataEnd = len(data)-9
+        for byte in range(dataEnd):
+            byteSum += data[byte]
+
+        return (byteSum & 0xFF)
+
     def recalculateChargeDischargeManagement(self):
         '''
         if all bms data received then:
         check for each bms if BmsEntladeFreigabe or BmsLadeFreigabe is not set and set charge or disccharge current to 0 in ChargeDischargeManagement List
+        check if fets are disabled via parameter an set entladefreigabe or ladefreigabe again
         check if BMS request floatMode and set voltage (perhaps here or in process.. funktion)
         '''
         for pack in range(len(self.localBmsData)):
             if not self.localBmsData[pack]["BmsLadeFreigabe"]:
                 self.localBmsData[pack]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
+                if not self.localBmsData[pack]["BatChargeEnSwitch"]:
+                    # If discharge fet is disabled via settings this is not a error and we publish true
+                    self.localBmsData[pack]["BmsLadeFreigabe"] = True
             if not self.localBmsData[pack]["BmsEntladeFreigabe"]:
                 self.localBmsData[pack]["ChargeDischargeManagement"]["DischargeCurrent"] = 0
+                if not self.localBmsData[pack]["BatDischargeEnSwitch"]:
+                    # If discharge fet is disabled via settings this is not a error and we publish true
+                    self.localBmsData[pack]["BmsEntladeFreigabe"] = True
 
     def getJkData(self):
         '''
@@ -264,6 +294,14 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                     self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_JkMessageError.log")
                 break
 
+            #print(crcBytes.hex('-'))
+            #print(dataBlock["data"].hex('-'))
+            # check sum ww in response
+            if self.calculateCrcFromResponse(dataBlock["data"]) != self.getCrcFromResponse(dataBlock["data"]):
+                self.logger.error(self, f'Crc Error! Calculated: {self.calculateCrcFromResponse(dataBlock["data"])}, From data: {self.getCrcFromResponse(dataBlock["data"])}')
+                self.logger.error(self, f'Raw data: {dataBlock["data"].hex("-")}')
+                break
+
             # Check CRC yy yy in response. This is repeated from request
             if not self.checkModbusCrc(dataBlock["data"]):
                 self.logger.error(self, f'Request crc error in response msg (yy yy)! Calculated: {Base.Crc.Crc.modbusCrc(self.getRequestInResponse(dataBlock["data"]))}, From data: {self.getRequestCrcInResponse(dataBlock["data"])}')
@@ -295,7 +333,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             else:
                 self.logger.error(self, f"Error handling {self.name} message. Unknown message type. Data was: {dataBlock}")
 
-            if self.localBmsData[localDatalistIndex]["Prozent"] == 0:
+            if "Prozent" in self.localBmsData[localDatalistIndex] and self.localBmsData[localDatalistIndex]["Prozent"] == 0:
                 self.logger.error(self, f'Error message {self.name} message. Data bullshit! Data was: {dataBlock}, dataLen: {len(dataBlock["data"])}')
                 self.logger.error(self, f'Error message {self.name} message. localBmsData: {self.localBmsData}')
                 self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_JkMessageError.log")
@@ -374,6 +412,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["FloatVoltage"] = round(VolRFV * self.cell_count, 2)
         #self.localBmsData[listIndex]["ChargeDischargeManagement"]["BoostChargeTime"] = 
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
+        self.localBmsData[listIndex]["BatChargeEnSwitch"] = True if BatChargeEN == 1 else False
+        self.localBmsData[listIndex]["BatDischargeEnSwitch"] = True if BatDisChargeEN == 1 else False
 
     def processAbout(self, status_data, listIndex):
         messageType = unpack_from("<B", status_data, 4)[0]
@@ -396,7 +436,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             cellList.append(unpack_from("<H", status_data, c * 2 + 6)[0] / 1000)
 
         temperatureList = []
-        temperatureList.append(unpack_from("<h", status_data, 144)[0] / 10)                     # MOSFET temperature
+        mosfetTemp = unpack_from("<h", status_data, 144)[0] / 10                                # MOSFET temperature
         temperatureList.append(unpack_from("<h", status_data, 162)[0] / 10)                     # Temperature sensors
         temperatureList.append(unpack_from("<h", status_data, 164)[0] / 10)
         temperatureList.append(unpack_from("<h", status_data, 256)[0] / 10)
@@ -432,6 +472,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[listIndex]["Prozent"] = soc                                               # -> Ok
         self.localBmsData[listIndex]["BmsEntladeFreigabe"] = True if discharge == 1 else False      # -> Ok
         self.localBmsData[listIndex]["BmsLadeFreigabe"] = True if charge == 1 else False            # -> Ok
+        self.localBmsData[listIndex]["TemperatureList"] = temperatureList
+        self.localBmsData[listIndex]["MosfetTemperature"] = mosfetTemp
+        self.localBmsData[listIndex]["BalancingCurrent"] = bal
 
         # show wich cells are balancing
 #        if self.get_min_cell() is not None and self.get_max_cell() is not None:
