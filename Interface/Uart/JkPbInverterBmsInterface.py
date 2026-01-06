@@ -241,9 +241,6 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             # self.readAndProcessData()
             if len(response) < 5:
                 self.logger.error(self, "No data received!")
-                self.logger.error(self, f'Error message {self.name} message. Data bullshit! Data was: {response}, dataLen: {len(response["data"])}')
-                self.logger.error(self, f'Error message {self.name} message. localBmsData: {self.localBmsData}, cmd: {cmd}')
-                self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_JkMessageError.log")
             if not self.checkModbusCrc(response):
                 self.logger.error(self, "Wrong crc received. sendAndCheckCmd() ERROR CHECK UNTESTED!!!")
             # todo test crc check
@@ -263,9 +260,6 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             if len(dataBlock["data"]) < 5:
                 if self.isSlavemode():
                     self.logger.error(self, "No data received!")
-                    self.logger.error(self, f'Error message {self.name} message. Data bullshit! Data was: {dataBlock}, dataLen: {len(dataBlock["data"])}')
-                    self.logger.error(self, f'Error message {self.name} message. localBmsData: {self.localBmsData}')
-                    self.logger.writeLogBufferToDisk(f"logfiles/{self.name}_JkMessageError.log")
                 break
 
             #print(crcBytes.hex('-'))
@@ -386,8 +380,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["FloatVoltage"] = round(VolRFV * self.cell_count, 2)
         #self.localBmsData[listIndex]["ChargeDischargeManagement"]["BoostChargeTime"] = 
         self.localBmsData[listIndex]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
-        self.localBmsData[listIndex]["BatChargeEnSwitch"] = True if BatChargeEN == 1 else False
-        self.localBmsData[listIndex]["BatDischargeEnSwitch"] = True if BatDisChargeEN == 1 else False
+        self.localBmsData[listIndex]["BatChargeEnSwitch"] = False if BatChargeEN == 0 else True
+        self.localBmsData[listIndex]["BatDischargeEnSwitch"] =  False if BatChargeEN == 0 else True
 
     def processAbout(self, status_data, listIndex):
         messageType = unpack_from("<B", status_data, 4)[0]
