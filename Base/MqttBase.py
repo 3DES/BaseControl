@@ -263,25 +263,36 @@ class MqttBase(Base.Base):
             self.interfaceOutTopicOwner = {}
             self.interfaceThreads = InterfaceFactory.createInterfaces(self.name, configuration["interfaces"])
             for interface in self.interfaceThreads:
-                topic = interface.getObjectTopic()
-                inTopic = self.createInTopic(topic)
-                outTopic = self.createOutTopic(topic)
-                self.interfaceInTopics.append(inTopic)    # add IN topic of this interface to send messages
-                self.interfaceOutTopics.append(outTopic)  # add OUT topic of this interface to send messages
-                self.interfaceInTopicOwner[inTopic] = interface.name
-                self.interfaceOutTopicOwner[outTopic] = interface.name
+                # get topic lists from interface
+                inTopicList = interface.getInTopicList()
+                outTopicList = interface.getOutTopicList()
 
+                self.interfaceInTopics + inTopicList        # add IN topics of this interface to send messages
+                self.interfaceOutTopics + outTopicList      # add OUT topics of this interface to receive messages
+
+                queue = None        # if no special interface queue given, published messages will be received via default queue
                 # interface queue with key "None" will be used for all interfaces where not a dedicated queue has been given
-                if (interfaceQueues is not None) and ((None in interfaceQueues) or (interface in interfaceQueues)):
+                if (interfaceQueues is not None):
                     if interface in interfaceQueues:
                         # a dedicated queue has been given for current interface, so subscribe with this queue
-                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[interface])   # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
-                    else:
+                        queue = interfaceQueues[interface]
+                    elif None in interfaceQueues:
                         # common queue for all interfaces has been given (key = None), so subscribe with this queue
-                        self.mqttSubscribeTopic(self.createOutTopicFilter(topic), queue = interfaceQueues[None])        # subscribe to OUT topic of this interface to receive messages, since queues have been given use those one instead of default RX queue
-                else:
-                    # no special interface queue given, so published messages will be received via default queue
-                    self.mqttSubscribeTopic(self.createOutTopicFilter(topic))                                           # subscribe to OUT topic of this interface to receive messages
+                        queue = interfaceQueues[None]
+
+                # remember topic lists and owner of topics
+                for inTopic in inTopicList:
+                    if inTopic in self.interfaceInTopics:
+                        self.logger.error(self, f'in topic {inTopic} already exists in {self.name}')
+                    self.interfaceInTopics.append(inTopic)
+                    self.interfaceInTopicOwner[inTopic] = interface.name
+                for outTopic in outTopicList:
+                    if outTopic in self.interfaceOutTopics:
+                        self.logger.error(self, f'out topic {outTopic} already exists in {self.name}')
+                    self.interfaceOutTopics.append(outTopic)
+                    self.interfaceOutTopicOwner[outTopic] = interface.name
+                    # subscribe to OUT topic of this interface to receive messages
+                    self.mqttSubscribeTopic(self.createOutTopicFilterFromOutTopic(outTopic), queue)
 
 
     @classmethod
@@ -453,11 +464,19 @@ class MqttBase(Base.Base):
 
 
     @classmethod
+    def createOutTopicFilterFromOutTopic(cls, topic : str):
+        '''
+        Create topic filter for OUT messages to given topic and children
+        '''
+        return topic + "/#"
+
+
+    @classmethod
     def createOutTopicFilter(cls, topic : str, subTopic : str = None):
         '''
         Create topic filter for OUT messages to given topic and children
         '''
-        return cls.createOutTopic(topic, subTopic) + "/#"
+        return cls.createOutTopicFilterFromOutTopic(cls.createOutTopic(topic, subTopic))
 
 
     @classmethod

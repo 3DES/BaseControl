@@ -29,6 +29,32 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.expectedResponsedMsg = {}
         self.localBmsData = []  # List of dict, each dict with data like in self.BmsWerte. If they are complete they will be merged and written in self.BmsWerte
 
+    def getInTopicList(self):
+        '''
+        return a list with all in topics what usually is exactly one topic, but if an interface will provide more than one in topic it can overwrite this method, e.g. in the case of a RS485 bus with more than one device
+        '''
+        inTopicList = []
+        if isinstance(self.configuration["address"], dict):
+            # create a in topic list with all given names in address dict
+            for slave in self.configuration["address"]:
+                inTopicList.append(self.createInTopic(self.getObjectTopic(slave)))
+        else:
+            inTopicList = super.getInTopicList()        # return interface in topic in case of only one address has been given
+        return inTopicList
+
+    def getOutTopicList(self):
+        '''
+        return a list with all out topics what usually is exactly one topic, but if an interface will provide more than one out topic it can overwrite this method, e.g. in the case of a RS485 bus with more than one device
+        '''
+        outTopicList = []
+        if isinstance(self.configuration["address"], dict):
+            # create a out topic list with all given names in address dict
+            for slave in self.configuration["address"]:
+                outTopicList.append(self.createOutTopic(self.getObjectTopic(slave)))
+        else:
+            outTopicList = super.getOutTopicList()      # return interface out topic in case of only one address has been given
+        return outTopicList
+
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "address"])
         self.tagsIncluded(["numBatterys"],  optional = True, default = 1)

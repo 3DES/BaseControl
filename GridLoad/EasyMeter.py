@@ -111,7 +111,7 @@ class EasyMeter(ThreadObject):
         self.easyMeterInterfaceQueue = Queue()
         
         # all messages published by our interfaces will be sent to our one interface queue
-        super().__init__(threadName, configuration, {None : self.easyMeterInterfaceQueue})
+        super().__init__(threadName, configuration, interfaceQueues = {None : self.easyMeterInterfaceQueue})
 
 
         # initialize object variables...
