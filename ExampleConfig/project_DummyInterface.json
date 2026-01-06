@@ -156,7 +156,7 @@
 #                "NumLogfiles":     20,             # optional
 #                "baudrate":        115200,         # optional
 #                "SocOffset":        -5.0,          # optional Offset for Soc recalculation
-                 "SocGain":          1.06           # optional Gain for Soc recalculatioin
+#                "SocGain":          1.06           # optional Gain for Soc recalculatioin
 #            }
 #        }
 #    },

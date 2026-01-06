@@ -242,7 +242,6 @@
     # it will be handled only if it has been given at highest level and not somewhere inside a sub element!
     "@import": [
         "json/project.json",                            # general project settings
-        #"ExampleConfig/project_DummyInterface.json",    # for tests and development import one of the init-files from ExampleConfig folder, e.g. project_DummyInterface.json!
     ]
 }
 

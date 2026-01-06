@@ -73,7 +73,8 @@ if __name__ == '__main__':
     writeLogToDiskWhenEnds = False
     missingImportMeansError = False
     jsonDump = False
-    jsonDumpFilter = "user|password|\+49"     # default filter
+    jsonDumpOnly = False
+    jsonDumpFilter = r"user|password|\+49"     # default filter
     logFileName = "logger.txt"
 
     # collect command line and print it in re-usable format
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     argumentParser.add_argument("--SIMULATE",                   default = False,                   dest = "simulate",                           action='store_true', help = "if this is not set all SIMULATE flags in json files will be ignored")
     argumentParser.add_argument("--json-dump",                  default = False,                   dest = "jsonDump",                           action='store_true', help = "dumps json configuration after read all files recursively")
     argumentParser.add_argument("--json-dump-filter",           default = None,                    dest = "jsonDumpFilter",         type = str,                      help = "replaces values that match this regex or values whose keys match this regex with #####, default if not given is {jsonDumpFilter}")
-    argumentParser.add_argument("--json-dump-filter-none",      default = None,                    dest = "jsonDumpFilterNone",                 action='store_true', help = "to suppress default value for jsonDumpFilter")
+    argumentParser.add_argument("--json-dump-only",             default = False,                   dest = "jsonDumpOnly",                       action='store_true', help = "stopps execution after json configuration has been dumped")
 
     arguments = argumentParser.parse_args()
 
@@ -116,8 +117,8 @@ if __name__ == '__main__':
         if len(arguments.jsonDumpFilter) == 0:
             # empty parameter given so use None
             arguments.jsonDumpFilter = None
-    elif not arguments.jsonDumpFilterNone:
-        # parameter not given, and --json-dump-filter-none also not given, so use default case
+    else:
+        # use default case
         arguments.jsonDumpFilter = jsonDumpFilter
 
     print(f"dump filter is {arguments.jsonDumpFilter}")
@@ -134,8 +135,12 @@ if __name__ == '__main__':
         missingImportMeansError = arguments.missingImportMeansError,
         jsonDump                = arguments.jsonDump,
         jsonDumpFilter          = arguments.jsonDumpFilter,
+        jsonDumpOnly            = arguments.jsonDumpOnly,
         additionalLeadIn        = commandLine,
         simulationAllowed       = arguments.simulate)
 
-    Logger.Logger.Logger.trace("__main__", "finito [" + Logger.Logger.Logger.get_projectName() + "]" + (" : " + stopReason) if len(stopReason) else "")
+    projectName = ""
+    if Logger.Logger.Logger.get_projectName() is not None:
+        projectName = Logger.Logger.Logger.get_projectName()
+    Logger.Logger.Logger.trace("__main__", "finito [" + projectName + "]" + (" : " + stopReason) if len(stopReason) else "")
 

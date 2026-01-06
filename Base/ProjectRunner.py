@@ -239,7 +239,7 @@ class ProjectRunner(object):
 
 
     @classmethod
-    def executeProject(cls, initFileName : str, logFileName : str, logLevel : int, printLogLevel : int, logFilter : str, printLogFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool, jsonDumpFilter : str = None, additionalLeadIn : str = "", simulationAllowed : bool = False):
+    def executeProject(cls, initFileName : str, logFileName : str, logLevel : int, printLogLevel : int, logFilter : str, printLogFilter : str, stopAfterSeconds : int, writeLogToDiskWhenEnds : bool, missingImportMeansError : bool, jsonDump : bool = False, jsonDumpFilter : str = None, jsonDumpOnly : bool = False, additionalLeadIn : str = "", simulationAllowed : bool = False):
         '''
         Analyzes given init file and starts threads in well defined order
 
@@ -273,6 +273,8 @@ class ProjectRunner(object):
             print(readableJsonConfiguration)
 
         stopReason = ""
+        if jsonDumpOnly:
+            return "stop after json dump because of CLI parameter --json-dump-only"
 
         try:
             # validate init file content, load all classes and filter certain special classes (i.e. Logger, MqttBridge and Logger)
