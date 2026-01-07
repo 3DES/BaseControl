@@ -267,9 +267,6 @@ class MqttBase(Base.Base):
                 inTopicList = interface.getInTopicList()
                 outTopicList = interface.getOutTopicList()
 
-                self.interfaceInTopics + inTopicList        # add IN topics of this interface to send messages
-                self.interfaceOutTopics + outTopicList      # add OUT topics of this interface to receive messages
-
                 queue = None        # if no special interface queue given, published messages will be received via default queue
                 # interface queue with key "None" will be used for all interfaces where not a dedicated queue has been given
                 if (interfaceQueues is not None):
@@ -282,17 +279,20 @@ class MqttBase(Base.Base):
 
                 # remember topic lists and owner of topics
                 for inTopic in inTopicList:
+                    # ensure no in topic exists more than once
                     if inTopic in self.interfaceInTopics:
                         self.logger.error(self, f'in topic {inTopic} already exists in {self.name}')
-                    self.interfaceInTopics.append(inTopic)
-                    self.interfaceInTopicOwner[inTopic] = interface.name
                 for outTopic in outTopicList:
+                    # ensure no out topic exists more than once
                     if outTopic in self.interfaceOutTopics:
                         self.logger.error(self, f'out topic {outTopic} already exists in {self.name}')
-                    self.interfaceOutTopics.append(outTopic)
-                    self.interfaceOutTopicOwner[outTopic] = interface.name
                     # subscribe to OUT topic of this interface to receive messages
                     self.mqttSubscribeTopic(self.createOutTopicFilterFromOutTopic(outTopic), queue)
+
+                self.interfaceInTopics + inTopicList                                    # add IN topics of this interface to send messages
+                self.interfaceOutTopics + outTopicList                                  # add OUT topics of this interface to receive messages
+                self.interfaceInTopicOwner.update(interface.getInTopicOwnerDict())      # add IN topic owners
+                self.interfaceOutTopicOwner.update(interface.getOutTopicOwnerDict())    # add OUT topic owners
 
 
     @classmethod
@@ -498,14 +498,14 @@ class MqttBase(Base.Base):
         return cls.createSubTopic(topic + "/out", subTopic)
 
 
-    def getInterfaceNameFromOutTopic(self, topic):
+    def getTopicOwnerFromOutTopic(self, topic):
         if hasattr(self, 'interfaceOutTopicOwner') and topic in self.interfaceOutTopicOwner:
             return self.interfaceOutTopicOwner[topic]
         else:
             return None
 
 
-    def getInterfaceNameFromInTopic(self, topic):
+    def getTopicOwnerFromInTopic(self, topic):
         if hasattr(self, 'interfaceInTopicOwner') and topic in self.interfaceInTopicOwner:
             return self.interfaceInTopicOwner[topic]
         else:

@@ -56,6 +56,7 @@ class Supporter(object):
                 del(jsonDictionary["@import"])
 
                 for fileName in fileNameList:
+                    Logger.Logger.Logger.debug(cls, f"include json file {fileName}")
                     if not os.path.exists(fileName):
                         message = "cannot import [" + fileName + "] since it doesn't exist"
                         files = os.listdir()

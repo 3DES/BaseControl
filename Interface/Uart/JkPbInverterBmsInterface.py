@@ -37,12 +37,15 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         return a list with all in topics what usually is exactly one topic, but if an interface will provide more than one in topic it can overwrite this method, e.g. in the case of a RS485 bus with more than one device
         '''
         inTopicList = []
+        self.inTopicOwnerDict = {}
         if isinstance(self.configuration["address"], dict):
             # create a in topic list with all given names in address dict
             for slave in self.configuration["address"]:
-                inTopicList.append(self.createInTopic(self.getObjectTopic(slave)))
+                inTopic = self.createInTopic(self.getObjectTopic(slave))
+                inTopicList.append(inTopic)
+                self.inTopicOwnerDict[inTopic] = slave
         else:
-            inTopicList = super.getInTopicList()        # return interface in topic in case of only one address has been given
+            inTopicList = super.getInTopicList()        # return interface in topic in case of only one address has been given (this call will also fill self.inTopicOwnerDict)
         return inTopicList
 
     def getOutTopicList(self):
@@ -50,12 +53,15 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         return a list with all out topics what usually is exactly one topic, but if an interface will provide more than one out topic it can overwrite this method, e.g. in the case of a RS485 bus with more than one device
         '''
         outTopicList = []
+        self.outTopicOwnerDict = {}
         if isinstance(self.configuration["address"], dict):
             # create a out topic list with all given names in address dict
             for slave in self.configuration["address"]:
-                outTopicList.append(self.createOutTopic(self.getObjectTopic(slave)))
+                outTopic = self.createOutTopic(self.getObjectTopic(slave))
+                outTopicList.append(outTopic)
+                self.outTopicOwnerDict[outTopic] = slave
         else:
-            outTopicList = super.getOutTopicList()      # return interface out topic in case of only one address has been given
+            outTopicList = super.getOutTopicList()      # return interface out topic in case of only one address has been given (this call will also fill self.outTopicOwnerDict)
         return outTopicList
 
     def threadInitMethod(self):
