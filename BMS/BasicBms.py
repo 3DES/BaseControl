@@ -351,6 +351,7 @@ class BasicBms(ThreadObject):
                 interfaceName = self.configuration["socMonitor"]
             elif newMqttMessageDict["topic"] in self.interfaceOutTopics:
                 bmsMsg = True
+                xxxxxxx
                 interfaceName = self.getInterfaceNameFromOutTopic(newMqttMessageDict["topic"])
             elif "cmd" in newMqttMessageDict["content"]:
                 #  this is a command, we will forward it to the interfaces

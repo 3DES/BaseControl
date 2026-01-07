@@ -70,20 +70,12 @@
         "parameters":    {"vMin": 2.5, "vMax": 3.7, "vMinTimer": 60},
         "interfaces":
         {
-            "BmsJk":
+            "BmsJikong":
             {
                 "connection":   "Interface.Uart.JkPbInverterBmsInterface.JkPbInverterBmsInterface",
-                "address":      1,
-                "numBatterys":  1,          # optional
+                "address":      {"Jk318":2, "BmsJk":1},
                 "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.2:1.0-port0"
             },
-            "BmsJk318":
-            {
-                "connection":   "Interface.Uart.JkPbInverterBmsInterface.JkPbInverterBmsInterface",
-                "address":      2,
-                "numBatterys":  1,          # optional
-                "interface":    "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4.1:1.0-port0"
-            }
         }
     },
 
@@ -153,8 +145,7 @@
         [
             "UartWrEffektaWest",
             "UartWrEffektaOst",
-            "BmsJk",
-            "BmsJk318",
+            "BmsJikong",
             "EpeverInterface",
             "WdUsbRelais",
             "Wetter",
