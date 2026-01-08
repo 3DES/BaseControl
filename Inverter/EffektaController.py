@@ -34,7 +34,7 @@ class EffektaController(ThreadObject):
         "H" : "Power saving mode"
     }
     MQTT_TIMEOUT = 60
-    ValideChargeValues = []
+    ValideChargeValues = [2,]       # init one hopefully one valide value for startup without Entladefreigabe, these values will be requested later
     BMS_TIMEOUT = 300
     
     FAST_CHARGE_ON = "fastChargeOn"

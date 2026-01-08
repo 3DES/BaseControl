@@ -250,12 +250,16 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         '''
         if not self.localBmsData[bmsName]["BmsLadeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
-            if not self.localBmsData[bmsName]["BatChargeEnSwitch"]:
+            # delete Prozent value because the pack is not fully connected to the system 
+            del self.localBmsData[bmsName]["Prozent"]
+            if not self.localBmsData[bmsName]["BattChargeEnSwitch"]:
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsLadeFreigabe"] = True
         if not self.localBmsData[bmsName]["BmsEntladeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeCurrent"] = 0
-            if not self.localBmsData[bmsName]["BatDischargeEnSwitch"]:
+            # delete Prozent value because the pack is not fully connected to the system 
+            del self.localBmsData[bmsName]["Prozent"]
+            if not self.localBmsData[bmsName]["BattDischargeEnSwitch"]:
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsEntladeFreigabe"] = True
         # If FullChgReqTimer is triggered we send one FullChargeRequired request
@@ -271,7 +275,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         for bmsName in self.configuration["address"]:
             for commandName in self.msgTypesSlaveMode:
                 self.send_serial_data_jkbms_pb(self.commands[commandName]["rawCmd"], self.configuration["address"][bmsName])
-                time.sleep(1.1) # wait for response
+                time.sleep(0.3) # wait for response
                 if self.readAndProcessData():
                     self.logger.error(self, f'Cmd {commandName} from BMS {bmsName} with address {self.configuration["address"][bmsName]} could not be requested!')
                 self.serialReset_input_buffer()
@@ -396,8 +400,8 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["FloatVoltage"] = round(VolRFV * self.cell_count, 2)
         #self.localBmsData[bmsName]["ChargeDischargeManagement"]["BoostChargeTime"] = 
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
-        self.localBmsData[bmsName]["BatChargeEnSwitch"] = False if BatChargeEN == 0 else True
-        self.localBmsData[bmsName]["BatDischargeEnSwitch"] =  False if BatChargeEN == 0 else True
+        self.localBmsData[bmsName]["BattChargeEnSwitch"] = False if BatChargeEN == 0 else True
+        self.localBmsData[bmsName]["BattDischargeEnSwitch"] =  False if BatDisChargeEN == 0 else True
 
     def processAbout(self, status_data, bmsName):
         messageType = unpack_from("<B", status_data, 4)[0]
@@ -454,6 +458,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[bmsName]["VoltageList"] = cellList                                      # -> Ok
         self.localBmsData[bmsName]["Current"] = current                                           # -> Ok
         self.localBmsData[bmsName]["Prozent"] = soc                                               # -> Ok
+        self.localBmsData[bmsName]["Soc"] = soc                                                   # -> Ok, same like Prozent but Prozent will be deletet if pack is disabled to get the real merged soc in BasicBms
         self.localBmsData[bmsName]["BmsEntladeFreigabe"] = True if discharge == 1 else False      # -> Ok
         self.localBmsData[bmsName]["BmsLadeFreigabe"] = True if charge == 1 else False            # -> Ok
         self.localBmsData[bmsName]["TemperatureList"] = temperatureList
