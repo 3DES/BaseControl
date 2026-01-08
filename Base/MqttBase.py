@@ -282,15 +282,15 @@ class MqttBase(Base.Base):
                     # ensure no in topic exists more than once
                     if inTopic in self.interfaceInTopics:
                         self.logger.error(self, f'in topic {inTopic} already exists in {self.name}')
+                    self.interfaceInTopics.append(inTopic)          # remember new IN topic of this interface to send messages to
                 for outTopic in outTopicList:
                     # ensure no out topic exists more than once
                     if outTopic in self.interfaceOutTopics:
                         self.logger.error(self, f'out topic {outTopic} already exists in {self.name}')
+                    self.interfaceOutTopics.append(outTopic)        # remember new OUT topics of this interface to receive messages from
                     # subscribe to OUT topic of this interface to receive messages
                     self.mqttSubscribeTopic(self.createOutTopicFilterFromOutTopic(outTopic), queue)
 
-                self.interfaceInTopics += inTopicList                                    # add IN topics of this interface to send messages
-                self.interfaceOutTopics += outTopicList                                  # add OUT topics of this interface to receive messages
                 self.interfaceInTopicOwner.update(interface.getInTopicOwnerDict())      # add IN topic owners
                 self.interfaceOutTopicOwner.update(interface.getOutTopicOwnerDict())    # add OUT topic owners
 
