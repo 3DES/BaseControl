@@ -289,8 +289,8 @@ class MqttBase(Base.Base):
                     # subscribe to OUT topic of this interface to receive messages
                     self.mqttSubscribeTopic(self.createOutTopicFilterFromOutTopic(outTopic), queue)
 
-                self.interfaceInTopics + inTopicList                                    # add IN topics of this interface to send messages
-                self.interfaceOutTopics + outTopicList                                  # add OUT topics of this interface to receive messages
+                self.interfaceInTopics += inTopicList                                    # add IN topics of this interface to send messages
+                self.interfaceOutTopics += outTopicList                                  # add OUT topics of this interface to receive messages
                 self.interfaceInTopicOwner.update(interface.getInTopicOwnerDict())      # add IN topic owners
                 self.interfaceOutTopicOwner.update(interface.getOutTopicOwnerDict())    # add OUT topic owners
 
