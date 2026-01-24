@@ -354,7 +354,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
             if self.localInputState[self.testBypassInput] == "0":
                 self.setRelayStates({self.configuration["testBypass"]: "1"})
             else:
-                exitTestWithError(f"{self.name} TestBypass is not 0 at test beginn!")
+                exitTestWithError(f"{self.name} TestBypass is not 0 at test begin!")
             # wait until relay switched on
             time.sleep(0.4)
             self.readAndPublishInputs()

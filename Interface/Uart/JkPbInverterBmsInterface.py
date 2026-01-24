@@ -113,9 +113,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         if bmsName is None:
             self.localBmsData = {}
             for bmsName in self.configuration["address"]:
-                self.localBmsData[bmsName] = self.INIT_BMS_WERTE
+                self.localBmsData[bmsName] = self.INIT_BMS_WERTE.copy()
         elif bmsName in self.configuration["address"]:
-            self.localBmsData[bmsName] = self.INIT_BMS_WERTE
+            self.localBmsData[bmsName] = self.INIT_BMS_WERTE.copy()
         else:
             raise Exception(f'{self.name} given bmsName not in self.configuration["address"]')
 
@@ -247,6 +247,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         check for each bms if BmsEntladeFreigabe or BmsLadeFreigabe is not set and set charge or disccharge current to 0 in ChargeDischargeManagement List
         check if fets are disabled via parameter an set entladefreigabe or ladefreigabe again
         check if BMS request floatMode and set voltage (perhaps here or in process.. funktion)
+        TODO: timing problem lösen beim wiedereinschalten von freigaben kann es sein dass der Fetstatus schon gelesen ist und somit den alten wert anzeigt
         '''
         if not self.localBmsData[bmsName]["BmsLadeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
@@ -394,7 +395,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.cell_count = CellCount
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeCurrent"] = CurBatCOC
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeCurrent"] = CurBatDcOC
-        # todo set rcv or rfv appending on requested charge mode. Jk publish this via CAN. I couldn't find the bit here.
+        # todo set rcv or rfv appending on requested charge mode. Jk publish this via CAN. I couldn't find the bit here. JK doesn't request Bulk if pack is debalanced... Perhaps it is better to calculate this here including switch packs to servicemode for balancing soc ref ect
         #self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeVoltage"] = 
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["BoostVoltage"] = round(VolRCV * self.cell_count, 2)
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["FloatVoltage"] = round(VolRFV * self.cell_count, 2)
