@@ -109,15 +109,10 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         else:
             raise Exception(f'{self.name} we do not send old bms messages! Check your code!')
 
-    def initLocalBmsData(self, bmsName = None):
-        if bmsName is None:
-            self.localBmsData = {}
-            for bmsName in self.configuration["address"]:
-                self.localBmsData[bmsName] = self.INIT_BMS_WERTE.copy()
-        elif bmsName in self.configuration["address"]:
+    def initLocalBmsData(self):
+        self.localBmsData = {}
+        for bmsName in self.configuration["address"]:
             self.localBmsData[bmsName] = self.INIT_BMS_WERTE.copy()
-        else:
-            raise Exception(f'{self.name} given bmsName not in self.configuration["address"]')
 
     def initRequstDataList(self, bmsName = None):
         if bmsName is None:
@@ -125,11 +120,11 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             for bmsName in self.configuration["address"]:
                 self.expectedResponsedMsg[bmsName] = []
                 for _ in self.msgTypesSlaveMode:
-                        self.expectedResponsedMsg[bmsName].append(False)
+                    self.expectedResponsedMsg[bmsName].append(False)
         elif bmsName in self.configuration["address"]:
             self.expectedResponsedMsg[bmsName] = []
             for _ in self.msgTypesSlaveMode:
-                    self.expectedResponsedMsg[bmsName].append(False)
+                self.expectedResponsedMsg[bmsName].append(False)
         else:
             raise Exception(f'{self.name} given bmsName not in self.configuration["address"]')
 
