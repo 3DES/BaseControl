@@ -62,10 +62,11 @@ class EffektaUartInterface(BasicUartInterface):
                 self.serialWrite(cmd)
                 serialInput = self.serialReadLine()
 
-                if len(serialInput):
+                if len(serialInput) >= 4:
                     serialInputByte = bytearray(serialInput)
                     lenght = len(serialInputByte)
                     receivedCrc = bytearray(b'')
+                    #Supporter.debugPrint(f"length ok, {self.name}: received [[[{serialInput}]]]", color = "LIGHTBLUE")
                     receivedCrc = serialInputByte[lenght - 3 : lenght - 1]
                     del serialInputByte[lenght - 3 : lenght - 0]
                     if bytes(receivedCrc) == self.getEffektaCRC(Supporter.decode(serialInputByte)):
@@ -79,7 +80,9 @@ class EffektaUartInterface(BasicUartInterface):
                         if maxtries != self.RETRIES_NO_MESSAGE:
                             maxtries = self.RETRIES_CRC_ERROR
                 else:
-                    self.logger.error(self, f"length error, 0 bytes received, command: {cmd}")
+                    self.logger.error(self, f"length error, {len(serialInput)} bytes received, command: {cmd}")
+                    #if len(serialInput):
+                    #    Supporter.debugPrint(f"length error, {self.name}: received [[[{serialInput}]]]", color = "LIGHTBLUE")
                     self.reInitSerial()     # Es gab den Fall, dass die Serial so kaputt war dass sie keine Daten mehr lieferte -> crc error. Es half ein close open
                     retval = ""
                     maxtries = self.RETRIES_NO_MESSAGE
