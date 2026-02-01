@@ -289,7 +289,7 @@ class MqttBase(Base.Base):
                         self.logger.error(self, f'out topic {outTopic} already exists in {self.name}')
                     self.interfaceOutTopics.append(outTopic)        # remember new OUT topics of this interface to receive messages from
                     # subscribe to OUT topic of this interface to receive messages
-                    self.mqttSubscribeTopic(self.createOutTopicFilterFromOutTopic(outTopic), queue)
+                    self.mqttSubscribeTopic(self.createOutTopicFilterFromOutTopic(outTopic), queue = queue)
 
                 self.interfaceInTopicOwner.update(interface.getInTopicOwnerDict())      # add IN topic owners
                 self.interfaceOutTopicOwner.update(interface.getOutTopicOwnerDict())    # add OUT topic owners
