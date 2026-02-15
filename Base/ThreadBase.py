@@ -116,6 +116,13 @@ class ThreadBase(Base.MqttBase.MqttBase):
         del self.mqttRxQueue
 
 
+    def ignoreMqttRxQueueOnce(self):
+        '''
+        To be called when thread loop needs to ignore the RX queue content for one execution
+        '''
+        self._mqttRxQueueGetIgnoreOnce = True
+
+
     def threadBreak(self):
         '''
         This is to ensure that each thread has at least a little sleep per loop run

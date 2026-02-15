@@ -39,8 +39,6 @@ class WatchDog(ThreadObject):
 
         self.logger.info(self, "init (WatchDog)")
         
-        self.startUpPhase = True
-
 
     def calculateNextTimeoutTime(self):
         '''
@@ -164,16 +162,16 @@ class WatchDog(ThreadObject):
                               Supporter.encloseString(str(self.remainingTime)))
 
         # startup checks
-        if self.startUpPhase:
+        if self.getStartupPhase():
             if len(self.configuration["expectThreads"]) == len(self.watchDogLastInformedDict):
                 # received notification from all expected threads, so startup phase can be finished
-                self.startUpPhase = False   # startup phase is over now
-
                 message = f"all threads ({len(self.configuration['expectThreads'])}) up and running after {int(Supporter.getTimeStamp() - self.startupTime)} seconds"
                 self.logger.debug(self, message)
 
                 message = [message, "detection order:"] + [ f"    {entry}" for entry in self.watchDogLastInformedOrder]
                 Supporter.debugPrint(message)
+
+                self.clearStartupPhase()    # startup phase is over now
             elif Supporter.getTimeStamp() < self.watchDogLastInformedInitTime:
                 # still waiting for some notification (show message every 5 seconds to inform user why watchdog is not switched ON)
                 if self.timer(name = "waitingForMonitoredThreads", timeout = 5, firstTimeTrue = True):

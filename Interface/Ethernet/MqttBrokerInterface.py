@@ -139,7 +139,7 @@ class MqttBrokerInterface(InterfaceBase):
                     # check here msg for class Mosquitto
                     self.logger.debug(self, " received queue message :" + str(newMqttMessageDict))
         else:
-            self._mqttRxQueueGetIgnoreOnce = True
+            self.ignoreMqttRxQueueOnce()
 
 
     def threadBreak(self):

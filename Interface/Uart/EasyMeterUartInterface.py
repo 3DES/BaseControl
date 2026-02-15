@@ -79,6 +79,7 @@ class EasyMeterUartInterface(BasicUartInterface):
                 self.logger.debug(self, f"publish message {self.createOutTopic(self.getObjectTopic())}: {message}")
                 self.mqttPublish(self.createOutTopic(self.getObjectTopic()), message, globalPublish = False, enableEcho = False)
                 published = True
+                #Supporter.debugPrint(f"full data  from easymeter:{message}", color = "LIGHTRED", borderSize = 5)
                 #beautified = Supporter.hexAsciiDump(message)
                 #Supporter.debugPrint(f"published {message}", color = f"{colorama.Fore.GREEN}")
                 # in case of communication problems show the formatted SML data

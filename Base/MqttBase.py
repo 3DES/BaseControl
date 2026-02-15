@@ -51,6 +51,17 @@ class MqttBase(Base.Base):
         TRIGGER_WATCHDOG      = 'watchdog'
 
 
+    class MQTT_READBACK(Enum):
+        '''
+        Used to get any globally published data or to get own published data back, e.g. after restart
+        '''
+        PENDING  = 0    # nth. received so far
+        RECEIVED = 1    # data received, should be handled now
+        TIMEOUT  = 2    # data not available, should be created from scratch
+        FAILED   = 3    # data not available, should be created from scratch
+        DONE     = 4    # data received in the past and already should have been handled
+
+
     @classmethod
     def _illegal_call(cls):
         '''
@@ -231,6 +242,79 @@ class MqttBase(Base.Base):
         Getter for __watchDogMinimumTime
         '''
         return MqttBase._MqttBase__watchDogMinimumTriggerTime_always_use_getters_and_setters
+
+
+    def printPublishedData(self, data, ignored : bool = False):
+        ## enable this line for debugging ##   Supporter.debugPrint(f"received data back " + ("but ignored " if ignored else "") + f":{data}", color = "LIGHTBLUE", borderSize = 5)
+        pass
+    def dumpPublishedDataQueue(self):
+        while not self._getPublishedDataQueue.empty():
+            publishedData = self._getPublishedDataQueue.get(block = False)
+            self.printPublishedData(publishedData, ignored = True)
+    def getPublishedData(self, publishedData : dict, topic : str = None, timeout : int = 0, failed : bool = False):
+        '''
+        Get published data, usually to be used during startup to get own published data back for re-initializing lost variable contents but can also be used to get any other published data once
+
+        usage example:
+            publishedData = {}
+            publishedDataResult = self.getPublishedData(publishedData = publishedData, topic = self.homeAutomationTopic, timeout = 0, failed = not self.getStartupPhase())
+            if publishedDataResult != MqttBase.MQTT_READBACK.DONE:
+                if publishedDataResult == MqttBase.MQTT_READBACK.RECEIVED:
+                    # handle data in publishedData here...
+                elif not (publishedDataResult == MqttBase.MQTT_READBACK.PENDING):
+                    # TIMEOUR or FAILED state reached and no data received so far...
+
+        @param publishedData    dictionary the published data should be stored to
+        @param topic            topic to be subscribed to, if not given <object>/storage will be used as topic name
+        @param timeout          time after that MqttBase.MQTT_READBACK.TIMEOUT should be given back once, 0 = endless because timeout handling disabled
+        @param failed           if this value is given as True MqttBase.MQTT_READBACK.FAILED will be returned once 
+        @return                 MqttBase.MQTT_READBACK.PENDING         if no data has been received so far but timeout has not occurred already
+                                MqttBase.MQTT_READBACK.RECEIVED        data has been received and should be handled now, all further calls will return with MqttBase.MQTT_READBACK.DONE 
+                                MqttBase.MQTT_READBACK.TIMEOUT         timeout occurred, so data has to be set up from scratch now, all further calls will return with MqttBase.MQTT_READBACK.DONE
+                                MqttBase.MQTT_READBACK.FAILED          failed occurred, so data has to be set up from scratch now, all further calls will return with MqttBase.MQTT_READBACK.DONE
+                                MqttBase.MQTT_READBACK.DONE            done, no further action is necessary, if this state has been reached published data cannot be read back again
+        '''
+        if topic is None:
+            topic = self.createOutTopic(self.getObjectTopic("storage"))
+
+        if not hasattr(self, '_getPublishedDataFinished'):
+            # initialization necessary?
+            if not hasattr(self, '_getPublishedDataQueue'):
+                self._getPublishedDataQueue = Queue(self.QUEUE_SIZE)
+                self.mqttSubscribeTopic(topic, globalSubscription = True, queue = self._getPublishedDataQueue)
+
+            # published data received back?
+            if not self._getPublishedDataQueue.empty():
+                ####newData = self._getPublishedDataQueue.get(block = False)        # read first message, ignore the rest
+                newData = self.readMqttQueue(error = False, mqttQueue = self._getPublishedDataQueue)        # read first message, ignore the rest if it is valid
+                if newData:       # ensure publishedData is not empty, ignore empty messages
+                    publishedData.update(newData)                  # take over data so that caller can process it
+                    self.printPublishedData(publishedData, ignored = False)
+                    self.mqttUnSubscribeTopic(topic)
+                    # don't remove the queue since threads are not synchronized, MqttBridge could still try to send something!
+                    self._getPublishedDataFinished = True          # there was sth. in the queue, ensure next call returns wtih MqttBase.MQTT_READBACK.DONE
+                    return MqttBase.MQTT_READBACK.RECEIVED         # data received, should be handled now
+
+            # timeout handling?
+            if timeout and self.timer(name = "_getPublishedDataTimer", timeout = timeout):
+                self.mqttUnSubscribeTopic(topic)
+                # don't remove the queue since threads are not synchronized, MqttBridge could still try to send something!
+                self._getPublishedDataFinished = True      # timeout occurred, ensure next call returns wtih MqttBase.MQTT_READBACK.DONE
+                return MqttBase.MQTT_READBACK.TIMEOUT      # data not available, should be created again
+
+            # failed handling?
+            if failed:
+                self.mqttUnSubscribeTopic(topic)
+                # don't remove the queue since threads are not synchronized, MqttBridge could still try to send something!
+                self._getPublishedDataFinished = True      # failed occurred, ensure next call returns wtih MqttBase.MQTT_READBACK.DONE
+                return MqttBase.MQTT_READBACK.FAILED       # data not available, should be created again
+
+            # still pending, neither data nor timeout nor failed
+            return MqttBase.MQTT_READBACK.PENDING          # not yet finished, still waiting for data
+
+        # already done...
+        self.dumpPublishedDataQueue()                      # dump not handled messages for debugging
+        return MqttBase.MQTT_READBACK.DONE                 # data received in the past and already should have been handled
 
 
     def __init__(self, baseName : str, configuration : dict, interfaceQueues : dict = None, queueSize : int = Base.Base.QUEUE_SIZE):

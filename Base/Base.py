@@ -13,8 +13,29 @@ class Base():
 
     # @todo ggf. _SIMULATE umbenennen zu __SIMULATE!
     # @todo externen WD nicht triggern, wenn ein Objekt im Simulations-Modus laeuft!
-    _SIMULATE = False            # to be set to True as soon as at least one of the objects are simulating values, this will prevent the external watchdog relay from being triggered
+    _SIMULATE = False           # to be set to True as soon as at least one of the objects are simulating values, this will prevent the external watchdog relay from being triggered
     _SIMULATION_ALLOWED = False  
+
+    _STARTUP_PHASE = True       # has to be set to False when all threads are up and running
+
+
+    @classmethod
+    def getStartupPhase(cls) -> bool:
+        '''
+        Get current startup phase, True means still starting, False means starting all threads has been finished
+        '''
+        return Base._STARTUP_PHASE
+
+
+    @classmethod
+    def clearStartupPhase(cls):
+        '''
+        To be called when starting all threads has been finished
+        '''
+        if not cls.getStartupPhase():
+            Logger.Logger.Logger.get_logger().warning(Supporter.getCaller(), f"startup phase already cleared!")
+        Base._STARTUP_PHASE = False
+
 
     @classmethod
     def setSimulationModeAllowed(cls, simulationAllowed : bool):
@@ -453,7 +474,7 @@ class Base():
                 if (existingTimerName is None) or reSetup:
                     if startTime == 0:
                         startTime = currentTime                                                         # startTime is needed, if it hasn't been given take current time instead
-                    # timer doesn't exist or setup has been given so use "timerName" because "existingTimerName" could be None
+                    # timer doesn't exist or reSetup has been given so use "timerName" because "existingTimerName" could be None
                     self._createTimer(name, {
                         NEXT_TIMEOUT    : updateTime(startTime, timeout, currentTime, minimumStartTime),
                         PERIOD_DURATION : timeout,

@@ -14,6 +14,7 @@ import os
 import colorama
 import inspect
 from Base.ExtendedJsonParser import ExtendedJsonParser
+from typing import Callable
 
 
 class Supporter(object):
@@ -104,6 +105,18 @@ class Supporter(object):
     @classmethod
     def getTimeStamp(cls):
         return time.time()
+
+
+    @classmethod
+    def getDate(cls, year : int = None, month : int = None, day : int = None):
+        '''
+        Returns date string, if one of the parameters is None current day will be used, otherwise given date will be used
+        '''
+        if year is None or month is None or day is None:
+            date = datetime.today().date()
+        else:
+            date = datetime(year, month, day)
+        return date.strftime('%d/%m/%Y')
 
 
     @classmethod
@@ -402,7 +415,7 @@ class Supporter(object):
 
 
     @classmethod
-    def deltaOutsideRange(cls, newValue : float, oldValue : float, minValue : float = None, maxValue : float = None, percent : float = 0.0, dynamic : bool = False, minIgnoreDelta : float = 0.0):
+    def deltaOutsideRange(cls, newValue : float, oldValue : float, minValue : float = None, maxValue : float = None, percent : float = 0.0, dynamic : bool = False, minIgnoreDelta : float = 0.0, tagName : str = None):
         '''
         Can be used to decide if a delta between two values has an certain amount.
 
@@ -426,10 +439,13 @@ class Supporter(object):
 
         delta = abs(oldValue - newValue)                    # calculate difference between old an new value to decide if change is inside or outside of the ignore window
 
-        compareResult = (delta >= ignoreDelta)
+        compareResult = (delta >= ignoreDelta) and (delta > 0.0)        # if ignoreDelta is 0.0 ensure a delta of 0.0 is not accepted as change!
         
         if minValue is not None and maxValue is not None:
             compareResult &= (minValue <= newValue <= maxValue)
+
+        #if compareResult:
+        #    Supporter.debugPrint(f"changed (" + (tagName if tagName else "") + f"): {locals()}", color = "LIGHTCYAN", borderSize = 5)
 
         # if given value is valid check if its difference to the old value is greater or equal to +/- ignore delta
         return compareResult
@@ -715,7 +731,7 @@ class Supporter(object):
 
 
     @classmethod
-    def compareAndSetDictElement(cls, dictionary : dict, elementName, elementValue, compareValue : bool = False, compareMethod : callable = None, force : bool = False) -> bool:
+    def compareAndSetDictElement(cls, dictionary : dict, elementName, elementValue, compareValue : bool = False, compareMethod : Callable[[int, int], bool] = None, force : bool = False) -> bool:
         '''
         Checks if a given element is contained in a given dictionary and if so it compares the two values
         If the element is not contained or the elements are not equal, the element will be inserted/changed and True will be given back
@@ -726,7 +742,7 @@ class Supporter(object):
         @param compareValue     for easier check if sth. has changed a boolean can be given that will be "OR"-ed with previous checks simply
                                 by giving back True if sth. has been changed or the given boolean in case nth. has been changed
         @param force            if force is True the elementValue will be set and the compare will return True
-        @return        False/compareValue in case nth. has been changed, True in case sth. has been changed or force was True
+        @return                 False/compareValue in case nth. has been changed, True in case sth. has been changed or force was True
         '''
         toBeSet = force
         if elementName in dictionary:
@@ -739,7 +755,6 @@ class Supporter(object):
 
         if toBeSet:
             dictionary[elementName] = elementValue
-            return True
 
-        return compareValue
+        return compareValue | toBeSet
 
