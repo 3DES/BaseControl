@@ -408,11 +408,8 @@ class BasicBms(ThreadObject):
                     if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Current"], self.bmsWerte[interfaceName]["Current"], -200, 200, percent = 20, dynamic = True, minIgnoreDelta = 5):
                         takeDataAndSendGlobal(interfaceName)
                 if "Prozent" in newMqttMessageDict["content"]:
-                    # there are some bms which send soc if they are online and don't send it if they are offline
-                    if "Prozent" in self.bmsWerte[interfaceName]:
-                        if Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Prozent"], self.bmsWerte[interfaceName]["Prozent"], -1, 101, percent = 1, dynamic = True):
-                            takeDataAndSendGlobal(interfaceName)
-                    else:
+                    # it can happen that "Prozent" is not in self.bmsWerte[interfaceName] e.g. when SOC reached 100%, so that has to be checked first
+                    if "Prozent" not in self.bmsWerte[interfaceName] or Supporter.deltaOutsideRange(newMqttMessageDict["content"]["Prozent"], self.bmsWerte[interfaceName]["Prozent"], -1, 101, percent = 1, dynamic = True):
                         takeDataAndSendGlobal(interfaceName)
 
                 # if a toggle of toggleIfMsgSeen was seen we remember new value
