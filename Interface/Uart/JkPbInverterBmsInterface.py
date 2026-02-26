@@ -248,14 +248,14 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
             # delete Prozent value because the pack is not fully connected to the system 
             del self.localBmsData[bmsName]["Prozent"]
-            if not self.localBmsData[bmsName]["BattChargeEnSwitch"]:
+            if not self.localBmsData[bmsName]["ChargeEnSwitch"]:
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsLadeFreigabe"] = True
         if not self.localBmsData[bmsName]["BmsEntladeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeCurrent"] = 0
             # delete Prozent value because the pack is not fully connected to the system 
             del self.localBmsData[bmsName]["Prozent"]
-            if not self.localBmsData[bmsName]["BattDischargeEnSwitch"]:
+            if not self.localBmsData[bmsName]["DischargeEnSwitch"]:
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsEntladeFreigabe"] = True
         # If FullChgReqTimer is triggered we send one FullChargeRequired request
@@ -396,8 +396,10 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["FloatVoltage"] = round(VolRFV * self.cell_count, 2)
         #self.localBmsData[bmsName]["ChargeDischargeManagement"]["BoostChargeTime"] = 
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
-        self.localBmsData[bmsName]["BattChargeEnSwitch"] = False if BatChargeEN == 0 else True
-        self.localBmsData[bmsName]["BattDischargeEnSwitch"] =  False if BatDisChargeEN == 0 else True
+        tempBatChargeEn = False if BatChargeEN == 0 else True
+        tempBatDisChargeEn = False if BatDisChargeEN == 0 else True
+        self.localBmsData[bmsName]["ChargeEnSwitch"] = tempBatChargeEn
+        self.localBmsData[bmsName]["DischargeEnSwitch"] = tempBatDisChargeEn
 
     def processAbout(self, status_data, bmsName):
         messageType = unpack_from("<B", status_data, 4)[0]
@@ -446,17 +448,14 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         bal = unpack_from("<B", status_data, 172)[0]
         charge = unpack_from("<B", status_data, 198)[0]
         discharge = unpack_from("<B", status_data, 199)[0]
-        charge_fet = 1 if charge != 0 else 0
-        discharge_fet = 1 if discharge != 0 else 0
-        balancing = 1 if bal != 0 else 0
         #self.BmsWerte = {"VoltageList":[], "Current":0.0, "Prozent":SocMeter.InitAkkuProz, "ChargeDischargeManagement":{"FullChargeRequired":False}, "toggleIfMsgSeen":False, "BmsEntladeFreigabe":False, "BmsLadeFreigabe": False}
 
         self.localBmsData[bmsName]["VoltageList"] = cellList                                      # -> Ok
         self.localBmsData[bmsName]["Current"] = current                                           # -> Ok
         self.localBmsData[bmsName]["Prozent"] = soc                                               # -> Ok
         self.localBmsData[bmsName]["Soc"] = soc                                                   # -> Ok, same like Prozent but Prozent will be deletet if pack is disabled to get the real merged soc in BasicBms
-        self.localBmsData[bmsName]["BmsEntladeFreigabe"] = True if discharge == 1 else False      # -> Ok
-        self.localBmsData[bmsName]["BmsLadeFreigabe"] = True if charge == 1 else False            # -> Ok
+        self.localBmsData[bmsName]["BmsEntladeFreigabe"] = (discharge == 1)                       # -> Ok
+        self.localBmsData[bmsName]["BmsLadeFreigabe"] = (charge == 1)                             # -> Ok
         self.localBmsData[bmsName]["TemperatureList"] = temperatureList
         self.localBmsData[bmsName]["MosfetTemperature"] = mosfetTemp
         self.localBmsData[bmsName]["BalancingCurrent"] = bal
