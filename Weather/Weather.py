@@ -1,8 +1,7 @@
 import time
 from Base.ThreadObject import ThreadObject
 from Base.Supporter import Supporter
-
-from Weather.dwd_forecast import DWD
+from Weather.DWD import DWD
 
 class WetterDwd(ThreadObject):
     '''
@@ -14,43 +13,20 @@ class WetterDwd(ThreadObject):
         '''
         super().__init__(threadName, configuration)
         self.DAY_PREFIX = "Tag_"
-        self.FORECAST_DAYS = 4
+        self.FORECAST_DAYS = 7
         self.REQUEST_TIME = 4*60*60   # We request all 4 hours
         self.tagsIncluded(["DwdStationId"])
-        self.dwd = DWD()
+        self.dwd = DWD(self.configuration["DwdStationId"])
+        self.removeMqttRxQueue()        # mqttRxQueue has to be removed if it's not needed!
 
-    def getInitialWeatherDict(self):
+
+    def getWeatherDict(self, sunHours : list = None):
         tempWeather = {}
-        for day in range(self.FORECAST_DAYS):
+        for index, day in enumerate(range(self.FORECAST_DAYS)):
             tempWeather[f"{self.DAY_PREFIX}{day}"] = {}
-            tempWeather[f"{self.DAY_PREFIX}{day}"]["Sonnenstunden"] = 0
+            tempWeather[f"{self.DAY_PREFIX}{day}"]["Sonnenstunden"] = 0 if sunHours is None else sunHours[index]
         return tempWeather
 
-    def getSunArray(self, station_id, force_cache_refresh=False):
-        self.dx = self.dwd.station_forecast(
-            station_id, force_cache_refresh=force_cache_refresh
-        )
-        if self.dx is None:
-            return None
-
-        self.dxl = self.dx
-        self.dxl["TTT"] = self.dxl["TTT"].apply(lambda x: x - 273.15)
-        sunListHour = self.dxl["SunD1"].to_list()
-        # convert sunList to percent per hour
-        sunListHour[:] = [x / 3600 for x in sunListHour]
-
-        return sunListHour
-
-    def calculateSunPerDay(self, sunArray):
-        sunPerDay = self.getInitialWeatherDict()
-        for day in range(self.FORECAST_DAYS):
-            tempSun = 0
-            for hour in range(24):
-                tempSun += sunArray[hour + (day*24)]
-            sunPerDay[f"Tag_{day}"] = {}
-            sunPerDay[f"Tag_{day}"][f"Sonnenstunden"] = int(tempSun)
-
-        return sunPerDay
 
     def discoverNestedDict(self, nestedDict, equalSubKey):
         for key in nestedDict:
@@ -62,16 +38,17 @@ class WetterDwd(ThreadObject):
         self.initWeather = True
 
     def threadMethod(self):
-        # check if a new msg is waiting
-        while not self.mqttRxQueue.empty():
-            newMqttMessageDict = self.readMqttQueue(error = False)
-
-        if self.timer(name = "Wetterabfrage", startTime = Supporter.getTimeOfToday(hour = 1), reSetup = True, timeout = self.REQUEST_TIME) or self.initWeather:
+        if self.timer(name = "Wetterabfrage", startTime = Supporter.getTimeOfToday(hour = 1), firstTimeTrue = True, autoReset = True, timeout = self.REQUEST_TIME):
             try:
-                self.wetterdaten.update(self.calculateSunPerDay(self.getSunArray(self.configuration["DwdStationId"])))
+                self.dwd.update()           # update weather data
+                key = "SunD1"               # we want SunD1 values
+                unit = self.dwd.descriptions[key]["UnitOfMeasurement"]      # get weather data unit (should be seconds)
+                short_list = self.dwd.get_daily_list(key = key, daily_correction = 0, converted = True)
+                sunHours = [round(short_list[key], 1) for key in sorted(short_list.keys())[:self.FORECAST_DAYS]]
+                self.wetterdaten.update(self.getWeatherDict(sunHours))
             except Exception as e:
-                self.logger.error(self, f"Wetter Daten konnten nicht geholt werden! Internet, Netzwerk oder Funktion getSunArray() prüfen. {e}")
-                self.wetterdaten.update(self.getInitialWeatherDict())
+                self.logger.error(self, f"Wetter Daten konnten nicht geholt werden! {e}")
+                self.wetterdaten.update(self.getWeatherDict())
 
             # Initial wollen wir unsere Sensoren bei der Homeautomation anlegen
             if self.initWeather:
@@ -84,4 +61,4 @@ class WetterDwd(ThreadObject):
 
 
     def threadBreak(self):
-        time.sleep(30)
+        time.sleep(1)   # 30

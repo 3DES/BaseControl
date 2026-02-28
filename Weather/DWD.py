@@ -17,8 +17,12 @@ class DWD:
         self.url = f"https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/{station_number}/kml/MOSMIX_L_LATEST_{station_number}.kmz"
         self.station_url = f"https://www.dwd.de/DE/leistungen/met_verfahren_mosmix/mosmix_stationskatalog.cfg?view=nasPublication"
         self.description_url = f"https://opendata.dwd.de/weather/lib/MetElementDefinition.xml"
+        #self.update()
+
+    def update(self):
         self.get_value_descriptions()
         self.get_weather_data()
+        
 
     def download_file(self, url : str = None):
         """Download the KMZ file from the URL."""
@@ -254,6 +258,7 @@ def main():
 
     # Create instance of DWD
     dwd = DWD(station_number)
+    dwd.update()
     ###dwd.get_station_names()
     ###dwd.get_value_descriptions()
     ###dwd.get_weather_data()

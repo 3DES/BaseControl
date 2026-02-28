@@ -69,7 +69,7 @@ class MqttBrokerInterface(InterfaceBase):
             printError = True
 
         if printError:
-            self.logger.error(self, "MQTT RX queue was quiet full. We loss Messages!")
+            self.logger.error(self, "MQTT RX queue was quiet full. We lose Messages!")
 
     def threadInitMethod(self):
         self.GlobalSubscribedTopics = []
