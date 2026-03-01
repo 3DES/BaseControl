@@ -17,6 +17,21 @@ class DWD:
         self.url = f"https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/{station_number}/kml/MOSMIX_L_LATEST_{station_number}.kmz"
         self.station_url = f"https://www.dwd.de/DE/leistungen/met_verfahren_mosmix/mosmix_stationskatalog.cfg?view=nasPublication"
         self.description_url = f"https://opendata.dwd.de/weather/lib/MetElementDefinition.xml"
+        self.convert_dict = {
+            "s" : {
+                "converted_unit" : "h",
+                "converter"      : lambda value: value / 3600 
+            },
+            "kJ/m2" : {
+                "converted_unit" : "Wh/m2",
+                "converter"      : lambda value: round(value / 3.6, 2)
+            },
+            "K" : {
+                "converted_unit" : "C",
+                "converter"      : lambda value: round(value - 273.15)
+            },
+        }
+
         #self.update()
 
     def update(self):
@@ -164,12 +179,8 @@ class DWD:
         For some values a conversion is supported, if that's the case give the converted value
         '''
         unit = self.get_unit(key)
-        if unit == "s":
-            return value / 3600
-        elif unit == "kJ/m2":
-            return round(value / 3.6, 2)
-        elif unit == "K":
-            return round(value - 273.15)
+        if unit in self.convert_dict:
+            return self.convert_dict[unit]["converter"](value)
         else:
             return None
 
@@ -178,12 +189,8 @@ class DWD:
         For some values a conversion is supported, if that's the case give the unit of the converted value
         '''
         unit = self.get_unit(key)
-        if unit == "s":
-            return "h"
-        elif unit == "kJ/m2":
-            return "Wh/m2"
-        elif unit == "K":
-            return "C"
+        if unit in self.convert_dict:
+            return self.convert_dict[unit]["converted_unit"]
         else:
             return None
 
@@ -277,8 +284,10 @@ def main():
     for key in values:
         if key == "SunD":
             daily_correction = DWD._TODAY_IS_YESTERDAY        # values are given as "yesterday values", correct day by one to get current day
+            values = 5
         else:
             daily_correction = DWD._TODAY_IS_TODAY
+            values = 4
         if key not in dwd.values:
             print(f"key {key} is unknown!")
         else:
@@ -297,7 +306,7 @@ def main():
 
             if short:
                 short_list = dwd.get_daily_list(key, daily_correction, converted = convert)
-                for time_stamp in sorted(short_list.keys())[:4]:
+                for time_stamp in sorted(short_list.keys())[:values]:
                     unit = dwd.get_converted_unit(key) if convert else dwd.get_unit(key)
                     print(f"{time_stamp}: {short_list[time_stamp]:.1f} {unit}")
 
