@@ -31,7 +31,7 @@ class WetterDwd(ThreadObject):
     def discoverNestedDict(self, nestedDict, equalSubKey):
         for key in nestedDict:
             if equalSubKey in str(nestedDict[key]):
-                self.homeAutomation.mqttDiscoverySensor([f"{key}.{equalSubKey}"])
+                self.homeAutomation.mqttDiscoverySensor([f"{key}.{equalSubKey}"], unitDict = {f"{key}.{equalSubKey}" : "h"})
 
     def threadInitMethod(self):
         self.wetterdaten = {}
