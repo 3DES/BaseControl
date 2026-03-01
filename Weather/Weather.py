@@ -61,4 +61,4 @@ class WetterDwd(ThreadObject):
 
 
     def threadBreak(self):
-        time.sleep(1)   # 30
+        time.sleep(30)
