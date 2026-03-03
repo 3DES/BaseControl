@@ -196,28 +196,28 @@ class PowerPlant(Worker):
 
     def schalteAlleWrAufAkku(self, effektas):
         self.sendEffektaData(EffektaController.SWITCH_TO_BATTERY, effektas)
-        self.setScriptValues({"WrMode" : self.AKKU_MODE, "WrNetzladen" : False})
+        self.setScriptValues({"WrMode" : self.AKKU_MODE, "WrNetzladen" : False, "Schnellladen" : False})
 
     def schalteAlleWrAufNetzOhneNetzLaden(self, effektas):
         self.sendEffektaData(EffektaController.SWITCH_TO_GRID, effektas)
-        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : False})
+        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : False, "Schnellladen" : False})
 
     def schalteAlleWrNetzLadenEin(self, effektas):
         self.sendEffektaData(EffektaController.SLOW_CHARGE_ON, effektas)
-        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True})
+        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True, "Schnellladen" : False})
 
     def schalteAlleWrNetzLadenAus(self, effektas):
         self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, effektas)
-        self.setScriptValues("WrNetzladen", False)
+        self.setScriptValues({"WrNetzladen" : False, "Schnellladen" : False})
 
     def schalteAlleWrAufNetzMitNetzladen(self, effektas):
         # This is managed by inverter Thread
         # self.sendEffektaData(EffektaController.getCmdSwitchToUtilityWithUvDetection(), effektas)
-        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True})
+        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True, "Schnellladen" : False})
 
     def schalteAlleWrNetzSchnellLadenEin(self, effektas):
         self.sendEffektaData(EffektaController.FAST_CHARGE_ON, effektas)
-        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True})
+        self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True, "Schnellladen" : True})
 
     def resetSocMonitor(self):
         self.mqttPublish(self.createInTopic(self.createProjectTopic(self.configuration["socMonitorName"])), {"cmd":"resetSoc"}, globalPublish = False, enableEcho = False)
@@ -825,7 +825,22 @@ class PowerPlant(Worker):
             self.publishRelaisData(self.localPowerRelaisData)
 
     def manageExternalPv(self):
-        return      # @todo 3DES hier gehst weiter...
+        # handle individually switchable inverters 
+        for inverter in self.configuration["managedEffektas"]:
+            if self.inverterQuickChargeState[f"Schnellladen{inverter}"] != self.setableSwitch[f"Schnellladen{inverter}"]:
+                # powerplant in general quick charge mode then switch inverters directly
+                if self.scriptValues["Schnellladen"]:
+                    if self.setableSwitch[f"Schnellladen{inverter}"]:
+                        self.sendEffektaData(EffektaController.FAST_CHARGE_ON, inverter)
+                    else:
+                        self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, inverter)
+                # remember new state for next switch edge
+                self.inverterQuickChargeState[f"Schnellladen{inverter}"] = self.setableSwitch[f"Schnellladen{inverter}"]
+        return      # @todo 3DES hier gehst weiter!!!!!!!!!!!!!!!!!!
+
+        # hier durch die Wechselrichter Zustände laufen und mit gemerkten Zuständen vergleichen, ggf. Schnellladen aus oder ein delegieren!!!
+        # self.scriptValues["WrNetzladen"] == False
+
         netTimer = "externalPvNetTimer"
         loadTimer = "externalPvLoadTimer"
 
@@ -1097,6 +1112,7 @@ class PowerPlant(Worker):
                     elif message["content"] in ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]:
                         self.setScriptValues("AutoMode", False)
                         self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf Manuell gestellt")
+
                     if message["content"] == "NetzSchnellLadenEin":
                         self.schalteAlleWrNetzSchnellLadenEin(self.configuration["managedEffektas"])
                     elif message["content"] == "NetzLadenEin":
@@ -1242,7 +1258,14 @@ class PowerPlant(Worker):
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0, "wetterSchaltschwelleHeizung":9}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True}
-        self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
+
+        # add switches for all known inverters for "Schnelladen" and state variables
+        self.inverterQuickChargeState = {}
+        for inverter in self.configuration["managedEffektas"]:
+             self.setableSwitch[f"Schnellladen{inverter}"] = True
+             self.inverterQuickChargeState[f"Schnellladen{inverter}"] = True
+        
+        self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "Schnellladen":False, "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku", "ResetErrors"]
         self.dummyCommand = "NoCommand"
         self.manualCommands.append(self.dummyCommand)

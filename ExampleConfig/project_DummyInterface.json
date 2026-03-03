@@ -23,7 +23,7 @@
     {
         "class":        "Inverter.EffektaController.EffektaController",
         "bmsName": "Bms",
-        # "inverterIndex":2,                # optional inverter index needed if parallel kit is built in. L1 is not index 1!!
+        # "inverterIndex":1,                # optional inverter index needed if parallel kit is built in. L1 is not index 1!!
         "boostVoltage": 53.5,               # optional if bmsName sends this parameters, the minimum of this parameter will be written
         "boostTime"   : 30,                 # optional if bmsName sends this parameters, the minimum of this parameter will be written
         "floatVoltage": 52.0,               # optional if bmsName sends this parameters, the minimum of this parameter will be written
@@ -39,10 +39,30 @@
         }
     },
 
+    "WrEffektaOst":
+    {
+        "class":        "Inverter.EffektaController.EffektaController",
+        "bmsName": "Bms",
+        # "inverterIndex":2,                # optional inverter index needed if parallel kit is built in. L1 is not index 1!!
+        "boostVoltage": 53.5,               # optional if bmsName sends this parameters, the minimum of this parameter will be written
+        "boostTime"   : 30,                 # optional if bmsName sends this parameters, the minimum of this parameter will be written
+        "floatVoltage": 52.0,               # optional if bmsName sends this parameters, the minimum of this parameter will be written
+        "interfaces":
+        {
+            "UartWrEffektaOst":
+            {
+                #"connection":   "Interface.Uart.EffektaUartInterface.EffektaUartInterface",
+                "connection":   "Interface.Dummy.DummyEffektaUartInterface.DummyEffektaUartInterface",
+                "interface":    "COM4"
+                #"baudrate":     2400                        # optional
+            }
+        }
+    },
+    
     "PowerPlant":
     {
         "class": "Worker.PowerPlant.PowerPlant",
-        "managedEffektas": ["WrEffektaWest"],
+        "managedEffektas": ["WrEffektaWest", "WrEffektaOst"],
         "socMonitorName": "SocMonitor",
         "bmsName": "Bms",
         "debug": True,
