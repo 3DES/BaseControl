@@ -19,8 +19,8 @@ class EffektaController(ThreadObject):
     VerbraucherAkku = "POP02"       # load prio 00=Netz, 02=Batt, 01=PV und Batt, wenn PV verfügbar ansonsten Netz
     BattLeer = "PSDV43.0"
     BattWiederEntladen = "PBDV48.0"
-    chargePrioNetzPV = "PCP02"              # charge prio 02=Netz und pv, 03=pv
-    chargePrioPV = "PCP03"                  # charge prio 02=Netz und pv, 03=pv
+    chargePrioNetzPV = "02"    # "PCP02"             # charge prio 02=Netz und pv, 03=pv
+    chargePrioPV = "03"        # "PCP03"             # charge prio 02=Netz und pv, 03=pv
     chargeBoostVoltageCmd = "PCVV"
     chargeFloatVoltageCmd = "PBFT"
     chargeBoostTimeCmd = "PCVT"
@@ -62,13 +62,19 @@ class EffektaController(ThreadObject):
         return f"{cls.chargeBoostTimeCmd}{minutes:03}"
 
     @classmethod
-    def prepareUtilityChargeCmd(cls, inverterIndex:int, current:int):
+    def prepareMaxChargeCmd(cls, inverterIndex:int, current:int):
         if inverterIndex > 9:
-            raise Exception(f"{self.name}: inverterIndex must be < 9!")
+            raise Exception(f"{self.name}: inverterIndex must be <= 9!")
         if current >= 100:
             return f"MNCHGC{inverterIndex}{current:03}"
         else:
             return f"MUCHGC{inverterIndex}{current:02}"
+
+    @classmethod
+    def prepareDeviceChargePriorityCmd(cls, inverterIndex : int, chargePrio : str):
+        if inverterIndex > 9:
+            raise Exception(f"{self.name}: inverterIndex must be <= 9!")
+        return f"PPCP{inverterIndex}{chargePrio}"
 
     @classmethod
     def getSetValueKeys(cls, cmd, value = "", extern = False):
@@ -87,17 +93,17 @@ class EffektaController(ThreadObject):
         return {"query":cls.getQueryKeys(cmd, extern)}
 
     @classmethod
-    def getCmdSwitchToBattery(cls):
+    def getCmdSwitchToBattery(cls, inverterIndex:int = 0):
         parList = []
         parList.append(cls.getSetValueKeys(cls.BattLeer))
         parList.append(cls.getSetValueKeys(cls.BattWiederEntladen))
         parList.append(cls.getSetValueKeys(cls.VerbraucherAkku))
-        parList.append(cls.getSetValueKeys(cls.chargePrioPV))
+        parList.append(cls.getSetValueKeys(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioPV)))
         return {"setValue":parList}
 
     @classmethod
-    def getCmdSwitchUtilityChargeOff(cls):
-        return cls.getSetValueDict(cls.chargePrioPV)
+    def getCmdSwitchUtilityChargeOff(cls, inverterIndex:int = 0):
+        return cls.getSetValueKeys(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioPV))
 
     @classmethod
     def getCmdForceChargerToFloat(cls):
@@ -117,27 +123,27 @@ class EffektaController(ThreadObject):
     def getCmdSwitchUtilityChargeOn(cls, inverterIndex:int = 0):
         # We set the lowest value of valideChargeValues (normally 2A charge current)
         parList = []
-        parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
+        parList.append(cls.getSetValueKeys(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioNetzPV)))
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
-        parList.append(cls.getSetValueKeys(cls.prepareUtilityChargeCmd(inverterIndex, int(cls.ValideChargeValues[0]))))
+        parList.append(cls.getSetValueKeys(cls.prepareMaxChargeCmd(inverterIndex, int(cls.ValideChargeValues[0]))))
         return {"setValue":parList}
 
     @classmethod
     def getCmdSwitchUtilityFastChargeOn(cls, inverterIndex:int = 0):
         # We set the middle value of valideChargeValues (normally 30A charge current)
         parList = []
-        parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
+        parList.append(cls.getSetValueKeys(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioNetzPV)))
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
-        parList.append(cls.getSetValueKeys(cls.prepareUtilityChargeCmd(inverterIndex, int(cls.ValideChargeValues[round(len(cls.ValideChargeValues) / 2) - 1]))))
+        parList.append(cls.getSetValueKeys(cls.prepareMaxChargeCmd(inverterIndex, int(cls.ValideChargeValues[round(len(cls.ValideChargeValues) / 2) - 1]))))
         return {"setValue":parList}
 
     @classmethod
-    def getCmdSwitchToUtility(cls):
+    def getCmdSwitchToUtility(cls, inverterIndex:int = 0):
         parList = []
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
         parList.append(cls.getSetValueKeys(cls.BattLeer))
         parList.append(cls.getSetValueKeys(cls.BattWiederEntladen))
-        parList.append(cls.getSetValueKeys(cls.chargePrioPV))
+        parList.append(cls.getSetValueKeys(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioPV)))
         return {"setValue":parList}
 
     @classmethod
@@ -146,8 +152,8 @@ class EffektaController(ThreadObject):
         parList.append(cls.getSetValueKeys(cls.VerbraucherNetz))
         parList.append(cls.getSetValueKeys("PBDV52.0"))
         parList.append(cls.getSetValueKeys("PSDV48.0"))
-        parList.append(cls.getSetValueKeys(cls.prepareUtilityChargeCmd(inverterIndex, int(cls.ValideChargeValues[0]))))
-        parList.append(cls.getSetValueKeys(cls.chargePrioNetzPV))
+        parList.append(cls.getSetValueKeys(cls.prepareMaxChargeCmd(inverterIndex, int(cls.ValideChargeValues[0]))))
+        parList.append(cls.getSetValueKeys(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioNetzPV)))
         return {"setValue":parList}
 
     @classmethod
@@ -408,11 +414,11 @@ class EffektaController(ThreadObject):
                 elif "setValueExtern" in newMqttMessageDict["topic"]:
                     self.mqttPublish(self.interfaceInTopics[0], self.getSetValueDict(newMqttMessageDict["content"], extern = True), globalPublish = False, enableEcho = False)
                 elif self.SWITCH_TO_GRID == newMqttMessageDict["content"]:
-                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToUtility(), globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToUtility(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
                 elif self.SWITCH_TO_BATTERY == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsEntladeFreigabe"] == True):
-                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToBattery(), globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchToBattery(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
                 elif self.GRID_CHARGER_OFF == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsEntladeFreigabe"] == True):
-                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchUtilityChargeOff(), globalPublish = False, enableEcho = False)
+                    self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchUtilityChargeOff(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
                 elif self.SLOW_CHARGE_ON == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsLadeFreigabe"] == True):
                     self.mqttPublish(self.interfaceInTopics[0], self.getCmdSwitchUtilityChargeOn(inverterIndex = self.configuration["inverterIndex"]), globalPublish = False, enableEcho = False)
                 elif self.FAST_CHARGE_ON == newMqttMessageDict["content"] and (self.EffektaData["BmsWerte"]["BmsLadeFreigabe"] == True):

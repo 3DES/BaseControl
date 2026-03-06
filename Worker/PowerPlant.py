@@ -121,12 +121,11 @@ class PowerPlant(Worker):
                 self.sendeMqtt = True
 
         if isinstance(keyOrDict, str):
-            # single key/value pair given
-            setScriptValue(keyOrDict, valueInCaseOfKey)
-        else:
-            # dictionary with usually more than one key/value pair given
-            for key in keyOrDict:
-                setScriptValue(key, keyOrDict[key])
+            keyOrDict = { keyOrDict : valueInCaseOfKey }
+
+        # dictionary with usually more than one key/value pair given or prepared from the one given key and value
+        for key in keyOrDict:
+            setScriptValue(key, keyOrDict[key])
 
 
     def updateScriptValues(self, data : dict):
@@ -827,15 +826,15 @@ class PowerPlant(Worker):
     def manageExternalPv(self):
         # handle individually switchable inverters 
         for inverter in self.configuration["managedEffektas"]:
-            if self.inverterQuickChargeState[f"Schnellladen{inverter}"] != self.setableSwitch[f"Schnellladen{inverter}"]:
+            if self.inverterQuickChargeState[f"Schnellladen{inverter}"] != self.scriptValues[f"Schnellladen{inverter}"]:
                 # powerplant in general quick charge mode then switch inverters directly
                 if self.scriptValues["Schnellladen"]:
-                    if self.setableSwitch[f"Schnellladen{inverter}"]:
-                        self.sendEffektaData(EffektaController.FAST_CHARGE_ON, inverter)
+                    if self.scriptValues[f"Schnellladen{inverter}"]:
+                        self.sendEffektaData(EffektaController.FAST_CHARGE_ON, [inverter])
                     else:
-                        self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, inverter)
+                        self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, [inverter])
                 # remember new state for next switch edge
-                self.inverterQuickChargeState[f"Schnellladen{inverter}"] = self.setableSwitch[f"Schnellladen{inverter}"]
+                self.inverterQuickChargeState[f"Schnellladen{inverter}"] = self.scriptValues[f"Schnellladen{inverter}"]
         return      # @todo 3DES hier gehst weiter!!!!!!!!!!!!!!!!!!
 
         # hier durch die Wechselrichter Zustände laufen und mit gemerkten Zuständen vergleichen, ggf. Schnellladen aus oder ein delegieren!!!
@@ -1259,7 +1258,7 @@ class PowerPlant(Worker):
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
         self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True}
 
-        # add switches for all known inverters for "Schnelladen" and state variables
+        # add switches for all known inverters for "Schnellladen" and state variables
         self.inverterQuickChargeState = {}
         for inverter in self.configuration["managedEffektas"]:
              self.setableSwitch[f"Schnellladen{inverter}"] = True
