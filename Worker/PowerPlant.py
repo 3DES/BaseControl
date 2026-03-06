@@ -206,7 +206,7 @@ class PowerPlant(Worker):
         self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True, "Schnellladen" : False})
 
     def schalteAlleWrNetzLadenAus(self, effektas):
-        self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, effektas)
+        self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, effektas)      # switch all inverters
         self.setScriptValues({"WrNetzladen" : False, "Schnellladen" : False})
 
     def schalteAlleWrAufNetzMitNetzladen(self, effektas):
@@ -215,7 +215,8 @@ class PowerPlant(Worker):
         self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True, "Schnellladen" : False})
 
     def schalteAlleWrNetzSchnellLadenEin(self, effektas):
-        self.sendEffektaData(EffektaController.FAST_CHARGE_ON, effektas)
+        enabledEffektas = [inverter for inverter in self.configuration["managedEffektas"] if self.inverterQuickChargeState[f"Schnellladen{inverter}"] == True]
+        self.sendEffektaData(EffektaController.FAST_CHARGE_ON, enabledEffektas)        # switch only enabled inverters
         self.setScriptValues({"WrMode" : self.GRID_MODE, "WrNetzladen" : True, "Schnellladen" : True})
 
     def resetSocMonitor(self):

@@ -103,7 +103,7 @@ class EffektaController(ThreadObject):
 
     @classmethod
     def getCmdSwitchUtilityChargeOff(cls, inverterIndex:int = 0):
-        return cls.getSetValueKeys(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioPV))
+        return cls.getSetValueDict(cls.prepareDeviceChargePriorityCmd(inverterIndex, cls.chargePrioPV))
 
     @classmethod
     def getCmdForceChargerToFloat(cls):
