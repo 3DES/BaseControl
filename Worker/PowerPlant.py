@@ -34,7 +34,7 @@ class PowerPlant(Worker):
                             ErrorPresentOr                                       bool, key in returnValue from getCombinedEffektaData()
                             InputVoltageAnd                                      bool, key in returnValue from getCombinedEffektaData()
             SocMonitor:
-                    SocMeter.InitAkkuProz                                        int, classVariable from SocMonitor normally -1    @todo evtl über ein bool nachdenken.
+                    SocMeter.InitAkkuProz                                        int, classVariable from SocMonitor normally -1    @todo evtl ..ber ein bool nachdenken.
 
 
     required mqtt data:
@@ -483,9 +483,9 @@ class PowerPlant(Worker):
                 )
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_SWITCH_INVERTER_OFF:
                 stateMode = self.TRANSFER_TO_NETZ
-                # @todo Wendeschütz lesen und timer erst starten, wenn laut Wendeschütz Umschaltung durchgeführt wurde
+                # @todo Wendesch..tz lesen und timer erst starten, wenn laut Wendesch..tz Umschaltung durchgef..hrt wurde
 
-                # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht währendessen abschalten
+                # warten bis Parameter geschrieben sind, wir wollen den Inverter nicht w..hrendessen abschalten
                 if self.timer(name = "parameterSetTimer", timeout = parameterSetTimer, removeOnTimeout = True):
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_CHECK_OUTPUT_AFTER_INVERTER_OFF
                     self.modifyRelaisData(
@@ -500,13 +500,13 @@ class PowerPlant(Worker):
                     )
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_CHECK_OUTPUT_AFTER_INVERTER_OFF:
                 stateMode = self.GRID_MODE
-                # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
+                # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Sch..tz wieder an und f..llt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                 if self.timer(name = "outputVoltageLowTimer", timeout = outputVoltageLowTimer, removeOnTimeout = True):
                     if self.localDeviceData["combinedEffektaData"]["OutputVoltageHighOr"]:
-                        # Durch das ruecksetzten von PowersaveMode schalten wir als nächstes wieder zurück auf PV.
+                        # Durch das ruecksetzten von PowersaveMode schalten wir als n..chstes wieder zur..ck auf PV.
                         # Wir wollen im Fehlerfall keinen inkonsistenten Schaltzustand der Anlage darum schalten wir die Umrichter nicht aus.
                         self.setScriptValues("PowerSaveMode", False)
-                        # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zurück auf inverter geschaltet wenn kein Fehler am Inverter anliegt
+                        # @todo nachdenken was hier sinnvoll ist. Momentan wird wieder zur..ck auf inverter geschaltet wenn kein Fehler am Inverter anliegt
                         self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Wechselrichter konnte nicht abgeschaltet werden. Er hat nach Wartezeit immer noch Spannung am Ausgang! Die Automatische Netzumschaltung wurde deaktiviert.")
                         # Die Wechselrichter lassen sich nicht ausschalten, wir schalten wieder auf inverter
                         self.tranferRelaisState = self.tranferRelaisStates.STATE_SWITCH_INVERTER_ON
@@ -521,7 +521,7 @@ class PowerPlant(Worker):
                                 self.REL_WR_1     : self.AUS,
                             }
                         )
-                        # kurz warten damit das zurücklesen nicht zu schnell geht
+                        # kurz warten damit das zur..cklesen nicht zu schnell geht
                         time.sleep(0.5)     # @todo gruselig, sollte durch Timer ersetzt werden!!!
 
                         self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_INVERTER_MODE_REQ
@@ -586,7 +586,7 @@ class PowerPlant(Worker):
                             self.REL_WR_1     : self.EIN,
                         }
                     )
-                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Schütz wieder an und fällt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
+                    # wartezeit setzen damit keine Spannung mehr am ausgang anliegt.Sonst zieht der Sch..tz wieder an und f..llt gleich wieder ab. Netzspannung auslesen funktioniert hier nicht.
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_CANCEL_TRANSFER_TO_INVERTER
                 elif self.localDeviceData["combinedEffektaData"]["OutputVoltageHighAnd"] == True:
                     self.timer(name = "timeoutAcOut", remove = True)    # timer hasn't timed out yet, so removeOnTimeout didn't get active, therefore, the timer has to be removed manually
@@ -646,7 +646,7 @@ class PowerPlant(Worker):
                 stateMode = self.INVERTER_MODE
                 if self.timer(name = "readParameterTimer", timeout = parameterSetTimer, removeOnTimeout = True):
                     self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_GRID_AND_TIMEOUT
-                    self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung wartet auf Netzrückkehr.")
+                    self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung wartet auf Netzrueckkehr.")
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_GRID_AND_TIMEOUT:
                 stateMode = self.INVERTER_MODE
                 if self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"] and self.timer(name = "minGridTime", timeout = minGridTime, removeOnTimeout = True):
@@ -655,14 +655,14 @@ class PowerPlant(Worker):
                 if not self.localDeviceData["combinedEffektaData"]["InputVoltageAnd"] and self.timerExists("minGridTime"):
                     self.timerRemove("minGridTime")
 
-            # Status des Netzrelais in scriptValues übertragen damit er auch gesendet wird
+            # Status des Netzrelais in scriptValues ..bertragen damit er auch gesendet wird
             self.setScriptValues("NetzRelais", stateMode)
 
 
         # @todo Netzausfallerkennung im worker ist noch nicht vorhanden (Parameter!!)
 
-        # Die Hardware des Wendeschützes und die ZusatzRelais schalten automatisch auf Inverter (und starten diese auch) wenn das Netz ausfällt
-        # Wir prüfen das hier und ziehen mit STATE_FORCE_TO_INVERTER den internen State auf INVERTER_MODE 
+        # Die Hardware des Wendesch..tzes und die ZusatzRelais schalten automatisch auf Inverter (und starten diese auch) wenn das Netz ausf..llt
+        # Wir pr..fen das hier und ziehen mit STATE_FORCE_TO_INVERTER den internen State auf INVERTER_MODE 
         if self.getInputValueByName("inverterActive") and self.scriptValues["NetzRelais"] == self.GRID_MODE:
             switchTransferRelais(self.INVERTER_MODE, self.tranferRelaisStates.STATE_FORCE_TO_INVERTER)
 
@@ -702,7 +702,7 @@ class PowerPlant(Worker):
                 switchTransferRelais(self.GRID_MODE)
             elif self.timer(name = "ErrorTimer", timeout = inverterErrorResponseTime):
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Fehler am Inverter erkannt. Wir schalten auf Netz.")
-                    # todo: wenn der fehler wieder weg ist nach dem umschalten auf Netz und abschlten der inverter, dann fallen wir in den if zweig und die Netzumschaltung schaltet wieder. Es könnte ein toggeln entstehen.
+                    # todo: wenn der fehler wieder weg ist nach dem umschalten auf Netz und abschlten der inverter, dann fallen wir in den if zweig und die Netzumschaltung schaltet wieder. Es k..nnte ein toggeln entstehen.
                     self.errorTimerFinished = True
 
 
@@ -838,7 +838,7 @@ class PowerPlant(Worker):
                 self.inverterQuickChargeState[f"Schnellladen{inverter}"] = self.scriptValues[f"Schnellladen{inverter}"]
         return      # @todo 3DES hier gehst weiter!!!!!!!!!!!!!!!!!!
 
-        # hier durch die Wechselrichter Zust�nde laufen und mit gemerkten Zust�nden vergleichen, ggf. Schnellladen aus oder ein delegieren!!!
+        # hier durch die Wechselrichter Zust.nde laufen und mit gemerkten Zust.nden vergleichen, ggf. Schnellladen aus oder ein delegieren!!!
         # self.scriptValues["WrNetzladen"] == False
 
         netTimer = "externalPvNetTimer"
@@ -993,11 +993,11 @@ class PowerPlant(Worker):
 
 
     def wetterPrognoseMorgenSchlecht(self, switchingThreshold : int) -> bool:
-        # Wir wollen abschätzen ob wir auf Netz schalten müssen dazu soll abends geprüft werden ob noch genug energie für die Nacht zur verfügung steht
-        # Dazu wird geprüft wie das Wetter (Sonnenstunden) am nächsten Tag ist und dementsprechend früher oder später umgeschaltet.
-        # Wenn das Wetter am nächsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu müssen.
-        # Die Prüfung ist nur Abends aktiv da man unter Tags eine andere Logik haben möchte.
-        # In der Sommerzeit löst now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
+        # Wir wollen absch..tzen ob wir auf Netz schalten m..ssen dazu soll abends gepr..ft werden ob noch genug energie f..r die Nacht zur verf..gung steht
+        # Dazu wird gepr..ft wie das Wetter (Sonnenstunden) am n..chsten Tag ist und dementsprechend fr..her oder sp..ter umgeschaltet.
+        # Wenn das Wetter am n..chsten Tag schlecht ist macht es keinen Sinn den Akku leer zu machen und dann im Falle einer Unterspannung vom Netz laden zu m..ssen.
+        # Die Pr..fung ist nur Abends aktiv da man unter Tags eine andere Logik haben m..chte.
+        # In der Sommerzeit l..st now.hour = 17 um 18 Uhr aus, In der Winterzeit dann um 17 Uhr
         return self.wetterPrognoseSchlecht("Tag_1", switchingThreshold)
 
     def wetterPrognoseHeuteSchlecht(self, switchingThreshold : int) -> bool:
@@ -1108,7 +1108,7 @@ class PowerPlant(Worker):
                 if message["content"] != self.dummyCommand:
                     # We discard some messages if Error is present
                     if message["content"] in ["WrAufAkku"] and self.scriptValues["Error"] == True:
-                        self.publishAndLog(Logger.LOG_LEVEL.INFO, f"Das Kommando wurde nicht ausgeführt, {self.name} Error ist aktiv!")
+                        self.publishAndLog(Logger.LOG_LEVEL.INFO, f"Das Kommando wurde nicht ausgefuehrt, {self.name} Error ist aktiv!")
                     elif message["content"] in ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku"]:
                         self.setScriptValues("AutoMode", False)
                         self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Anlage wurde auf Manuell gestellt")
@@ -1360,16 +1360,16 @@ class PowerPlant(Worker):
                 self.initTransferRelais()
                 self.modifyExcessRelaisData("relPowerPlantWaiting", self.AUS, True)
 
-            # Wir prüfen als erstes ob die Freigabe vom BMS da ist
+            # Wir pr..fen als erstes ob die Freigabe vom BMS da ist
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]:
-                # Wir wollen erst prüfen ob das skript automatisch schalten soll und ob kein error anliegt
+                # Wir wollen erst pr..fen ob das skript automatisch schalten soll und ob kein error anliegt
                 if self.scriptValues["AutoMode"] and not self.scriptValues["Error"]:
-                    # todo self.setScriptValues("Akkuschutz", False) Über Wetter?? Was ist mit "Error: Ladestand weicht ab"
+                    # todo self.setScriptValues("Akkuschutz", False) ..ber Wetter?? Was ist mit "Error: Ladestand weicht ab"
                     if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] > self.scriptValues["AkkuschutzAbschalten"]:
                         # above self.scriptValues["AkkuschutzAbschalten"] threshold then "Akkuschutz" is disabled
                         self.setScriptValues("Akkuschutz", False)
 
-                    # Wir prüfen ob wir wegen zu wenig prognostiziertem Ertrag den Akkuschutz einschalten müssen. Der Akkuschutz schaltet auf einen höheren (einstellbar) SOC Bereich um.
+                    # Wir pr..fen ob wir wegen zu wenig prognostiziertem Ertrag den Akkuschutz einschalten m..ssen. Der Akkuschutz schaltet auf einen h..heren (einstellbar) SOC Bereich um.
                     if not self.scriptValues["Akkuschutz"]:
                         if self.wetterPrognoseMorgenSchlecht(self.scriptValues["wetterSchaltschwelleNetz"]) and (not self.akkuStandAusreichend()):
                             if (17 <= now.hour < 23) or ((12 <= now.hour < 23) and self.wetterPrognoseHeuteSchlecht(self.scriptValues["wetterSchaltschwelleNetz"])):
@@ -1424,19 +1424,19 @@ class PowerPlant(Worker):
                 # Wir durchlaufen den u.g. Code einmalig wenn die Entladefreigabe entzogen wurde
                 self.EntladeFreigabeGesendet = True
                 self.schalteAlleWrAufNetzMitNetzladen(self.configuration["managedEffektas"])
-                # Falls der Akkustand zu hoch ist würde nach einer Abschaltung das Netzladen gleich wieder abgeschaltet werden das wollen wir verhindern
+                # Falls der Akkustand zu hoch ist w..rde nach einer Abschaltung das Netzladen gleich wieder abgeschaltet werden das wollen wir verhindern
                 self.publishAndLog(Logger.LOG_LEVEL.ERROR, f'Schalte auf Netz mit laden. Trigger-> BMS: {not self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]}, Error: {self.scriptValues["Error"]}')
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleNetzLadenAus"]:
-                    # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenAus ausgelöst wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
+                    # Wenn eine Unterspannnung SOC > schaltschwelleNetzLadenAus ausgel..st wurde dann stimmt mit dem SOC etwas nicht und wir wollen verhindern, dass die Ladung gleich wieder abgestellt wird
                     self.NetzLadenAusGesperrt = True
                     self.setScriptValues("Akkuschutz", True)
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, f'Ladestand fehlerhaft')
                 # wir setzen einen error weil das nicht plausibel ist und wir hin und her schalten sollte die freigabe wieder kommen
                 # wir wollen den Akku erst bis 100 P aufladen
-                # self.scriptValues["schaltschwelleAkkuTollesWetter"] ist normalerweise die kleinste Akku Schaltschwelle, der Soc Wert ist nicht plausibel wenn dieser über der Schaltschwelle ist, während die Entladefreigabe entzogen wurde
+                # self.scriptValues["schaltschwelleAkkuTollesWetter"] ist normalerweise die kleinste Akku Schaltschwelle, der Soc Wert ist nicht plausibel wenn dieser ..ber der Schaltschwelle ist, w..hrend die Entladefreigabe entzogen wurde
                 if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkkuTollesWetter"]:
                     self.setScriptValues("Error", True)
-                    # Wir setzen den Error zurück wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann müssen wir das Skript beenden da der Error sonst gleich wieder zurück gesetzt werden würde
+                    # Wir setzen den Error zur..ck wenn der Inverter auf Floatmode umschaltet. Wenn diese bereits gesetzt ist dann m..ssen wir das Skript beenden da der Error sonst gleich wieder zur..ck gesetzt werden w..rde
                     if self.localDeviceData["combinedEffektaData"]["FloatingModeOr"] == True:
                         raise Exception(f'SOC: {self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"]}, EntladeFreigabe: {self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]}, und FloatMode von Inverter aktiv! Unplausibel!') 
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, 'Error wurde gesetzt, reset bei vollem Akku. FloatMode.')
