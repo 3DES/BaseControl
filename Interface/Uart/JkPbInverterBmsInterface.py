@@ -246,16 +246,18 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         '''
         if not self.localBmsData[bmsName]["BmsLadeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
-            # delete Prozent value because the pack is not fully connected to the system 
-            del self.localBmsData[bmsName]["Prozent"]
+            # If BmsLadeFreigabe is low based of ChargeEnSwitch is low we manipulate some keys
             if not self.localBmsData[bmsName]["ChargeEnSwitch"]:
+                # delete Prozent value because the pack is not fully connected to the system 
+                del self.localBmsData[bmsName]["Prozent"]
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsLadeFreigabe"] = True
         if not self.localBmsData[bmsName]["BmsEntladeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeCurrent"] = 0
-            # delete Prozent value because the pack is not fully connected to the system 
-            del self.localBmsData[bmsName]["Prozent"]
+            # If BmsEntladeFreigabe is low based of DischargeEnSwitch is low we manipulate some keys
             if not self.localBmsData[bmsName]["DischargeEnSwitch"]:
+                # delete Prozent value because the pack is not fully connected to the system 
+                del self.localBmsData[bmsName]["Prozent"]
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsEntladeFreigabe"] = True
         # If FullChgReqTimer is triggered we send one FullChargeRequired request
