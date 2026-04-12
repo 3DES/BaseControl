@@ -55,7 +55,7 @@ class WetterDwd(ThreadObject):
                 self.dwd.update()           # update weather data
                 key = "SunD1"               # we want SunD1 values
                 unit = self.dwd.descriptions[key]["UnitOfMeasurement"]      # get weather data unit (should be seconds)
-                short_list = self.dwd.get_daily_list(key = key, daily_correction = 0, converted = True, noDataFromYesterday = True)
+                short_list = self.dwd.get_daily_list(key = key, daily_correction = 0, converted = True, noOldData = True)
                 sunHours = [round(short_list[key], 1) for key in sorted(short_list.keys())[:self.FORECAST_DAYS]]
 
                 #Supporter.write_data_to_file("output.txt", short_list)

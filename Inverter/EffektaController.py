@@ -68,7 +68,7 @@ class EffektaController(ThreadObject):
         if current >= 100:
             return f"MNCHGC{inverterIndex}{current:03}"
         else:
-            return f"MCHGC{inverterIndex}{current:02}"
+            return f"MUCHGC{inverterIndex}{current:02}"
 
     @classmethod
     def prepareDeviceChargePriorityCmd(cls, inverterIndex : int, chargePrio : str):

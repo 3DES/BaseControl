@@ -429,23 +429,27 @@ class Supporter(object):
 
         @return    True if new value is inside [minValue, maxValue] range on the one side but outside of the ignore range [oldValue - ignoreDelta, oldValue + ignoreDelta]
         '''
-        if dynamic or minValue is None or maxValue is None:
-            valueRange = min(oldValue, newValue)            # ignore delta will be smaller if current value is smaller
-        else:
-            valueRange = abs(maxValue - minValue)           # ignore delta only depends on valid value range but not on current value
-
-        ignoreDelta = valueRange * (percent / 100)
-        ignoreDelta = max(ignoreDelta, minIgnoreDelta)      # ensure a minimum ignore delta size if one has been given
-
-        delta = abs(oldValue - newValue)                    # calculate difference between old an new value to decide if change is inside or outside of the ignore window
-
-        compareResult = (delta >= ignoreDelta) and (delta > 0.0)        # if ignoreDelta is 0.0 ensure a delta of 0.0 is not accepted as change!
-        
-        if minValue is not None and maxValue is not None:
-            compareResult &= (minValue <= newValue <= maxValue)
-
-        #if compareResult:
-        #    Supporter.debugPrint(f"changed (" + (tagName if tagName else "") + f"): {locals()}", color = "LIGHTCYAN", borderSize = 5)
+        if (newValue is None) or (oldValue is None):
+            # if exactly one of the values is None, return True since sth. has changed, but if both values are None, return False since nth. has changed 
+            compareResult = (newValue is not None) or (oldValue is not None)
+        else: 
+            if dynamic or minValue is None or maxValue is None:
+                valueRange = min(oldValue, newValue)            # ignore delta will be smaller if current value is smaller
+            else:
+                valueRange = abs(maxValue - minValue)           # ignore delta only depends on valid value range but not on current value
+    
+            ignoreDelta = valueRange * (percent / 100)
+            ignoreDelta = max(ignoreDelta, minIgnoreDelta)      # ensure a minimum ignore delta size if one has been given
+    
+            delta = abs(oldValue - newValue)                    # calculate difference between old an new value to decide if change is inside or outside of the ignore window
+    
+            compareResult = (delta >= ignoreDelta) and (delta > 0.0)        # if ignoreDelta is 0.0 ensure a delta of 0.0 is not accepted as change!
+            
+            if minValue is not None and maxValue is not None:
+                compareResult &= (minValue <= newValue <= maxValue)
+    
+            #if compareResult:
+            #    Supporter.debugPrint(f"changed (" + (tagName if tagName else "") + f"): {locals()}", color = "LIGHTCYAN", borderSize = 5)
 
         # if given value is valid check if its difference to the old value is greater or equal to +/- ignore delta
         return compareResult

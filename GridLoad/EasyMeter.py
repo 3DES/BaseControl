@@ -89,28 +89,27 @@ class EasyMeter(ThreadObject):
     }
 
     SECONDS_PER_HOUR = 60 * 60      # an hour has 3600 seconds
-    POWER_OFF_LEVEL  = 0            # 0 watts means power OFF
 
     # names to be delivered to home automation
-    DELIVERED_OVERALL_TEXT             = "DeliveredEnergyOverall"
-    RECEIVED_OVERALL_TEXT              = "ReceivedEnergyOverall"
-    CURRENT_POWER_TEXT                 = "CurrentPower"
-    CURRENT_POWER_L1_TEXT              = "CurrentPowerL1"
-    CURRENT_POWER_L2_TEXT              = "CurrentPowerL2"
-    CURRENT_POWER_L3_TEXT              = "CurrentPowerL3"
-    GRID_VOLTAGE_L1_TEXT               = "GridVoltageL1"
-    GRID_VOLTAGE_L2_TEXT               = "GridVoltageL2"
-    GRID_VOLTAGE_L3_TEXT               = "GridVoltageL3"
-    DELIVERED_TODAY_TEXT               = "DeliveredEnergyToday"
-    RECEIVED_TODAY_TEXT                = "ReceivedEnergyToday"
-    DELIVERED_TODAY_STARTVALUE_TEXT    = "DeliveredEnergyStartValueToday"
-    RECEIVED_TODAY_STARTVALUE_TEXT     = "ReceivedEnergyStartValueToday"
-    TODAYS_DATE_TEXT                   = "EnergyStartValuesDate"
+    DELIVERED_OVERALL_TEXT          = "DeliveredEnergyOverall"
+    RECEIVED_OVERALL_TEXT           = "ReceivedEnergyOverall"
+    CURRENT_POWER_TEXT              = "CurrentPower"
+    CURRENT_POWER_L1_TEXT           = "CurrentPowerL1"
+    CURRENT_POWER_L2_TEXT           = "CurrentPowerL2"
+    CURRENT_POWER_L3_TEXT           = "CurrentPowerL3"
+    GRID_VOLTAGE_L1_TEXT            = "GridVoltageL1"
+    GRID_VOLTAGE_L2_TEXT            = "GridVoltageL2"
+    GRID_VOLTAGE_L3_TEXT            = "GridVoltageL3"
+    DELIVERED_TODAY_TEXT            = "DeliveredEnergyToday"
+    RECEIVED_TODAY_TEXT             = "ReceivedEnergyToday"
+    DELIVERED_TODAY_STARTVALUE_TEXT = "DeliveredEnergyStartValueToday"
+    RECEIVED_TODAY_STARTVALUE_TEXT  = "ReceivedEnergyStartValueToday"
+    TODAYS_DATE_TEXT                = "EnergyStartValuesDate"
 
-    DELIVERED_CURRENT_PERIOD_TEXT      = "PeriodDeliveredEnergyCurrent"
-    RECEIVED_CURRENT_PERIOD_TEXT       = "PeriodReceivedEnergyCurrent"
-    ENERGY_SURPLUS_CURRENT_PERIOD_TEXT = "PeriodEnergySurplusCurrent"
-    TIMESTAMP_NEWEST_MESSAGE           = "PeriodTimeNewestMessage"
+    DELIVERED_CURRENT_PERIOD_TEXT   = "PeriodDeliveredEnergyCurrent"
+    RECEIVED_CURRENT_PERIOD_TEXT    = "PeriodReceivedEnergyCurrent"
+    SURPLUS_CURRENT_PERIOD_TEXT     = "PeriodSurplusEnergyCurrent"
+    TIMESTAMP_NEWEST_MESSAGE        = "PeriodTimeNewestMessage"
 
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
@@ -128,10 +127,10 @@ class EasyMeter(ThreadObject):
 
         # data for easy meter message to be sent out to worker thread
         self.energyData = {
-            self.DELIVERED_CURRENT_PERIOD_TEXT      : None,      # newest received energy value (it could happen that after 15 minutes a damaged message has been received, in that case we have nothing to calculate, so store each received value)
-            self.RECEIVED_CURRENT_PERIOD_TEXT       : None,      # newest received delivered energy value (it could happen that after 15 minutes a damaged message has been received, in that case we have nothing to calculate, so store each received value)
-            self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT : None,      # surplus of energy in current period, it's positive if more energy has been delivered than received
-            self.TIMESTAMP_NEWEST_MESSAGE           : None,      # timestamp when newest message has been received
+            self.DELIVERED_CURRENT_PERIOD_TEXT : None,      # newest received energy value (it could happen that after 15 minutes a damaged message has been received, in that case we have nothing to calculate, so store each received value)
+            self.RECEIVED_CURRENT_PERIOD_TEXT  : None,      # newest received delivered energy value (it could happen that after 15 minutes a damaged message has been received, in that case we have nothing to calculate, so store each received value)
+            self.SURPLUS_CURRENT_PERIOD_TEXT   : None,      # surplus of energy in current period, it's positive if more energy has been delivered than received
+            self.TIMESTAMP_NEWEST_MESSAGE      : None,      # timestamp when newest message has been received
         }
 
         # check and prepare mandatory parameters
@@ -145,8 +144,8 @@ class EasyMeter(ThreadObject):
 
 
     def threadInitMethod(self):
-        self.homeAutomationValues = { self.DELIVERED_OVERALL_TEXT : 0,     self.RECEIVED_OVERALL_TEXT : 0,     self.CURRENT_POWER_TEXT : 0  , self.CURRENT_POWER_L1_TEXT : 0  , self.CURRENT_POWER_L2_TEXT : 0  , self.CURRENT_POWER_L3_TEXT : 0  , self.DELIVERED_CURRENT_PERIOD_TEXT : 0,    self.RECEIVED_CURRENT_PERIOD_TEXT : 0,    self.GRID_VOLTAGE_L1_TEXT : 0,   self.GRID_VOLTAGE_L2_TEXT : 0,   self.GRID_VOLTAGE_L3_TEXT : 0,   self.DELIVERED_TODAY_TEXT : 0,    self.RECEIVED_TODAY_TEXT : 0,    self.DELIVERED_TODAY_STARTVALUE_TEXT : 0,     self.RECEIVED_TODAY_STARTVALUE_TEXT : 0,     self.TODAYS_DATE_TEXT : -1 }
-        homeAutomationUnits       = { self.DELIVERED_OVERALL_TEXT : "kWh", self.RECEIVED_OVERALL_TEXT : "kWh", self.CURRENT_POWER_TEXT : "W", self.CURRENT_POWER_L1_TEXT : "W", self.CURRENT_POWER_L2_TEXT : "W", self.CURRENT_POWER_L3_TEXT : "W", self.DELIVERED_CURRENT_PERIOD_TEXT : "Wh", self.RECEIVED_CURRENT_PERIOD_TEXT : "Wh", self.GRID_VOLTAGE_L1_TEXT : "V", self.GRID_VOLTAGE_L2_TEXT : "V", self.GRID_VOLTAGE_L3_TEXT : "V", self.DELIVERED_TODAY_TEXT : "Wh", self.RECEIVED_TODAY_TEXT : "Wh", self.DELIVERED_TODAY_STARTVALUE_TEXT : "kWh", self.RECEIVED_TODAY_STARTVALUE_TEXT : "kWh",                       }
+        self.homeAutomationValues = { self.DELIVERED_OVERALL_TEXT : 0,     self.RECEIVED_OVERALL_TEXT : 0,     self.CURRENT_POWER_TEXT : 0  , self.CURRENT_POWER_L1_TEXT : 0  , self.CURRENT_POWER_L2_TEXT : 0  , self.CURRENT_POWER_L3_TEXT : 0  , self.DELIVERED_CURRENT_PERIOD_TEXT : 0,   self.RECEIVED_CURRENT_PERIOD_TEXT : 0,   self.SURPLUS_CURRENT_PERIOD_TEXT : 0,   self.GRID_VOLTAGE_L1_TEXT : 0,   self.GRID_VOLTAGE_L2_TEXT : 0,   self.GRID_VOLTAGE_L3_TEXT : 0,   self.DELIVERED_TODAY_TEXT : 0,    self.RECEIVED_TODAY_TEXT : 0,    self.DELIVERED_TODAY_STARTVALUE_TEXT : 0,     self.RECEIVED_TODAY_STARTVALUE_TEXT : 0,     self.TODAYS_DATE_TEXT : -1 }
+        homeAutomationUnits       = { self.DELIVERED_OVERALL_TEXT : "kWh", self.RECEIVED_OVERALL_TEXT : "kWh", self.CURRENT_POWER_TEXT : "W", self.CURRENT_POWER_L1_TEXT : "W", self.CURRENT_POWER_L2_TEXT : "W", self.CURRENT_POWER_L3_TEXT : "W", self.DELIVERED_CURRENT_PERIOD_TEXT : "W", self.RECEIVED_CURRENT_PERIOD_TEXT : "W", self.SURPLUS_CURRENT_PERIOD_TEXT : "W", self.GRID_VOLTAGE_L1_TEXT : "V", self.GRID_VOLTAGE_L2_TEXT : "V", self.GRID_VOLTAGE_L3_TEXT : "V", self.DELIVERED_TODAY_TEXT : "Wh", self.RECEIVED_TODAY_TEXT : "Wh", self.DELIVERED_TODAY_STARTVALUE_TEXT : "kWh", self.RECEIVED_TODAY_STARTVALUE_TEXT : "kWh",                       }
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
@@ -380,29 +379,31 @@ class EasyMeter(ThreadObject):
         Takes the current energy values and calculates the period information (e.g. the received and delivered energy within the last 15 minutes)
         '''
         self.energyData[self.TIMESTAMP_NEWEST_MESSAGE] = Supporter.getTimeStamp() if manipulatedTimestamp is None else manipulatedTimestamp
-        self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] = self.accumulate(
+        self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] = self.accumulator(
             name = "periodDeliveredEnergyAccumulator",
             value = float(self.energyData[self.DELIVERED_ENERGY_KEY]),
             period = self.configuration["loadCycle"],
             absolute = True,
             maxRefAge = self.configuration["loadCycle"],
-            timeValue = manipulatedTimestamp
+            timeValue = manipulatedTimestamp,
+            convert = 1000 * self.SECONDS_PER_HOUR / self.configuration["loadCycle"]         # will convert kWh into W
         )
-        self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT] = self.accumulate(
+        self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT] = self.accumulator(
             name = "periodReceivedEnergyAccumulator",
             value = float(self.energyData[self.RECEIVED_ENERGY_KEY]),
             period = self.configuration["loadCycle"],
             absolute = True,
             maxRefAge = self.configuration["loadCycle"],
-            timeValue = manipulatedTimestamp
+            timeValue = manipulatedTimestamp,
+            convert = 1000 * self.SECONDS_PER_HOUR / self.configuration["loadCycle"]         # will convert kWh into W
         )
         
         if self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] is None or self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT] is None: 
-            self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT]      = None
-            self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]       = None
-            self.energyData[self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT] = None
+            self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] = None
+            self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]  = None
+            self.energyData[self.SURPLUS_CURRENT_PERIOD_TEXT]   = None
         else:
-            self.energyData[self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT] = self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] - self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]
+            self.energyData[self.SURPLUS_CURRENT_PERIOD_TEXT] = self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] - self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]
 
 
     def receiveGridMeterMessage(self):
@@ -413,7 +414,7 @@ class EasyMeter(ThreadObject):
         messageError = True
         
         # timeout timer in case no new message or only invalid messages arrive
-        timeout = self.timer("periodEnergyTimeout", startTime = Supporter.getTimeOfDay(), timeout = self.configuration["loadCycle"])
+        timeout = self.timer("periodEnergyTimeout", startTime = Supporter.getTimeOfToday(), timeout = self.configuration["loadCycle"])
 
         if not self.easyMeterInterfaceQueue.empty():
             while not self.easyMeterInterfaceQueue.empty():
@@ -424,19 +425,19 @@ class EasyMeter(ThreadObject):
                 messageError = self.processReceivedMessage(data)            # fill variables from message content (if message is OK)
 
                 if not messageError:
-                    calculatePeriodEnergyValues()
+                    self.calculatePeriodEnergyValues()
 
                     # retrigger timeout timer
                     self.timer("periodEnergyTimeout")
 
         # timeout because no new easymeter message received?
         if timeout:
-            self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT]      = None
-            self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]       = None
-            self.energyData[self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT] = None
+            self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] = None
+            self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]  = None
+            self.energyData[self.SURPLUS_CURRENT_PERIOD_TEXT]   = None
             
 
-        Supporter.debugPrint(f"energy data = {self.energyData}")
+        #Supporter.debugPrint(f"energy data = {self.energyData}")
 
 
     def prepareHomeAutomation(self, force : bool = False):
@@ -449,17 +450,31 @@ class EasyMeter(ThreadObject):
                 return False
 
         # update values from easymeter
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_OVERALL_TEXT,          self.energyData[self.RECEIVED_ENERGY_KEY],                                   compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.RECEIVED_OVERALL_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_OVERALL_TEXT,         self.energyData[self.DELIVERED_ENERGY_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.DELIVERED_OVERALL_TEXT        ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_TEXT,             self.energyData[self.CURRENT_POWER_KEY],             compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_TEXT            ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L1_TEXT,          self.energyData[self.CURRENT_POWER_L1_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L1_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L2_TEXT,          self.energyData[self.CURRENT_POWER_L2_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L2_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L3_TEXT,          self.energyData[self.CURRENT_POWER_L3_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L3_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_CURRENT_PERIOD_TEXT,  self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.DELIVERED_CURRENT_PERIOD_TEXT ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_CURRENT_PERIOD_TEXT,   self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT],  compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.RECEIVED_CURRENT_PERIOD_TEXT  ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L1_TEXT,           self.energyData[self.L1_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L1_TEXT          ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L2_TEXT,           self.energyData[self.L2_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L2_TEXT          ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L3_TEXT,           self.energyData[self.L3_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L3_TEXT          ), force = force)
+        rememberChanged = []
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_OVERALL_TEXT,         self.energyData[self.RECEIVED_ENERGY_KEY],                                   compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.RECEIVED_OVERALL_TEXT         ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_OVERALL_TEXT,        self.energyData[self.DELIVERED_ENERGY_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.DELIVERED_OVERALL_TEXT        ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_TEXT,            self.energyData[self.CURRENT_POWER_KEY],             compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_TEXT            ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L1_TEXT,         self.energyData[self.CURRENT_POWER_L1_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L1_TEXT         ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L2_TEXT,         self.energyData[self.CURRENT_POWER_L2_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L2_TEXT         ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L3_TEXT,         self.energyData[self.CURRENT_POWER_L3_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L3_TEXT         ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_CURRENT_PERIOD_TEXT, self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.DELIVERED_CURRENT_PERIOD_TEXT ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_CURRENT_PERIOD_TEXT,  self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT],  compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.RECEIVED_CURRENT_PERIOD_TEXT  ), force = force)
+        rememberChanged.append(changed)                                                                                                                                  
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.SURPLUS_CURRENT_PERIOD_TEXT,   self.energyData[self.SURPLUS_CURRENT_PERIOD_TEXT],   compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.SURPLUS_CURRENT_PERIOD_TEXT   ), force = force)
+        rememberChanged.append(changed)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L1_TEXT,          self.energyData[self.L1_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L1_TEXT          ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L2_TEXT,          self.energyData[self.L2_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L2_TEXT          ), force = force)
+        rememberChanged.append(changed)                                                                                                                                                                                                                                                                                   
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L3_TEXT,          self.energyData[self.L3_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L3_TEXT          ), force = force)
+        rememberChanged.append(changed)
 
         # update calculated values
         today = Supporter.getDate()            # today's date without time
@@ -470,6 +485,7 @@ class EasyMeter(ThreadObject):
             self.homeAutomationValues[self.TODAYS_DATE_TEXT] = today
             changed = True
             #Supporter.debugPrint(f"changed (self.TODAYS_DATE_TEXT)", color = "LIGHTCYAN", borderSize = 5)
+        rememberChanged.append(changed)
 
         changedTimerName = "changedTimer"
         changedTimerTimeout = 10
@@ -482,6 +498,7 @@ class EasyMeter(ThreadObject):
         todayReceivedChanged  = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_TODAY_TEXT,           todayDelivered,                                                     compareMethod = compareWithTimer, force = force)
         todayDeliveredChanged = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_TODAY_TEXT,            todayReceived,                                                      compareMethod = compareWithTimer, force = force)
         changed = changed or todayReceivedChanged or todayDeliveredChanged
+        rememberChanged.append(changed)
 
         #if todayReceivedChanged:
         #    Supporter.debugPrint(f"changed (self.RECEIVED_OVERALL_TEXT)", color = "LIGHTCYAN", borderSize = 5)
@@ -491,6 +508,8 @@ class EasyMeter(ThreadObject):
         if changed:
             # remember publish time and reset timer
             self.timer(name = changedTimerName, timeout = changedTimerTimeout, reSetup = True)
+            #Supporter.debugPrint(f"changed because of {rememberChanged}")
+            Supporter.debugPrint(f"energy data = {self.energyData}\nreason = {rememberChanged.index(True)}")
 
         return changed
 
@@ -576,13 +595,13 @@ if __name__ == "__main__":
 
     ####timeValue = 1
     ####for turn in range(1,20):
-    ####    #result = testObject.accumulate("foo", round(random.uniform(0, 3), 2), period = 4, timeValue = timeValue)
-    ####    #result = testObject.accumulate("foo", turn, period = 4, timeValue = timeValue)     # sum up last 4 entries
-    ####    #result = testObject.accumulate("foo", turn, period = 4, maxRefAge = 1.5, timeValue = timeValue)     # sum up last 4 entries
-    ####    #result = testObject.accumulate("foo", turn, absolute = True, period = 4, timeValue = timeValue)
-    ####    #result = testObject.accumulate("foo", turn * 2, absolute = True, period = 8, timeValue = timeValue * 2)
-    ####    #result = testObject.accumulate("foo", turn * 2, absolute = True, multiplyTime = True, period = 8, timeValue = timeValue * 2)
-    ####    result = testObject.accumulate(name = "foo", value = turn * 2, period = 8, absolute = True, multiplyTime = True, maxRefAge = 1.5, timeValue = timeValue * 2)
+    ####    #result = testObject.accumulator("foo", round(random.uniform(0, 3), 2), period = 4, timeValue = timeValue)
+    ####    #result = testObject.accumulator("foo", turn, period = 4, timeValue = timeValue)     # sum up last 4 entries
+    ####    #result = testObject.accumulator("foo", turn, period = 4, maxRefAge = 1.5, timeValue = timeValue)     # sum up last 4 entries
+    ####    #result = testObject.accumulator("foo", turn, absolute = True, period = 4, timeValue = timeValue)
+    ####    #result = testObject.accumulator("foo", turn * 2, absolute = True, period = 8, timeValue = timeValue * 2)
+    ####    #result = testObject.accumulator("foo", turn * 2, absolute = True, multiplyTime = True, period = 8, timeValue = timeValue * 2)
+    ####    result = testObject.accumulator(name = "foo", value = turn * 2, period = 8, absolute = True, multiplyTime = True, maxRefAge = 1.5, timeValue = timeValue * 2)
     ####    print(result)
     ####
     ####    timeValue += 1

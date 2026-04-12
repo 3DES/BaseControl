@@ -528,7 +528,7 @@ class Base():
                     return False or (setupTurn and firstTimeTrue)
 
 
-    def accumulate(self, name : str, value, period : int = None, absolute : bool = False, multiplyTime : bool = False, maxRefAge : int = None, timeValue : float = None):
+    def accumulator(self, name : str, value, period : int = None, absolute : bool = False, multiplyTime : bool = False, maxRefAge : int = None, timeValue : float = None, convert : float = None):
         '''
         To create and handle a power accumulator that gets power values (or any other kind of values that have to be accumulated) and adds them optionally multiplied by their duration times
         If the accumulator is set up for absolute calculation an initial power value can be given if the initial reference value is not 0
@@ -546,6 +546,7 @@ class Base():
         @param maxRefAge            older values will be removed but the newest one of them will be used as new reference value, if too old references should not be taken a maximum age for the reference can be given here, e.g. 100 will take a reference if it is not older than "100s + period"
                                     this value is only needed for setup and will be ignored during all other calls
         @param timeValue            usually not needed since current time in seconds is used as timestamp but especially for debugging it's useful to give own time values
+        @param convert              a value can be given that is multiplied with the final result, so e.g. if you af a unit of "kWh/4" and time is always in seconds you can convert "W" be giving (1000 * 60 * 60) / (15 * 60)
         @return                     returns the amount of calculated energy so far, to read energy value only the given power should be 0
         '''
         VALUE_INDEX = 0
@@ -554,13 +555,10 @@ class Base():
         if type(name) != str or len(name) == 0:
             raise Exception(f"Accumulator needs a name!")
 
-        if timeValue is None:
-            timeValue = Supporter.getTimeStamp()
-
         if not self.accumulatorExists(name):
             if period is None:
                 raise Exception("Accumulator needs a period to be set up")
-    
+
             # create new accumulator
             self._createAccumulator(name, {
                 "values"        : [],            # contains all data values and time stamps
@@ -571,6 +569,9 @@ class Base():
                 "maxRefAge"     : maxRefAge,
             })
         accumulatorDict = self._getAccumulator(name) 
+
+        if timeValue is None:
+            timeValue = Supporter.getTimeStamp()
 
         # add new value
         accumulatorDict["values"].append([value, timeValue])
@@ -604,14 +605,17 @@ class Base():
         else:
             for entry in accumulatorDict["values"]:
                 multiplyer = 1 if not multiplyTime else entry[TIME_INDEX] - previousEntry[TIME_INDEX]        # multiplyer = time delta since previous entry
-    
+
                 sum += entry[VALUE_INDEX] * multiplyer
-    
+
                 previousEntry = entry
 
         if (len(accumulatorDict["values"]) == 1) and (accumulatorDict["values"][0] == accumulatorDict["reference"]) and (multiplyTime or absolute):
             # to set accumulatorDict["reference"] = accumulatorDict["values"][0] makes things much easier but if the reference value is identical with the only stored value and it's used because of "absolute" or "multiplyTime" then None should be returned instead of 0 because otherwise it's not possible for a caller to decide if the energy sum is 0 or is unknown
             sum = None
+
+        if (convert is not None) and (sum is not None):
+            sum *= convert
 
         return sum
 

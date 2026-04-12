@@ -3,7 +3,7 @@ import zipfile
 import io
 import xmltodict
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Union
 
 
@@ -162,6 +162,12 @@ class DWD:
     def get_date(self, time_stamp : str):
         return datetime.strptime(time_stamp, "%Y-%m-%dT%H:%M:%S.%fZ").date()
 
+    def get_time(self, time_stamp : str):
+        '''
+        Return current time but with minuts and seconds set to 0, so get "current hour"
+        '''
+        return str(datetime.strptime(time_stamp, "%Y-%m-%dT%H:%M:%S.%fZ").time().hour) + ":00:00.000Z"
+
     def correct_date(self, time_stamp : Union[datetime, str], daily_correction : int = 0):
         back_to_string = False
         if isinstance(time_stamp, str):
@@ -241,7 +247,7 @@ class DWD:
                     compressed_list[self.correct_date(time_stamp, daily_correction)] = float(self.values[key][index])
         return compressed_list
 
-    def get_daily_list(self, key : str, daily_correction : int = 0, converted : bool = False, noDataFromYesterday : bool = False):
+    def get_daily_list(self, key : str, daily_correction : int = 0, converted : bool = False, noOldData : bool = False):
         '''
         Takes all entries of a given key and creates a list with only one entry per day, all partial entries are summed up
         @param daily_correction:    time stamps in list will be corrected if given, value is in whole days, -1 will correct each time stamp to the day before, +1 will correct each time stamp to the day after
@@ -249,19 +255,23 @@ class DWD:
         # sum up value
         if self.get_unit(key) not in ["s", "kJ/m2"]:        # others usually don't make sense to create a daily list out of, i.e. K means sum all up and subtract 273.15 makes absolutely no sense!
             return {}
-        if noDataFromYesterday:
-            currentDay = datetime.now().date()
+        if noOldData:
+            currentDay = datetime.now(timezone.utc).date()      # DWD values are given in Zulu time (UTC) so also use Zulu time here!
+            currentTime = self.get_time(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
         else:
             currentDay = self.get_date(self.time_stamps[0])     # get the first time stamp from the values list, it's always the same since there is only one time stamp list
+            currentTime = None
         sum = 0
         daily_list = {}
         summed_up_this_day = False      # important, because get_compressed_list() will throw away whole days if there are only "-" values so get_daily_list() should have the same behavior
-        self.time_stamps[0] = "2026-04-05T10:00:00.000Z"
         for index, time_stamp in enumerate(self.time_stamps):
             elementDay = self.get_date(time_stamp)
             if elementDay < currentDay:
                 continue
+            elementTime = self.get_time(time_stamp)
             if elementDay == currentDay:
+                if currentTime is not None and elementTime < currentTime:
+                    continue 
                 if self.values[key][index] != "-":
                     sum += float(self.values[key][index])
                     summed_up_this_day = True
@@ -284,6 +294,7 @@ class DWD:
                         daily_list[self.correct_date(elementDay, daily_correction)] = sum      # last element is from next day, so it has to be handled separatey because in that case code will not return to this position!
                     summed_up_this_day = False
                 currentDay = elementDay
+                currentTime = None          # there is no old data on a new day...
         return daily_list
 
 
@@ -346,7 +357,7 @@ def main():
             print("------------------")
 
             if short:
-                short_list = dwd.get_daily_list(key, daily_correction, converted = convert, noDataFromYesterday = True)
+                short_list = dwd.get_daily_list(key, daily_correction, converted = convert, noOldData = True)
                 for time_stamp in sorted(short_list.keys())[:elements]:
                     unit = dwd.get_converted_unit(key) if convert else dwd.get_unit(key)
                     print(f"{time_stamp}: {short_list[time_stamp]:.1f} {unit}")
