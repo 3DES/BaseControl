@@ -1,9 +1,22 @@
 import time
 from Base.ThreadObject import ThreadObject
 from Base.Supporter import Supporter
-from Weather.DWD import DWD
+
+try:
+    from Weather.DWD import DWD
+except ImportError:
+    from DWD import DWD
+
+
 
 class WetterDwd(ThreadObject):
+    DAY_PREFIX = "Tag_"
+    FORECAST_DAYS = 7
+    REQUEST_TIME = 4*60*60   # We request all 4 hours
+    SLEEP_TIME = 30
+
+
+
     '''
     classdocs
     '''
@@ -12,9 +25,6 @@ class WetterDwd(ThreadObject):
         Constructor
         '''
         super().__init__(threadName, configuration)
-        self.DAY_PREFIX = "Tag_"
-        self.FORECAST_DAYS = 7
-        self.REQUEST_TIME = 4*60*60   # We request all 4 hours
         self.tagsIncluded(["DwdStationId"])
         self.dwd = DWD(self.configuration["DwdStationId"])
         self.removeMqttRxQueue()        # mqttRxQueue has to be removed if it's not needed!
@@ -33,9 +43,11 @@ class WetterDwd(ThreadObject):
             if equalSubKey in str(nestedDict[key]):
                 self.homeAutomation.mqttDiscoverySensor([f"{key}.{equalSubKey}"], unitDict = {f"{key}.{equalSubKey}" : "h"})
 
+
     def threadInitMethod(self):
         self.wetterdaten = {}
         self.initWeather = True
+
 
     def threadMethod(self):
         if self.timer(name = "Wetterabfrage", startTime = Supporter.getTimeOfToday(hour = 1), firstTimeTrue = True, autoReset = True, timeout = self.REQUEST_TIME):
@@ -43,8 +55,15 @@ class WetterDwd(ThreadObject):
                 self.dwd.update()           # update weather data
                 key = "SunD1"               # we want SunD1 values
                 unit = self.dwd.descriptions[key]["UnitOfMeasurement"]      # get weather data unit (should be seconds)
-                short_list = self.dwd.get_daily_list(key = key, daily_correction = 0, converted = True)
+                short_list = self.dwd.get_daily_list(key = key, daily_correction = 0, converted = True, noDataFromYesterday = True)
                 sunHours = [round(short_list[key], 1) for key in sorted(short_list.keys())[:self.FORECAST_DAYS]]
+
+                #Supporter.write_data_to_file("output.txt", short_list)
+                #Supporter.write_data_to_file("output.txt", sunHours, "sun hours")
+                #Supporter.write_data_to_file("output.txt", self.dwd.get_raw_values([key, "Rad1h", "TTT", "SunD"]), "data")
+                #Supporter.write_data_to_file("raw_weather_data.txt", self.dwd.get_raw_values(key))
+                #Supporter.write_data_to_file("raw_weather_data.csv", self.dwd.get_combined_values([key, "Rad1h", "TTT", "SunD"]))
+                
                 self.wetterdaten.update(self.getWeatherDict(sunHours))
             except Exception as e:
                 self.logger.error(self, f"Wetter Daten konnten nicht geholt werden! {e}")
@@ -61,4 +80,25 @@ class WetterDwd(ThreadObject):
 
 
     def threadBreak(self):
-        time.sleep(30)
+        time.sleep(self.SLEEP_TIME)
+
+
+
+if __name__ == "__main__":
+    from Logger.Logger import Logger
+    loggerConfiguration = {
+        "projectName": "AccuTester",
+        "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover",
+        "homeAutomationPrefix": "X1"    
+    }
+    WetterDwd.logger = Logger(threadName = "Logger", configuration = loggerConfiguration, interfaceQueues = None)
+
+    configuration = { "DwdStationId": "10384" }
+    wetter = WetterDwd(threadName = "Wetter", configuration = configuration)
+    WetterDwd.REQUEST_TIME = 5
+    WetterDwd.SLEEP_TIME = 1
+    wetter.threadInitMethod()
+
+    while True:
+        wetter.threadMethod()
+        wetter.threadBreak()

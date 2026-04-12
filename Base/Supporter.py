@@ -132,7 +132,7 @@ class Supporter(object):
 
 
     @classmethod
-    def getTimeOfToday(cls, year : int = None, month : int = None, day : int = None, hour : int = 0, minute : int = 0, second : int = 0):
+    def getTimeOfToday(cls, year : int = None, month : int = None, day : int = None, hour : int = 0, minute : int = 0, second : int = 0) -> int:
         '''
         Time of today 0 o'clock if no value has been given otherwise the time of today at given time
         '''
@@ -758,3 +758,25 @@ class Supporter(object):
 
         return compareValue | toBeSet
 
+    
+    @classmethod
+    def write_data_to_file(cls, filename : str, data, header : str = None):
+        # Custom function to handle datetime objects inside write_data_to_file
+        def datetime_handler(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()  # Convert datetime to ISO 8601 string
+            raise TypeError(f"Type {type(obj)} not serializable")  # Raise error for non-serializable types
+
+        # Get the current time
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Open the file in append mode
+        with open(filename, "a") as f:
+            # Write separator, current time, and data
+            f.write("#################################\n")
+            if header is not None:
+                f.write("## " + header + "\n")
+            f.write(f"Time: {current_time}\n")
+            # Use the custom datetime handler, fallback to default for others
+            f.write(f"Data: {json.dumps(data, default=datetime_handler, ensure_ascii=True, indent=4)}\n")
+            f.write("#################################\n\n")

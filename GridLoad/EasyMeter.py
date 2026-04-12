@@ -92,22 +92,25 @@ class EasyMeter(ThreadObject):
     POWER_OFF_LEVEL  = 0            # 0 watts means power OFF
 
     # names to be delivered to home automation
-    DELIVERED_OVERALL_TEXT          = "DeliveredEnergyOverall"
-    RECEIVED_OVERALL_TEXT           = "ReceivedEnergyOverall"
-    CURRENT_POWER_TEXT              = "CurrentPower"
-    CURRENT_POWER_L1_TEXT           = "CurrentPowerL1"
-    CURRENT_POWER_L2_TEXT           = "CurrentPowerL2"
-    CURRENT_POWER_L3_TEXT           = "CurrentPowerL3"
-    DELIVERED_LAST_15_MINUTES_TEXT  = "DeliveredEnergyLast15Minutes"
-    RECEIVED_LAST_15_MINUTES_TEXT   = "ReceivedEnergyLast15Minutes"
-    GRID_VOLTAGE_L1_TEXT            = "GridVoltageL1"
-    GRID_VOLTAGE_L2_TEXT            = "GridVoltageL2"
-    GRID_VOLTAGE_L3_TEXT            = "GridVoltageL3"
-    DELIVERED_TODAY_TEXT            = "DeliveredEnergyToday"
-    RECEIVED_TODAY_TEXT             = "ReceivedEnergyToday"
-    DELIVERED_TODAY_STARTVALUE_TEXT = "DeliveredEnergyStartValueToday"
-    RECEIVED_TODAY_STARTVALUE_TEXT  = "ReceivedEnergyStartValueToday"
-    TODAYS_DATE_TEXT                = "EnergyStartValuesDate"
+    DELIVERED_OVERALL_TEXT             = "DeliveredEnergyOverall"
+    RECEIVED_OVERALL_TEXT              = "ReceivedEnergyOverall"
+    CURRENT_POWER_TEXT                 = "CurrentPower"
+    CURRENT_POWER_L1_TEXT              = "CurrentPowerL1"
+    CURRENT_POWER_L2_TEXT              = "CurrentPowerL2"
+    CURRENT_POWER_L3_TEXT              = "CurrentPowerL3"
+    GRID_VOLTAGE_L1_TEXT               = "GridVoltageL1"
+    GRID_VOLTAGE_L2_TEXT               = "GridVoltageL2"
+    GRID_VOLTAGE_L3_TEXT               = "GridVoltageL3"
+    DELIVERED_TODAY_TEXT               = "DeliveredEnergyToday"
+    RECEIVED_TODAY_TEXT                = "ReceivedEnergyToday"
+    DELIVERED_TODAY_STARTVALUE_TEXT    = "DeliveredEnergyStartValueToday"
+    RECEIVED_TODAY_STARTVALUE_TEXT     = "ReceivedEnergyStartValueToday"
+    TODAYS_DATE_TEXT                   = "EnergyStartValuesDate"
+
+    DELIVERED_CURRENT_PERIOD_TEXT      = "PeriodDeliveredEnergyCurrent"
+    RECEIVED_CURRENT_PERIOD_TEXT       = "PeriodReceivedEnergyCurrent"
+    ENERGY_SURPLUS_CURRENT_PERIOD_TEXT = "PeriodEnergySurplusCurrent"
+    TIMESTAMP_NEWEST_MESSAGE           = "PeriodTimeNewestMessage"
 
 
     def __init__(self, threadName : str, configuration : dict, interfaceQueues : dict = None):
@@ -116,65 +119,34 @@ class EasyMeter(ThreadObject):
         '''
         # for easier interface message handling use an extra queue
         self.easyMeterInterfaceQueue = Queue()
-        
+
         # all messages published by our interfaces will be sent to our one interface queue
         super().__init__(threadName, configuration, interfaceQueues = {None : self.easyMeterInterfaceQueue})
 
 
         # initialize object variables...
-        # dictionary to hold process data that are used to decide if and how much power can be used to load the batteries
-        self.energyProcessData = {
-            "currentEnergyLevel"     : 0,       # amount of collected energy within the last 15 minutes
-            "lastEnergyLevel"        : 0,       # amount of collected energy within the 15 minutes before 
-            "currentEnergyTimestamp" : 0,       # time stamp when the last energy message has been received (for grid loss detection)
-            "messageTimestamp"       : 0,       # time when last message with surplus energy information has been sent out
-            "gridLossDetected"       : True,    # set to be True when a grid loss has been detected (that is when started up or when seconds since last energy message is more than "gridLossThreshold")
-        }
 
         # data for easy meter message to be sent out to worker thread
         self.energyData = {
-            "validMessages"              : 0,      # we need an initial value here, otherwise "+= 1" will fail!
-            "invalidMessages"            : 0,      # we need an initial value here, otherwise "+= 1" will fail!
-            "lastInvalidMessageTimeStamp": 0,      # time last invalid message has been detected
-            "invalidMessageError"        : 0,      # reason why the last message has been detected as invalid, e.g. "invalid CRC", "value not found", "value found twice"
-
-            "allowedPower"               : 0,      # allowed power to be taken from the grid to load the batteries (inverter thread has to calculate proper current with known battery voltage)
-            "allowedReduction"           : 0,      # allowed reduction used for allowed power level (has already been subtracted from allowedPoer!)
-            "allowedTimestamp"           : 0,      # time stamp when allowed power has been set for the first time
-
-            "previousPower"              : 0,      # previous allowed power, for logging
-            "previousReduction"          : 0,      # reduction used for previous power level (has already been subtracted!)
-            "previousTimestamp"          : 0,      # time stamp when the previous power has been taken
-
-            "updatePowerValue"           : False,  # set to True in the one message every "loadCycle" seconds to inform the worker thread that an update should be done now 
+            self.DELIVERED_CURRENT_PERIOD_TEXT      : None,      # newest received energy value (it could happen that after 15 minutes a damaged message has been received, in that case we have nothing to calculate, so store each received value)
+            self.RECEIVED_CURRENT_PERIOD_TEXT       : None,      # newest received delivered energy value (it could happen that after 15 minutes a damaged message has been received, in that case we have nothing to calculate, so store each received value)
+            self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT : None,      # surplus of energy in current period, it's positive if more energy has been delivered than received
+            self.TIMESTAMP_NEWEST_MESSAGE           : None,      # timestamp when newest message has been received
         }
 
         # check and prepare mandatory parameters
-        self.tagsIncluded(["loadCycle", "gridLossThreshold", "decreasingDelta", "increasingDelta", "minimumPowerStep"], intIfy = True)
+        self.tagsIncluded(["messageInterval"], intIfy = True, optional = True, default = 60)            # 1 minute
+        self.tagsIncluded(["loadCycle"],       intIfy = True, optional = True, default = 60 * 15)       # 15 minutes
 
-        self.tagsIncluded(["messageInterval"], intIfy = True, optional = True, default = 60)
-
-        if (self.configuration["loadCycle"] // self.configuration["messageInterval"]) <= 1:
-            raise Exception(f"loadCycle must to be larger than messageInterval =={self.configuration['messageInterval']}") 
-
-        if ((self.configuration["loadCycle"] // self.configuration["messageInterval"]) * self.configuration["messageInterval"]) != self.configuration["loadCycle"]:  
+        if self.configuration["loadCycle"] % self.configuration["messageInterval"] != 0:
             raise Exception(f"loadCycle has to be an integer multiple of messageInterval")
-
-        if self.configuration["loadCycle"] <= (4 * self.configuration["gridLossThreshold"]):
-            raise Exception(f"loadCycle has to be at least 4 times gridLossThresold")
-
-        if self.configuration["gridLossThreshold"] <= 0:
-            raise Exception(f"gridLossThresold must be larger than 0 seconds")
-
-        if self.configuration["minimumPowerStep"] < 100:
-            raise Exception(f"minimumPowerStep must be at least 100 watts")
 
         self.removeMqttRxQueue()        # mqttRxQueue has to be removed if it's not needed!
 
 
     def threadInitMethod(self):
-        self.homeAutomationValues = { self.DELIVERED_OVERALL_TEXT : 0,     self.RECEIVED_OVERALL_TEXT : 0,     self.CURRENT_POWER_TEXT : 0  , self.CURRENT_POWER_L1_TEXT : 0  , self.CURRENT_POWER_L2_TEXT : 0  , self.CURRENT_POWER_L3_TEXT : 0  , self.DELIVERED_LAST_15_MINUTES_TEXT : 0,    self.RECEIVED_LAST_15_MINUTES_TEXT : 0,    self.GRID_VOLTAGE_L1_TEXT : 0,   self.GRID_VOLTAGE_L2_TEXT : 0,   self.GRID_VOLTAGE_L3_TEXT : 0,   self.DELIVERED_TODAY_TEXT : 0,    self.RECEIVED_TODAY_TEXT : 0,    self.DELIVERED_TODAY_STARTVALUE_TEXT : 0,     self.RECEIVED_TODAY_STARTVALUE_TEXT : 0,     self.TODAYS_DATE_TEXT : -1 }
-        homeAutomationUnits       = { self.DELIVERED_OVERALL_TEXT : "kWh", self.RECEIVED_OVERALL_TEXT : "kWh", self.CURRENT_POWER_TEXT : "W", self.CURRENT_POWER_L1_TEXT : "W", self.CURRENT_POWER_L2_TEXT : "W", self.CURRENT_POWER_L3_TEXT : "W", self.DELIVERED_LAST_15_MINUTES_TEXT : "Wh", self.RECEIVED_LAST_15_MINUTES_TEXT : "Wh", self.GRID_VOLTAGE_L1_TEXT : "V", self.GRID_VOLTAGE_L2_TEXT : "V", self.GRID_VOLTAGE_L3_TEXT : "V", self.DELIVERED_TODAY_TEXT : "Wh", self.RECEIVED_TODAY_TEXT : "Wh", self.DELIVERED_TODAY_STARTVALUE_TEXT : "kWh", self.RECEIVED_TODAY_STARTVALUE_TEXT : "kWh",                       }
+        self.homeAutomationValues = { self.DELIVERED_OVERALL_TEXT : 0,     self.RECEIVED_OVERALL_TEXT : 0,     self.CURRENT_POWER_TEXT : 0  , self.CURRENT_POWER_L1_TEXT : 0  , self.CURRENT_POWER_L2_TEXT : 0  , self.CURRENT_POWER_L3_TEXT : 0  , self.DELIVERED_CURRENT_PERIOD_TEXT : 0,    self.RECEIVED_CURRENT_PERIOD_TEXT : 0,    self.GRID_VOLTAGE_L1_TEXT : 0,   self.GRID_VOLTAGE_L2_TEXT : 0,   self.GRID_VOLTAGE_L3_TEXT : 0,   self.DELIVERED_TODAY_TEXT : 0,    self.RECEIVED_TODAY_TEXT : 0,    self.DELIVERED_TODAY_STARTVALUE_TEXT : 0,     self.RECEIVED_TODAY_STARTVALUE_TEXT : 0,     self.TODAYS_DATE_TEXT : -1 }
+        homeAutomationUnits       = { self.DELIVERED_OVERALL_TEXT : "kWh", self.RECEIVED_OVERALL_TEXT : "kWh", self.CURRENT_POWER_TEXT : "W", self.CURRENT_POWER_L1_TEXT : "W", self.CURRENT_POWER_L2_TEXT : "W", self.CURRENT_POWER_L3_TEXT : "W", self.DELIVERED_CURRENT_PERIOD_TEXT : "Wh", self.RECEIVED_CURRENT_PERIOD_TEXT : "Wh", self.GRID_VOLTAGE_L1_TEXT : "V", self.GRID_VOLTAGE_L2_TEXT : "V", self.GRID_VOLTAGE_L3_TEXT : "V", self.DELIVERED_TODAY_TEXT : "Wh", self.RECEIVED_TODAY_TEXT : "Wh", self.DELIVERED_TODAY_STARTVALUE_TEXT : "kWh", self.RECEIVED_TODAY_STARTVALUE_TEXT : "kWh",                       }
 
         # send Values to a homeAutomation to get there sliders sensors selectors and switches
         self.homeAutomationTopic = self.homeAutomation.mqttDiscoverySensor(self.homeAutomationValues, unitDict = homeAutomationUnits, subTopic = "homeautomation")
@@ -402,125 +374,69 @@ class EasyMeter(ThreadObject):
         return messageError
 
 
-    def handleReceivedValues(self, messageError : bool):
+    def calculatePeriodEnergyValues(self, manipulatedTimestamp : float = None):
         '''
-        Check result from processed data and fill in proper values or store error information
+        To be called if a new message from EasyMeter interface has been received.
+        Takes the current energy values and calculates the period information (e.g. the received and delivered energy within the last 15 minutes)
         '''
-        newPowerLevelAvailable = False
-
-        if not messageError:
-            self.energyData["validMessages"] += 1
-
-            self.logger.debug(self, str(self.energyData))
-
-            # current energy level == 0 means script has been (re-)started and we are here for the first time, in that case take the values received with the last message
-            if self.energyProcessData["currentEnergyLevel"] == 0:              # can only happen after reboot since this is the real overall energy measured so far
-                self.energyProcessData["lastEnergyLevel"] = 0
-                self.energyProcessData["collectedEnergy"] = 0
-
-            # collect new delivered energy value and check if specified cycle time is over
-            if (accumulated := self.accumulator(name = "collectedEnergyForTheLast15Minutes",
-                                                power = float(self.energyData[self.DELIVERED_ENERGY_KEY]),
-                                                timeout = self.configuration["loadCycle"],
-                                                synchronized = True,
-                                                absolute = True,
-                                                autoReset = True,
-                                                minMaxAverage = True)) is not None:
-                newPowerLevelAvailable = True                                                                      # inform caller that new surplus data is available
-                self.energyProcessData["lastEnergyLevel"]    = self.energyProcessData["currentEnergyLevel"]        # backup last level
-                self.energyProcessData["currentEnergyLevel"] = accumulated["acc"]                                  # remember new level
-
-            # remember current time for grid loss detection
-            self.energyProcessData["currentEnergyTimestamp"] = Supporter.getTimeStamp()
+        self.energyData[self.TIMESTAMP_NEWEST_MESSAGE] = Supporter.getTimeStamp() if manipulatedTimestamp is None else manipulatedTimestamp
+        self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] = self.accumulate(
+            name = "periodDeliveredEnergyAccumulator",
+            value = float(self.energyData[self.DELIVERED_ENERGY_KEY]),
+            period = self.configuration["loadCycle"],
+            absolute = True,
+            maxRefAge = self.configuration["loadCycle"],
+            timeValue = manipulatedTimestamp
+        )
+        self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT] = self.accumulate(
+            name = "periodReceivedEnergyAccumulator",
+            value = float(self.energyData[self.RECEIVED_ENERGY_KEY]),
+            period = self.configuration["loadCycle"],
+            absolute = True,
+            maxRefAge = self.configuration["loadCycle"],
+            timeValue = manipulatedTimestamp
+        )
+        
+        if self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] is None or self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT] is None: 
+            self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT]      = None
+            self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]       = None
+            self.energyData[self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT] = None
         else:
-            # logging values only
-            self.energyData["invalidMessages"]            += 1
-            self.energyData["lastInvalidMessageTimeStamp"] = Supporter.getTimeStamp()
-            self.energyData["invalidMessageError"]         = messageError
-
-        return newPowerLevelAvailable
+            self.energyData[self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT] = self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT] - self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]
 
 
     def receiveGridMeterMessage(self):
         '''
-        Takes the lastly received bytes from easy meter, adds it to current receive buffer and tries to find a valid message
+        Takes the newest received bytes from easy meter, adds it to current receive buffer and tries to find a valid message
         If a valid message could be found it will be processed and proper values will be set
         '''
-        #Supporter.debugPrint(f"{watching...")
-
-        newPowerLevelAvailable = False
+        messageError = True
+        
+        # timeout timer in case no new message or only invalid messages arrive
+        timeout = self.timer("periodEnergyTimeout", startTime = Supporter.getTimeOfDay(), timeout = self.configuration["loadCycle"])
 
         if not self.easyMeterInterfaceQueue.empty():
             while not self.easyMeterInterfaceQueue.empty():
                 message = self.easyMeterInterfaceQueue.get(block = False)  # read a message from interface but take only last one (if there are more they can be thrown away, only the newest one is from interest)
-    
+
                 # take data out of message from easy meter interface
                 data = message["content"]
                 messageError = self.processReceivedMessage(data)            # fill variables from message content (if message is OK)
-                newPowerLevelAvailable = newPowerLevelAvailable or self.handleReceivedValues(messageError)                     # process filled variables and try to calculate new power level
 
-            #Supporter.debugPrint(f"energy data = {self.energyData}")
-            #Supporter.debugPrint(f"energy process data = {self.energyProcessData}")
+                if not messageError:
+                    calculatePeriodEnergyValues()
 
-        return newPowerLevelAvailable
+                    # retrigger timeout timer
+                    self.timer("periodEnergyTimeout")
 
+        # timeout because no new easymeter message received?
+        if timeout:
+            self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT]      = None
+            self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT]       = None
+            self.energyData[self.ENERGY_SURPLUS_CURRENT_PERIOD_TEXT] = None
+            
 
-    def calculateNewPowerLevel(self):
-        '''
-        Calculate new power level from last and current energy values
-        '''
-        # handle grid loss if necessary, otherwise calculate new power levels
-        if self.energyProcessData["gridLossDetected"]:
-            # grid loss handling (set back initial values)
-            newReductionLevel  = self.configuration["decreasingDelta"]
-            newPowerLevel      = self.POWER_OFF_LEVEL
-        else:
-            # grid is OK so send proper values
-            lastEnergyDelta    = int(self.energyProcessData["lastEnergyLevel"])
-            currentEnergyDelta = int(self.energyProcessData["currentEnergyLevel"])
-            if lastEnergyDelta > currentEnergyDelta:
-                newReductionLevel = self.configuration["decreasingDelta"]
-            else:
-                newReductionLevel = self.configuration["increasingDelta"]
-            newPowerLevel      = currentEnergyDelta / (self.SECONDS_PER_HOUR / self.configuration["loadCycle"]) - newReductionLevel            # 1 hour / "loadCycle" to calculate power from energy! This is ok even for the first cycle that can be a bit shorter since in that case less energy will be calculated than really collected
-
-            # no negative power level but with reduction level this can happen!
-            if newPowerLevel < self.POWER_OFF_LEVEL:
-                newPowerLevel = self.POWER_OFF_LEVEL
-
-        return (newPowerLevel, newReductionLevel)
-
-
-    def prepareNewEasyMeterMessage(self):
-        '''
-        Should be called every "loadCycle" seconds (synchronized to quarter hours)
-
-        Checks if grid loss has been detected and calculates new power value for the message to the worker thread
-        '''
-        # calculate new power level and reduction value
-        (newPowerLevel, newReductionLevel) = self.calculateNewPowerLevel()
-
-        # do we have to switch OFF -or- difference between current and last set power level large enough?
-        messageTime = Supporter.getTimeStamp()
-        if (newPowerLevel == self.POWER_OFF_LEVEL) or (Supporter.absoluteDifference(newPowerLevel, self.energyData["allowedPower"]) >= self.configuration["minimumPowerStep"]): 
-            # copy current values over to previous ones
-            self.energyData["previousPower"]     = self.energyData["allowedPower"]
-            self.energyData["previousReduction"] = self.energyData["allowedReduction"]
-            self.energyData["previousTimestamp"] = self.energyData["allowedTimestamp"]
-
-            # fill in new current values
-            self.energyData["allowedPower"]     = newPowerLevel         # maximum allowed power taken from grid to load accumulator                                  
-            self.energyData["allowedReduction"] = newReductionLevel     # published for informational reasons only since the power has already limited by this amount
-            self.energyData["allowedTimestamp"] = messageTime           # remember time of last set power level (since not every "loadCycle" a new level is set! 
-
-            # tag this message as message with new power level
-            self.energyData["updatePowerValue"] = True
-
-        # remember time last message has been created
-        self.energyProcessData["messageTimestamp"] = messageTime    
-
-        # reset some values for the next turn
-        self.energyProcessData["gridLossDetected"] = False                  # reset grid loss detection for next cycle
+        Supporter.debugPrint(f"energy data = {self.energyData}")
 
 
     def prepareHomeAutomation(self, force : bool = False):
@@ -533,17 +449,17 @@ class EasyMeter(ThreadObject):
                 return False
 
         # update values from easymeter
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_OVERALL_TEXT,          self.energyData[self.RECEIVED_ENERGY_KEY],                          compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.RECEIVED_OVERALL_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_OVERALL_TEXT,         self.energyData[self.DELIVERED_ENERGY_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.DELIVERED_OVERALL_TEXT        ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_TEXT,             self.energyData[self.CURRENT_POWER_KEY],    compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_TEXT            ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L1_TEXT,          self.energyData[self.CURRENT_POWER_L1_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L1_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L2_TEXT,          self.energyData[self.CURRENT_POWER_L2_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L2_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L3_TEXT,          self.energyData[self.CURRENT_POWER_L3_KEY], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L3_TEXT         ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_LAST_15_MINUTES_TEXT, 0,                                          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.DELIVERED_LAST_15_MINUTES_TEXT), force = force)        # @todo sinnvollen Wert einfuellen!
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_LAST_15_MINUTES_TEXT,  0,                                          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.RECEIVED_LAST_15_MINUTES_TEXT ), force = force)        # @todo sinnvollen Wert einfuellen!
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L1_TEXT,           self.energyData[self.L1_VOLTAGE_KEY],       compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L1_TEXT          ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L2_TEXT,           self.energyData[self.L2_VOLTAGE_KEY],       compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L2_TEXT          ), force = force)
-        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L3_TEXT,           self.energyData[self.L3_VOLTAGE_KEY],       compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L3_TEXT          ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_OVERALL_TEXT,          self.energyData[self.RECEIVED_ENERGY_KEY],                                   compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.RECEIVED_OVERALL_TEXT         ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_OVERALL_TEXT,         self.energyData[self.DELIVERED_ENERGY_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.DELIVERED_OVERALL_TEXT        ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_TEXT,             self.energyData[self.CURRENT_POWER_KEY],             compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_TEXT            ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L1_TEXT,          self.energyData[self.CURRENT_POWER_L1_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L1_TEXT         ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L2_TEXT,          self.energyData[self.CURRENT_POWER_L2_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L2_TEXT         ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.CURRENT_POWER_L3_TEXT,          self.energyData[self.CURRENT_POWER_L3_KEY],          compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 2, tagName = self.CURRENT_POWER_L3_TEXT         ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.DELIVERED_CURRENT_PERIOD_TEXT,  self.energyData[self.DELIVERED_CURRENT_PERIOD_TEXT], compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.DELIVERED_CURRENT_PERIOD_TEXT ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.RECEIVED_CURRENT_PERIOD_TEXT,   self.energyData[self.RECEIVED_CURRENT_PERIOD_TEXT],  compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 5, tagName = self.RECEIVED_CURRENT_PERIOD_TEXT  ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L1_TEXT,           self.energyData[self.L1_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L1_TEXT          ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L2_TEXT,           self.energyData[self.L2_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L2_TEXT          ), force = force)
+        changed = Supporter.compareAndSetDictElement(self.homeAutomationValues, self.GRID_VOLTAGE_L3_TEXT,           self.energyData[self.L3_VOLTAGE_KEY],                compareValue = changed, compareMethod = functools.partial(Supporter.deltaOutsideRange, percent = 1, tagName = self.GRID_VOLTAGE_L3_TEXT          ), force = force)
 
         # update calculated values
         today = Supporter.getDate()            # today's date without time
@@ -580,29 +496,6 @@ class EasyMeter(ThreadObject):
 
 
     def threadMethod(self):
-        '''
-        first loop:
-            self.energyProcessData["gridLossDetected"] = True
-       
-        every loop run:
-            "lastEnergyLevel" == 0:
-                fill in current energy level (overall first cycle is probably a "shorter" one but that doesn't matter)
-            time since last time > 2 minutes -> error (probably grid loss):
-                self.energyProcessData["gridLossDetected"] = True
-
-        every minute a message is sent out:
-            containing all data, some data could be unchanged, others will be new
-
-        every event time:
-            self.energyProcessData["gridLossDetected"] = False
-            self.energyProcessData["currentEnergyTimestamp"] = now
-            store new power level
-            send signal message (in case of real grid loss nth. will happen but in case it's a bug and there is no grid loss a message will be sent!
-
-        1st cycle is a grid loss one
-        2nd cycle is probably a shorter one (since timer is synchronized to quarter hours the 2nd cycle length depends on start time related to next quarter hour)
-        3rd... cycles are common ones
-        '''
         publishedData = {}
         publishedDataResult = self.getPublishedData(publishedData = publishedData, topic = self.homeAutomationTopic, timeout = 0, failed = not self.getStartupPhase())
         if publishedDataResult != MqttBase.MQTT_READBACK.DONE:
@@ -618,15 +511,8 @@ class EasyMeter(ThreadObject):
             elif not (publishedDataResult == MqttBase.MQTT_READBACK.PENDING):
                 self.homeAutomationValues[self.TODAYS_DATE_TEXT] = Supporter.getDate(1, 1, 1)         # set some date in the past because there are no stored values, so current values will be used as start values
         else:
-            # grid loss detected?
-            if Supporter.getSecondsSince(self.energyProcessData["currentEnergyTimestamp"]) > self.configuration["gridLossThreshold"]:
-                self.energyProcessData["gridLossDetected"] = True
-
             # any grid meter data to be received?
-            if self.receiveGridMeterMessage():
-                # prepare the one message every "loadCycle" seconds that contains new power values
-                self.prepareNewEasyMeterMessage()
-
+            self.receiveGridMeterMessage()
 
             # one message every 60 seconds
             forceHomeAutomationUpdate = False
@@ -634,7 +520,6 @@ class EasyMeter(ThreadObject):
                 outTopic = self.createOutTopic(self.getObjectTopic())
                 self.logger.debug(self, f"new message published at {outTopic}: {str(self.energyData)}")
                 self.mqttPublish(outTopic, self.energyData, globalPublish = False)
-                self.energyData["updatePowerValue"] = False     # set to False (again) for all following messages until it has been decided to set a new power level
                 forceHomeAutomationUpdate = True
 
             # prepare data for homeautomation (to be sent on any value change that is outside of given threshold)
@@ -646,4 +531,62 @@ class EasyMeter(ThreadObject):
     def threadBreak(self):
         time.sleep(1)          # give other threads a chance to run and ensure that a thread which writes to the logger doesn't flood it
 
+
+if __name__ == "__main__":
+    TestClass = EasyMeter
+    ThreadName = "EasyMeter"
+    
+    from Logger.Logger import Logger
+    loggerConfiguration = {
+        "projectName": "AccuTester",
+        "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover",
+        "homeAutomationPrefix": "X1"    
+    }
+    TestClass.logger = Logger(threadName = "Logger", configuration = loggerConfiguration, interfaceQueues = None)
+
+    testData = [
+        bytearray(b'\x1b\x1b\x1b\x1b\x01\x01\x01\x01v\x0bESYA\xad\xd0\x14\xe9\xe4\xfcb\x00b\x00rc\x01\x01v\x01\x04ESY\x08ESY\xa1\xaa\xe4\xfc\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01\x01c\x1e\x14\x00v\x0bESYA\xad\xd0\x14\xe9\xe4\xfdb\x00b\x00rc\x07\x01w\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x07\x01\x00b\n\xff\xffrb\x01e\x06\xf8\xa1\xaa\xf1\x00w\x07\x81\x81\xc7\x82\x03\xff\x01\x01\x01\x01\x04ESY\x01w\x07\x01\x00\x00\x00\t\xff\x01\x01\x01\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01w\x07\x01\x00\x01\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00\x1b8ou\x15\x01w\x07\x01\x00\x02\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00F\x8f\xff\rs\x01w\x07\x01\x00\x01\x08\x01\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x00\x00<\xcbd\x01w\x07\x01\x00\x01\x08\x02\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x1b82\xa9\xb1\x01w\x07\x01\x00\x10\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfchI\x01w\x07\x01\x00$\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xff\xc3e\x01w\x07\x01\x008\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfe.\xc1\x01w\x07\x01\x00L\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfev$\x01w\x07\x81\x81\xc7\x82\x05\xff\x01\x01\x01\x01\x83\x02>x\xcaG\x0cd\xe2\xc9\xaa\xb8\xe0o\xd8\xa3\xear\x87\xb2\xfb\xd6He\xd8\xe2\r\xc0.\xe3\xef\xce\xc57\xc5\t*\xbf\x1f\xb7\xa5 \x04\x03|V\xd7b5q\x01w\x07\x01\x00\x00\x00\x00\xff\x01\x01\x01\x01\x0f1ESY1162827984\x01w\x07\x01\x00 \x07\x00\xff\x01\x01b#R\xffc\t\x0b\x01w\x07\x01\x004\x07\x00\xff\x01\x01b#R\xffc\t<\x01w\x07\x01\x00H\x07\x00\xff\x01\x01b#R\xffc\t0\x01w\x07\x81\x81\xc7\xf0\x06\xff\x01\x01\x01\x01\x04\x01\x07?\x01\x01\x01c\x9a$\x00v\x0bESYA\xad\xd0\x14\xe9\xe4\xfeb\x00b\x00rc\x02\x01q\x01c.?\x00\x00\x00\x1b\x1b\x1b\x1b\x1a\x02\xfe\x1c'),
+        bytearray(b"\x1b\x1b\x1b\x1b\x01\x01\x01\x01v\x0bESYA\xad\xd0\x14\xe9\xe5\x1db\x00b\x00rc\x01\x01v\x01\x04ESY\x08ESY\xa1\xb5\xe5\x1d\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01\x01c\xb4\xf4\x00v\x0bESYA\xad\xd0\x14\xe9\xe5\x1eb\x00b\x00rc\x07\x01w\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x07\x01\x00b\n\xff\xffrb\x01e\x06\xf8\xa1\xb5\xf1\x00w\x07\x81\x81\xc7\x82\x03\xff\x01\x01\x01\x01\x04ESY\x01w\x07\x01\x00\x00\x00\t\xff\x01\x01\x01\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01w\x07\x01\x00\x01\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00\x1b8ou\x15\x01w\x07\x01\x00\x02\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00F\x90\x00#9\x01w\x07\x01\x00\x01\x08\x01\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x00\x00<\xcbd\x01w\x07\x01\x00\x01\x08\x02\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x1b82\xa9\xb1\x01w\x07\x01\x00\x10\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfcx\x1d\x01w\x07\x01\x00$\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xff\xc2&\x01w\x07\x01\x008\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfe1J\x01w\x07\x01\x00L\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfe\x84\xae\x01w\x07\x81\x81\xc7\x82\x05\xff\x01\x01\x01\x01\x83\x02>x\xcaG\x0cd\xe2\xc9\xaa\xb8\xe0o\xd8\xa3\xear\x87\xb2\xfb\xd6He\xd8\xe2\r\xc0.\xe3\xef\xce\xc57\xc5\t*\xbf\x1f\xb7\xa5 \x04\x03|V\xd7b5q\x01w\x07\x01\x00\x00\x00\x00\xff\x01\x01\x01\x01\x0f1ESY1162827984\x01w\x07\x01\x00 \x07\x00\xff\x01\x01b#R\xffc\t\x0c\x01w\x07\x01\x004\x07\x00\xff\x01\x01b#R\xffc\t:\x01w\x07\x01\x00H\x07\x00\xff\x01\x01b#R\xffc\t/\x01w\x07\x81\x81\xc7\xf0\x06\xff\x01\x01\x01\x01\x04\x01\x07?\x01\x01\x01c1F\x00v\x0bESYA\xad\xd0\x14\xe9\xe5\x1fb\x00b\x00rc\x02\x01q\x01c~R\x00\x00\x00\x1b\x1b\x1b\x1b\x1a\x02\'\x82"),
+        bytearray(b'\x1b\x1b\x1b\x1b\x01\x01\x01\x01v\x0bESYA\xad\xd0\x14\xe9\xe5>b\x00b\x00rc\x01\x01v\x01\x04ESY\x08ESY\xa1\xc0\xe5>\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01\x01c\xa9\xd4\x00v\x0bESYA\xad\xd0\x14\xe9\xe5?b\x00b\x00rc\x07\x01w\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x07\x01\x00b\n\xff\xffrb\x01e\x06\xf8\xa1\xc0\xf1\x00w\x07\x81\x81\xc7\x82\x03\xff\x01\x01\x01\x01\x04ESY\x01w\x07\x01\x00\x00\x00\t\xff\x01\x01\x01\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01w\x07\x01\x00\x01\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00\x1b8ou\x15\x01w\x07\x01\x00\x02\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00F\x90\x01:\x07\x01w\x07\x01\x00\x01\x08\x01\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x00\x00<\xcbd\x01w\x07\x01\x00\x01\x08\x02\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x1b82\xa9\xb1\x01w\x07\x01\x00\x10\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfcl2\x01w\x07\x01\x00$\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xff\xc1\x12\x01w\x07\x01\x008\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfe,\x19\x01w\x07\x01\x00L\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfe\x7f\x08\x01w\x07\x81\x81\xc7\x82\x05\xff\x01\x01\x01\x01\x83\x02>x\xcaG\x0cd\xe2\xc9\xaa\xb8\xe0o\xd8\xa3\xear\x87\xb2\xfb\xd6He\xd8\xe2\r\xc0.\xe3\xef\xce\xc57\xc5\t*\xbf\x1f\xb7\xa5 \x04\x03|V\xd7b5q\x01w\x07\x01\x00\x00\x00\x00\xff\x01\x01\x01\x01\x0f1ESY1162827984\x01w\x07\x01\x00 \x07\x00\xff\x01\x01b#R\xffc\t\x13\x01w\x07\x01\x004\x07\x00\xff\x01\x01b#R\xffc\t2\x01w\x07\x01\x00H\x07\x00\xff\x01\x01b#R\xffc\t2\x01w\x07\x81\x81\xc7\xf0\x06\xff\x01\x01\x01\x01\x04\x01\x07?\x01\x01\x01c\xa1w\x00v\x0bESYA\xad\xd0\x14\xe9\xe5@b\x00b\x00rc\x02\x01q\x01cr\xf2\x00\x00\x00\x1b\x1b\x1b\x1b\x1a\x02\x01\xbc'),
+        bytearray(b'\x1b\x1b\x1b\x1b\x01\x01\x01\x01v\x0bESYA\xad\xd0\x14\xe9\xe4\xdbb\x00b\x00rc\x01\x01v\x01\x04ESY\x08ESY\xa1\x9f\xe4\xdb\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01\x01c\xa6\xf0\x00v\x0bESYA\xad\xd0\x14\xe9\xe4\xdcb\x00b\x00rc\x07\x01w\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x07\x01\x00b\n\xff\xffrb\x01e\x06\xf8\xa1\x9f\xf1\x00w\x07\x81\x81\xc7\x82\x03\xff\x01\x01\x01\x01\x04ESY\x01w\x07\x01\x00\x00\x00\t\xff\x01\x01\x01\x01\x0b\t\x01ESY\x11\x03\xbe\xad\xd0\x01w\x07\x01\x00\x01\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00\x1b8ou\x15\x01w\x07\x01\x00\x02\x08\x00\xffd\x00\x02\xa0\x01b\x1eR\xfcY\x00\x00\x00F\x8f\xfd\xf6\xeb\x01w\x07\x01\x00\x01\x08\x01\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x00\x00<\xcbd\x01w\x07\x01\x00\x01\x08\x02\xff\x01\x01b\x1eR\xfcY\x00\x00\x00\x1b82\xa9\xb1\x01w\x07\x01\x00\x10\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfcy\xed\x01w\x07\x01\x00$\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xff\xc4y\x01w\x07\x01\x008\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfe0\xc0\x01w\x07\x01\x00L\x07\x00\xff\x01\x01b\x1bR\xfeY\xff\xff\xff\xff\xff\xfe\x84\xb5\x01w\x07\x81\x81\xc7\x82\x05\xff\x01\x01\x01\x01\x83\x02>x\xcaG\x0cd\xe2\xc9\xaa\xb8\xe0o\xd8\xa3\xear\x87\xb2\xfb\xd6He\xd8\xe2\r\xc0.\xe3\xef\xce\xc57\xc5\t*\xbf\x1f\xb7\xa5 \x04\x03|V\xd7b5q\x01w\x07\x01\x00\x00\x00\x00\xff\x01\x01\x01\x01\x0f1ESY1162827984\x01w\x07\x01\x00 \x07\x00\xff\x01\x01b#R\xffc\t\x13\x01w\x07\x01\x004\x07\x00\xff\x01\x01b#R\xffc\t<\x01w\x07\x01\x00H\x07\x00\xff\x01\x01b#R\xffc\t0\x01w\x07\x81\x81\xc7\xf0\x06\xff\x01\x01\x01\x01\x04\x01\x07?\x01\x01\x01cO{\x00v\x0bESYA\xad\xd0\x14\xe9\xe4\xddb\x00b\x00rc\x02\x01q\x01c\x17#\x00\x00\x00\x1b\x1b\x1b\x1b\x1a\x02\xdc%'),
+    ]
+
+    configuration = {}
+    testObject = TestClass(threadName = ThreadName, configuration = configuration)
+    
+    #TestClass.classVar = "foo"
+    #testObject.objectVar = "bar"
+    testObject.threadInitMethod()
+
+    # inject a valid message
+    testObject.processReceivedMessage(testData[0])
+    testObject.calculatePeriodEnergyValues()
+    deliveredAccu = testObject._getAccumulator("periodDeliveredEnergyAccumulator")
+    receivedAccu  = testObject._getAccumulator("periodReceivedEnergyAccumulator")
+
+    import random
+    timeStamp = testObject.energyData[testObject.TIMESTAMP_NEWEST_MESSAGE]
+    for turn in range(1,20):
+        timeStamp += 3*60           # 3 minutes later...
+        testObject.energyData[testObject.DELIVERED_ENERGY_KEY] += 1.2           # 1.2 kWh more...
+        testObject.calculatePeriodEnergyValues(manipulatedTimestamp  = timeStamp)
+        received = testObject.energyData[testObject.RECEIVED_CURRENT_PERIOD_TEXT]
+        delivered = testObject.energyData[testObject.DELIVERED_CURRENT_PERIOD_TEXT]   
+        
+
+    ####timeValue = 1
+    ####for turn in range(1,20):
+    ####    #result = testObject.accumulate("foo", round(random.uniform(0, 3), 2), period = 4, timeValue = timeValue)
+    ####    #result = testObject.accumulate("foo", turn, period = 4, timeValue = timeValue)     # sum up last 4 entries
+    ####    #result = testObject.accumulate("foo", turn, period = 4, maxRefAge = 1.5, timeValue = timeValue)     # sum up last 4 entries
+    ####    #result = testObject.accumulate("foo", turn, absolute = True, period = 4, timeValue = timeValue)
+    ####    #result = testObject.accumulate("foo", turn * 2, absolute = True, period = 8, timeValue = timeValue * 2)
+    ####    #result = testObject.accumulate("foo", turn * 2, absolute = True, multiplyTime = True, period = 8, timeValue = timeValue * 2)
+    ####    result = testObject.accumulate(name = "foo", value = turn * 2, period = 8, absolute = True, multiplyTime = True, maxRefAge = 1.5, timeValue = timeValue * 2)
+    ####    print(result)
+    ####
+    ####    timeValue += 1
+    ####
+    ####    if turn == 5:
+    ####        timeValue += 5
 

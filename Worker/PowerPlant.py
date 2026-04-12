@@ -1214,12 +1214,9 @@ class PowerPlant(Worker):
             self.optionalDevices.append(self.configuration["weatherName"])
         self.optionalDevices += self.configuration["inputs"]
 
-        # check for indexed inverters (connected via parallel kit)
-        self.tagsIncluded(["indexedInverters"], optional = True, default = False)
-
         if self.tagsIncluded(["externalPv"], optional = True):
             self.optionalDevices.append(self.configuration["externalPv"])
-            
+
             self.externalPv = True          # true because user specified that external PV exists and has to be handled
 
             # check keys belonging to "externalPv"

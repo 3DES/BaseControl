@@ -528,190 +528,90 @@ class Base():
                     return False or (setupTurn and firstTimeTrue)
 
 
-    def accumulator(self, name : str, power : float = None, timeout : float = None, synchronized : bool = True, useCounter : bool = False, multiplyTime : bool = False, absolute : bool = True, reSetup : bool = False, autoReset : bool = False, minMaxAverage : bool = False) -> float:
+    def accumulate(self, name : str, value, period : int = None, absolute : bool = False, multiplyTime : bool = False, maxRefAge : int = None, timeValue : float = None):
         '''
         To create and handle a power accumulator that gets power values (or any other kind of values that have to be accumulated) and adds them optionally multiplied by their duration times
         If the accumulator is set up for absolute calculation an initial power value can be given if the initial reference value is not 0
+        The accumulator can be used to accumulate not only power values, other values can be accumulated, too!
 
-        @param name                  name of the power accumulator that will be created in current name space
-                                     a list can be given then all accumulators will be handled
-        @param power                 power value that has to be accumulated
-                                     during setup call if absolute is True the value will be used as reference power value
-                                     during setup call if absolute is False and multiplyTime is False the value will be add to calculated value
-                                     in all other cases it will just be ignored
-        @param timeout               time out value can be given, accumulator will return None until timeout happened, in that case the accumulator will be reset and the last calculated value is given back
-                                     this value is only handled during setup but ignored in all following calls
-                                     a dictionary can be given to give what is usually used to set timeouts in case name is a list and not just a single string
-        @param synchronized          ignored if no timeout has been given, otherwise it tries to synchronize the timeout timer to given timeout period absolute to current day,
-                                     i.e. if it is 8:03 now and timeout is 15 minutes then the next timeout will occur at 8:15
-                                     in case of useCounter is True this value is ignored
-        @param useCounter            use a counter instead of a timer so calls will be counted and timeout will be used as counter threshold value
-                                     this value is only used during setup, otherwise it's ignored
-        @param multiplyTime          if this is False during setup just the given values will be accumulated
-        @param absolute              power values are absolute ones so the power value of the current cycle has to be calculated by subtracting previous power value,
-                                     it's not possible to switch the accumulator type while it's counting, only if it doesn't exist or reSetup has been set to True the type is considered
-                                     if a power value has been given that is less than the previous one in absolute = True mode an exception will be thrown.
-        @param autoReset             ignored if absolute is False, otherwise if absolute is True and autoReset is True
-                                     the reference power value will be set to 0 and the given power value will be accumulated
-        @param minMaxAverage         find minimum, maximum and average of all given values (up to timeout if given)
-        @return                      returns the amount of calculated energy so far, to read energy value only the given power should be 0
-                                     except if getTime is True, then the time since accumulator has been set up or since last timeout is returned
-
+        @param name                 name of the power accumulator that will be created in current name space
+        @param value                power value that has to be accumulated
+                                    the first given value will be used as reference if necessary
+        @param period               period of time during that values will be hold, older ones will be thrown away
+                                    this value is only needed for setup and will be ignored during all other calls
+        @param absolute             if only absolute values are available, e.g. absolute energy values, by subtracting the predecessor value the relative value can be calculated, what is usually the typical use case
+                                    this value is only needed for setup and will be ignored during all other calls
+        @param multiplyTime         if there are only e.g. power values but energy values will be needed it's possible to multiply the given value with the time since the previous value has been given and multiply power with that time value, so if Watt has been given the calculated value will be in Ws
+                                    this value is only needed for setup and will be ignored during all other calls
+        @param maxRefAge            older values will be removed but the newest one of them will be used as new reference value, if too old references should not be taken a maximum age for the reference can be given here, e.g. 100 will take a reference if it is not older than "100s + period"
+                                    this value is only needed for setup and will be ignored during all other calls
+        @param timeValue            usually not needed since current time in seconds is used as timestamp but especially for debugging it's useful to give own time values
+        @return                     returns the amount of calculated energy so far, to read energy value only the given power should be 0
         '''
-        def calculatePower(accumulatorName : str, power : float, timeStamp : float = None) -> dict:
-            accumulatorDict = self._getAccumulator(accumulatorName)
-            additionalPower = (power - accumulatorDict["referencePower"])
+        VALUE_INDEX = 0
+        TIME_INDEX = 1
 
-            # multiply new value by time cycle if activated
-            if accumulatorDict["multiplyTime"]:
-                additionalPower *= (timeStamp - accumulatorDict["referenceTime"])
-                accumulatorDict["referenceTime"] = timeStamp
+        if type(name) != str or len(name) == 0:
+            raise Exception(f"Accumulator needs a name!")
 
-            # in case of absolute the given power is the new reference power but will not be added to "calculatedEnergy"
-            if accumulatorDict["absolute"]:
-                accumulatorDict["referencePower"] = power
+        if timeValue is None:
+            timeValue = Supporter.getTimeStamp()
 
-            # finally add power to calculated energy
-            accumulatorDict["calculatedEnergy"] += additionalPower
+        if not self.accumulatorExists(name):
+            if period is None:
+                raise Exception("Accumulator needs a period to be set up")
+    
+            # create new accumulator
+            self._createAccumulator(name, {
+                "values"        : [],            # contains all data values and time stamps
+                "reference"     : None,          # reference value, needed for absolute values (delta to predecessor has to be calculated) and in case multiplyTime (delta time to predecessor has to be calculated)
+                "period"        : period,
+                "absolute"      : absolute,
+                "multiplyTime"  : multiplyTime,
+                "maxRefAge"     : maxRefAge,
+            })
+        accumulatorDict = self._getAccumulator(name) 
 
-            # collect values to get minimum, maximum and to calculate average value if needed
-            if accumulatorDict["valueCounter"] is not None:
-                accumulatorDict["valueCounter"] += 1
-                if accumulatorDict["minimum"] is None or accumulatorDict["minimum"] > power:
-                    accumulatorDict["minimum"] = power
-                if accumulatorDict["maximum"] is None or accumulatorDict["maximum"] < power:
-                    accumulatorDict["maximum"] = power
-                if accumulatorDict["overallSum"] is None:
-                    accumulatorDict["overallSum"] = 0                    
-                accumulatorDict["overallSum"] += additionalPower
+        # add new value
+        accumulatorDict["values"].append([value, timeValue])
 
-            return accumulatorDict["calculatedEnergy"]
-
-
-        def handleAccumulator(name : str, power : float = None, timeout : float = None, currentTime : float = None, synchronized : bool = True, useCounter : bool = False, multiplyTime : bool = False, absolute : bool = True, reSetup : bool = False, autoReset : bool = False, minMaxAverage : bool = False) -> float:
-            if type(name) != str:
-                raise Exception(f"accumulator must be handled one by one here!")
-
-            # create and check some initial values
-            returnValue = None
-            resetMinMaxValues = False
-
-            if not self.accumulatorExists(name):
-                # setup new timer
-                if timeout:
-                    # in case of timeout has been given we need a periodic timer
-                    timerName = "__created_by_accumulator_" + name
-                    if useCounter:
-                        if timeout != int(timeout):
-                            raise Exception(f"if a counter should be used the timeout parameter must contain an integer, not a float value!")
-                        self.counter(timerName, value = timeout)
-                    else:
-                        self.timer(timerName, timeout, startTime = currentTime if not synchronized else Supporter.getTimeOfToday())
+        # if oldest value is older than period a cleanup and set new reference is necessary 
+        if accumulatorDict["values"][0][TIME_INDEX] <= (timeValue - accumulatorDict["period"]):         # oldest value outside given period
+            newValues = []
+            for entry in accumulatorDict["values"]:
+                if entry[TIME_INDEX] <= (timeValue - accumulatorDict["period"]):
+                    accumulatorDict["reference"] = entry        # remember new reference, entry will not be longer in the values list
                 else:
-                    # no timeout, no timer
-                    timerName = None
+                    newValues.append(entry)                     # entry is still in the values list
+            accumulatorDict["values"] = newValues
 
-                # create new accumulator
-                self._createAccumulator(name, {
-                    "referencePower"   : 0,
-                    "referenceTime"    : currentTime if multiplyTime else None,         # only needed if used for calculation
-                    "timeout"          : timeout,                                       # can be None in case no timeout has been given
-                    "timerName"        : timerName,                                     # can be None in case no timeout has been given
-                    "calls"            : useCounter,                                    # use a counter instead of a timer
-                    "absolute"         : absolute,
-                    "autoReset"        : autoReset and absolute,                        # autoReset only works in absolute case, if absolute is False then ignore autoReset
-                    "multiplyTime"     : multiplyTime,
-                    "valueCounter"     : 0 if minMaxAverage else None,
-                    "minimum"          : None,
-                    "maximum"          : None,
-                    "overallSum"       : None,
-                    "calculatedEnergy" : 0
-                })
-                accumulatorDict = self._getAccumulator(name) 
-                if power:
-                    if accumulatorDict["absolute"]:
-                        # in case of absolute the given power is the new reference power but will not be added to "calculatedEnergy"
-                        accumulatorDict["referencePower"] = power
-                    elif not accumulatorDict["multiplyTime"]:
-                        # not multiplyTime is important here since it's unknown here what time delta should be used to be calculated with power value
-                        calculatePower(accumulatorName = name, power = power, timeStamp = currentTime)
+        # if reference is None oldest value will become reference
+        if accumulatorDict["reference"] is None:
+            accumulatorDict["reference"] = accumulatorDict["values"][0]
 
-                if not accumulatorDict["timerName"]:
-                    # calculated energy has to be returned except timer has been configured
-                    returnValue = accumulatorDict["calculatedEnergy"]
-                #else:
-                #    returnValue = None      # return None in case of timeout accumulator until a timeout really happened
-            else:
-                accumulatorDict = self._getAccumulator(name)
-                powerCalculated = False
+        # if reference is too old a new referencing is necessary
+        if maxRefAge is not None:
+            if accumulatorDict["values"][-1][TIME_INDEX] - accumulatorDict["reference"][TIME_INDEX] - accumulatorDict["period"] > maxRefAge:
+                accumulatorDict["reference"] = accumulatorDict["values"][0]     # oldest value will become the new reference, since previous reference was too old
 
-                # "autoReset": in absolute case given power level is not allowed to be less than previous given power level except autoReset has been set, in that case power will be used as new reference power but calculated energy will stay at its level and not be reset, too
-                if (power is not None) and (power < accumulatorDict["referencePower"]) and accumulatorDict["absolute"]:
-                    if accumulatorDict["autoReset"]:
-                        # reset reference power value and process given power value with calculatePower()
-                        accumulatorDict["referencePower"] = 0
-                    else:
-                        raise Exception(f"in absolute case given power {power} cannot be less than previous power {accumulatorDict['referencePower']} except autoReset is set to True, but autoReset is {accumulatorDict['autoReset']}")
-
-                # timeout: accumulator with timeout detected
-                if accumulatorDict["timerName"]:
-                    calculatePower(accumulatorName = name, power = power, timeStamp = currentTime)
-                    powerCalculated = True      # remember power value has been processed
-                    resetMinMaxValues = True    # only reset position where min, max, overallSum and valueCounter values have to be reset
-
-                    if (accumulatorDict["calls"] and self.counter(accumulatorDict["timerName"])) or (not accumulatorDict["calls"] and self.timer(accumulatorDict["timerName"])):
-                        returnValue = accumulatorDict["calculatedEnergy"]
-
-                        # timeout happened, some values have to be reset
-                        accumulatorDict["calculatedEnergy"] = 0
-                        if accumulatorDict["multiplyTime"]:
-                            accumulatorDict["referenceTime"] = currentTime   # else it stays None
-                    #else:
-                    #    returnValue = None      # return None in case of timeout accumulator until a timeout really happened
-
-                # power not processed so far, so process it now
-                if not powerCalculated:
-                    calculatePower(accumulatorName = name, power = power, timeStamp = currentTime)
-                    returnValue = accumulatorDict["calculatedEnergy"]
-                    powerCalculated = True      # remember power value has been processed
-
-            #Supporter.debugPrint(f"name: {name}, sum:{accumulatorDict['calculatedEnergy']}, ref:{accumulatorDict['referencePower']}, ret:{returnValue}, power:{power}", color = "RED", borderSize = 0)
-
-            if returnValue is not None and accumulatorDict["valueCounter"]:
-                returnValue = {"acc" : returnValue, "min" : accumulatorDict["minimum"], "max" : accumulatorDict["maximum"], "avg" : accumulatorDict["overallSum"] / accumulatorDict["valueCounter"]}
-
-                # min, max, overallSum and valueCounter was still needed here to calculate the return value but now they have to be cleared in reset case
-                if resetMinMaxValues and accumulatorDict["valueCounter"] is not None:
-                    accumulatorDict["minimum"] = None
-                    accumulatorDict["maximum"] = None
-                    accumulatorDict["overallSum"] = None
-                    accumulatorDict["valueCounter"] = 0     # if accumulatorDict["valueCounter"] is not None then minMaxAverage has been set to True during setup! 
-
-            return returnValue
-
-
-        # if timeStamp is None take current time
-        currentTime = Supporter.getTimeStamp()
-
-        # is there a list of strings to be handled or just a single string?
-        if type(name) == list:
-            returnValue = {}
-
-            for entry in name:
-                if type(timeout) == dict:
-                    # take the timeout given for the current accumulator entry if exist, otherwise timeout is None
-                    if entry in timeout:
-                        entryTimeout = timeout[entry]
-                    else:
-                        entryTimeout = None
-                else:
-                    # all accumulators get the same timeout since only one timeout has been given and it wasn't specified for what accumulator is should be used
-                    entryTimeout = timeout
-                    
-                if result := handleAccumulator(name = entry, power = power, timeout = entryTimeout, currentTime = currentTime, synchronized = synchronized, useCounter = useCounter, multiplyTime = multiplyTime, absolute = absolute, reSetup = reSetup, autoReset = autoReset, minMaxAverage = minMaxAverage):
-                    returnValue[entry] = result
+        # calculate sum
+        sum = 0
+        previousEntry = accumulatorDict["reference"]
+        if absolute:
+            entry = accumulatorDict["values"][-1]                                                       # for absolute values we need just the newest one
+            multiplyer = 1 if not multiplyTime else entry[TIME_INDEX] - previousEntry[TIME_INDEX]       # multiplyer = time delta since previous entry
+            sum = (entry[VALUE_INDEX] - previousEntry[VALUE_INDEX]) * multiplyer
         else:
-            returnValue = handleAccumulator(name = name, power = power, timeout = timeout, currentTime = currentTime, synchronized = synchronized, useCounter = useCounter, multiplyTime = multiplyTime, absolute = absolute, reSetup = reSetup, autoReset = autoReset, minMaxAverage = minMaxAverage)
+            for entry in accumulatorDict["values"]:
+                multiplyer = 1 if not multiplyTime else entry[TIME_INDEX] - previousEntry[TIME_INDEX]        # multiplyer = time delta since previous entry
+    
+                sum += entry[VALUE_INDEX] * multiplyer
+    
+                previousEntry = entry
 
-        return returnValue
+        if (len(accumulatorDict["values"]) == 1) and (accumulatorDict["values"][0] == accumulatorDict["reference"]) and (multiplyTime or absolute):
+            # to set accumulatorDict["reference"] = accumulatorDict["values"][0] makes things much easier but if the reference value is identical with the only stored value and it's used because of "absolute" or "multiplyTime" then None should be returned instead of 0 because otherwise it's not possible for a caller to decide if the energy sum is 0 or is unknown
+            sum = None
+
+        return sum
 

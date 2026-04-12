@@ -454,6 +454,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
 
         self.localBmsData[bmsName]["VoltageList"] = cellList                                      # -> Ok
         self.localBmsData[bmsName]["Current"] = current                                           # -> Ok
+        self.localBmsData[bmsName]["Voltage"] = voltage                                           # -> Ok
         self.localBmsData[bmsName]["Prozent"] = soc                                               # -> Ok
         self.localBmsData[bmsName]["Soc"] = soc                                                   # -> Ok, same like Prozent but Prozent will be deletet if pack is disabled to get the real merged soc in BasicBms
         self.localBmsData[bmsName]["BmsEntladeFreigabe"] = (discharge == 1)                       # -> Ok

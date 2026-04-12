@@ -78,6 +78,40 @@ class DWD:
             print(f"Unexpected error during unzip process: {e}")
         return None
 
+
+    def get_raw_values(self, keys : list = None):
+        if hasattr(self, 'values'):
+            if keys is not None:
+                if not isinstance(keys, list):
+                    keys = [ keys ]
+                keys = [ key for key in keys if key in self.values ]            # remove not existing keys
+
+                prepared = { key: self.values[key][:] for key in keys }
+                prepared["timeSteps"] = self.time_stamps
+                return prepared
+            else:
+                return self.values
+        else:
+            return {}
+
+
+    def get_combined_values(self, keys : list = None):
+        if hasattr(self, 'values') and keys is not None:
+            if not isinstance(keys, list):
+                keys = [ keys ]
+            keys = [ key for key in keys if key in self.values ]            # remove not existing keys
+
+            prepared = [] + [ timestamp for timestamp in self.time_stamps ]  # prepare list
+            
+            for key in keys:
+                for index, value in enumerate(self.values[key]):
+                    prepared[index] += "," + str(value)
+            prepared.insert(0, ",".join(["timeSteps"] + keys))
+            return prepared
+        else:
+            return []
+
+
     def get_weather_data(self):
         '''
         Fetch, extract, and parse the KML/XML file
@@ -207,7 +241,7 @@ class DWD:
                     compressed_list[self.correct_date(time_stamp, daily_correction)] = float(self.values[key][index])
         return compressed_list
 
-    def get_daily_list(self, key : str, daily_correction : int = 0, converted : bool = False):
+    def get_daily_list(self, key : str, daily_correction : int = 0, converted : bool = False, noDataFromYesterday : bool = False):
         '''
         Takes all entries of a given key and creates a list with only one entry per day, all partial entries are summed up
         @param daily_correction:    time stamps in list will be corrected if given, value is in whole days, -1 will correct each time stamp to the day before, +1 will correct each time stamp to the day after
@@ -215,17 +249,24 @@ class DWD:
         # sum up value
         if self.get_unit(key) not in ["s", "kJ/m2"]:        # others usually don't make sense to create a daily list out of, i.e. K means sum all up and subtract 273.15 makes absolutely no sense!
             return {}
-        currentDay = self.get_date(self.time_stamps[0])     # get the first time stamp from the values list, it's always the same since there is only one time stamp list
+        if noDataFromYesterday:
+            currentDay = datetime.now().date()
+        else:
+            currentDay = self.get_date(self.time_stamps[0])     # get the first time stamp from the values list, it's always the same since there is only one time stamp list
         sum = 0
         daily_list = {}
         summed_up_this_day = False      # important, because get_compressed_list() will throw away whole days if there are only "-" values so get_daily_list() should have the same behavior
+        self.time_stamps[0] = "2026-04-05T10:00:00.000Z"
         for index, time_stamp in enumerate(self.time_stamps):
             elementDay = self.get_date(time_stamp)
+            if elementDay < currentDay:
+                continue
             if elementDay == currentDay:
                 if self.values[key][index] != "-":
                     sum += float(self.values[key][index])
                     summed_up_this_day = True
-            if (elementDay != currentDay) or (index == len(self.time_stamps) - 1):
+            # no elif here!!!
+            if (elementDay > currentDay) or (index == len(self.time_stamps) - 1):          # new day or last entry?
                 if summed_up_this_day:
                     if converted:
                         sum = self.convert_unit(key, sum)
@@ -284,10 +325,10 @@ def main():
     for key in values:
         if key == "SunD":
             daily_correction = DWD._TODAY_IS_YESTERDAY        # values are given as "yesterday values", correct day by one to get current day
-            values = 5
+            elements = 10
         else:
             daily_correction = DWD._TODAY_IS_TODAY
-            values = 4
+            elements = 9
         if key not in dwd.values:
             print(f"key {key} is unknown!")
         else:
@@ -305,8 +346,8 @@ def main():
             print("------------------")
 
             if short:
-                short_list = dwd.get_daily_list(key, daily_correction, converted = convert)
-                for time_stamp in sorted(short_list.keys())[:values]:
+                short_list = dwd.get_daily_list(key, daily_correction, converted = convert, noDataFromYesterday = True)
+                for time_stamp in sorted(short_list.keys())[:elements]:
                     unit = dwd.get_converted_unit(key) if convert else dwd.get_unit(key)
                     print(f"{time_stamp}: {short_list[time_stamp]:.1f} {unit}")
 
