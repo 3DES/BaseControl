@@ -53,6 +53,8 @@ class PowerPlant(Worker):
                         Sonnenstunden                                            int, key in Tag_0 dict
                     Tag_1                                                        dict, key in wetter data dict
                         Sonnenstunden                                            int, key in Tag_1 dict
+            BasicUsbRelais named in configuration["inputs"]:
+                    {'inputs': {'NotAusOk': '0', 'Shutdown': '0', 'inverterActive': '0'}}
 
     Data output from powerPlant:
             Inverter:
@@ -529,6 +531,14 @@ class PowerPlant(Worker):
                     self.GridTransferCounter += 1
 
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung steht jetzt auf Netz.")
+                    if self.scriptValues["Shutdown"]:
+                        self.setScriptValues("Shutdown", False)
+                        self.modifyExcessRelaisData("relPowerPlantRunning", self.AUS, True)
+                        self.modifyExcessRelaisData("relPowerPlantWaiting", self.AUS, True)
+                        self.publishAndLog(Logger.LOG_LEVEL.INFO, "Shutdown war gefordert. Terminate.")
+                        # todo watchdog killen
+                        time.sleep(3)
+                        raise Exception(f"Shutdown war gefordert. Terminate")
             elif self.tranferRelaisState == self.tranferRelaisStates.STATE_WAIT_FOR_INVERTER_MODE_REQ:
                 stateMode = self.GRID_MODE
                 if (deciredMode == self.INVERTER_MODE) and self.aufPvSchaltenErlaubt:
@@ -638,7 +648,7 @@ class PowerPlant(Worker):
                         self.REL_WR_1     : self.EIN,           # enable inverters what makes utility relay stay in grid mode since inverter output voltages are down
                     },
                 )
-                # todo Parameter ??? Diese werden normalerweise vom threadMethod geschrieben
+                # todo Parameter ??? Diese werden normalerweise vom threadMethod geschrieben -> sollte funktionieren siehe "Netzausfall erkannt -> Schalte auf Akku"
                 # die Funktion self.schalteAlleWrAufAkku(self.configuration["managedEffektas"]) macht das
                 self.publishAndLog(Logger.LOG_LEVEL.INFO, "Die Netzumschaltung hat automatisch auf Inverter geschaltet. Netzausfall.")
                 self.tranferRelaisState = self.tranferRelaisStates.STATE_WAIT_FOR_NEW_INVERTER_DATA
@@ -659,14 +669,15 @@ class PowerPlant(Worker):
             self.setScriptValues("NetzRelais", stateMode)
 
 
-        # @todo Netzausfallerkennung im worker ist noch nicht vorhanden (Parameter!!)
+        # @todo Netzausfallerkennung im worker ist noch nicht vorhanden (Parameter!!)  -> sollte funktionieren siehe "Netzausfall erkannt -> Schalte auf Akku"
 
         # Die Hardware des Wendesch..tzes und die ZusatzRelais schalten automatisch auf Inverter (und starten diese auch) wenn das Netz ausf..llt
         # Wir pr..fen das hier und ziehen mit STATE_FORCE_TO_INVERTER den internen State auf INVERTER_MODE 
         if self.getInputValueByName("inverterActive") and self.scriptValues["NetzRelais"] == self.GRID_MODE:
             switchTransferRelais(self.INVERTER_MODE, self.tranferRelaisStates.STATE_FORCE_TO_INVERTER)
 
-        if self.localDeviceData["combinedEffektaData"]["ErrorPresentOr"] == False:
+        if self.localDeviceData["combinedEffektaData"]["ErrorPresentOr"] == False and self.scriptValues["Shutdown"] == False:
+            self.sendWaitLed = True
             # only if timer exists errorTimerFinished can be True
             if self.timerExists("ErrorTimer"):
                 self.timer(name = "ErrorTimer", remove = True)
@@ -697,8 +708,12 @@ class PowerPlant(Worker):
             # wir erlauben das umschalten auf netz damit die anlage auch ummschalten kann
             self.aufNetzSchaltenErlaubt = True
 
-            # Wenn ein Fehler 80s ansteht, dann werden wir aktiv und schalten auf Netz um
-            if self.errorTimerFinished:
+            # Wenn ein Fehler 80s ansteht oder Shutdown aktiv ist, dann werden wir aktiv und schalten auf Netz um
+            if self.errorTimerFinished or self.scriptValues["Shutdown"] == True:
+                # Switch on relPowerPlantWaiting if shutdown is active
+                if self.scriptValues["Shutdown"] and self.sendWaitLed:
+                    self.sendWaitLed = False
+                    self.modifyExcessRelaisData("relPowerPlantWaiting", self.EIN, True)
                 switchTransferRelais(self.GRID_MODE)
             elif self.timer(name = "ErrorTimer", timeout = inverterErrorResponseTime):
                     self.publishAndLog(Logger.LOG_LEVEL.ERROR, "Fehler am Inverter erkannt. Wir schalten auf Netz.")
@@ -1057,6 +1072,10 @@ class PowerPlant(Worker):
         else:
             return (key in oldDataDict) and (key in newMessageDict) and newMessageDict[key] and not oldDataDict[key]
 
+    def checkInputsAndSetValue(self):
+        if self.getInputValueByName("Shutdown", optional=True) == True:
+            self.scriptValues["Shutdown"] = True
+
     def handleMessage(self, message):
         """
         sort the incoming msg to the localDeviceData variable
@@ -1075,9 +1094,11 @@ class PowerPlant(Worker):
 
         # check if its our own out topic
         if self.createOutTopic(self.getObjectTopic()) in message["topic"]:
-            # we use it and unsubscribe
+            # we take the old data and unsubscribe
             self.updateScriptValues(message["content"])
             self.mqttUnSubscribeTopic(self.createOutTopic(self.getObjectTopic()))
+            # overwrite strict init values
+            self.updateScriptValues(self.strictInitValues)
 
             # timer didn't time out but we received a message from MQTT broker so remove the surely still existing timer
             if self.timerExists("timeoutMqtt"):
@@ -1254,13 +1275,14 @@ class PowerPlant(Worker):
         # init lists of direct set-able values, sensors or commands
         self.setableSlider = {"schaltschwelleAkkuTollesWetter":20.0, "schaltschwelleAkkuRussia":100.0, "schaltschwelleNetzRussia":80.0, "schaltschwelleAkkuSchlechtesWetter":45.0, "schaltschwelleNetzSchlechtesWetter":30.0, "wetterSchaltschwelleHeizung":9}
         self.niceNameSlider = {"schaltschwelleAkkuTollesWetter":"Akku gutes Wetter", "schaltschwelleAkkuRussia":"Akku USV", "schaltschwelleNetzRussia":"Netz USV", "schaltschwelleAkkuSchlechtesWetter":"Akku schlechtes Wetter", "schaltschwelleNetzSchlechtesWetter":"Netz schlechtes Wetter", "wetterSchaltschwelleHeizung":"Sonnenstunden nicht heizen"}
-        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True}
+        self.setableSwitch = {"Akkuschutz":False, "RussiaMode": False, "PowerSaveMode" : False, "AutoMode": True, "FullChargeRequired": False, "AutoLoadControl": True, "Shutdown":False}
+        self.strictInitValues = {"Shutdown":False}
 
         # add switches for all known inverters for "Schnellladen" and state variables
         self.inverterQuickChargeState = {}
         for inverter in self.configuration["managedEffektas"]:
-             self.setableSwitch[f"Schnellladen{inverter}"] = True
-             self.inverterQuickChargeState[f"Schnellladen{inverter}"] = True
+            self.setableSwitch[f"Schnellladen{inverter}"] = True
+            self.inverterQuickChargeState[f"Schnellladen{inverter}"] = True
         
         self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "Schnellladen":False, "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku", "ResetErrors"]
@@ -1347,6 +1369,7 @@ class PowerPlant(Worker):
             self.updateVariables()
 
             self.manageExternalPv()
+            self.checkInputsAndSetValue()
 
             # do some initialization during startup
             if not self.startupInitialization:
@@ -1355,7 +1378,7 @@ class PowerPlant(Worker):
                 self.initInverter()
                 # init TransferRelais a second Time to overwrite scriptValues["NetzRelais"] with the initial value. The initial MQTT msg maybe wrote last state to this key!
                 self.initTransferRelais()
-                self.modifyExcessRelaisData("relPowerPlantWaiting", self.AUS, True)
+                self.modifyExcessRelaisData("relPowerPlantRunning", self.EIN, True)
 
             # Wir pr..fen als erstes ob die Freigabe vom BMS da ist
             if self.localDeviceData[self.configuration["bmsName"]]["BmsEntladeFreigabe"]:
@@ -1444,8 +1467,8 @@ class PowerPlant(Worker):
             # for the first 30 seconds after PowerPlant has been started the relay will not be switched, that suppresses unnecessary relay switching processes when PowerPlant is started several times, e.g. because of debugging reasons
             if not self.localDeviceData["initialRelaisTimeout"] and self.timer(name = "timeoutTransferRelais", timeout = 30, removeOnTimeout = True):
                 self.localDeviceData["initialRelaisTimeout"] = True             # from now on this value will ensure that the previous "if" becomes True, since timer has already removed itself
-                # All initial timers are finished now, so we switch on the relPowerPlantRunning relais
-                self.modifyExcessRelaisData("relPowerPlantRunning", self.EIN, True)
+                # All initial timers are finished now, so we switch off relPowerPlantWaiting
+                self.modifyExcessRelaisData("relPowerPlantWaiting", self.AUS, True)
 
             if self.localDeviceData["initialRelaisTimeout"]:
                 self.manageUtilityRelais()

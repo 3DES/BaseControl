@@ -104,7 +104,7 @@
         "gpioHandler": ["PowerPlant"],
         "triggerThread":   "Bms",
         "relMapping":{"relStartBattery": "Relay2", "relPrecharge": "Relay1", "relStartPv": "Relay5", "relPowerPlantWaiting": "Relay3", "relPowerPlantRunning": "Relay6"},
-        "inputMapping":{"Input2":"NotAusOk"},
+        "inputMapping":{"Input2":"NotAusOk", "Input3":"Shutdown"},
         "interfaces":
         {
             "WdUsbRelaisDcInterface":
@@ -160,11 +160,11 @@
         "socMonitorName": "Bms",
         "bmsName": "Bms",
         "resetFullchargeRequiredWithFloatmode": false,       # optional, if FullChargeRequired is used to reference soc monitor it is neccessary to reset this bit if floatMode from the inverter is detected, if FullChargeRequired is used to balance battery and the bms or interface is able to send finally 100% soc. E.g. soc is 90% due balancing and 100% at the end of balancing.
-        "weatherName": "Wetter",                            # optional
-        "initModeEffekta": "Auto",                          # Auto, Akku, Netz.  Fallback: Netz
+        "weatherName": "Wetter",                             # optional
+        "initModeEffekta": "Auto",                           # Auto, Akku, Netz.  Fallback: Netz
         "inputs":["UsbRelais", "WdDcVerteiler"],
         "manualDcBoxStart": false,
-        "prechargeTime": 3                                 # precharge time for upper funktion
+        "prechargeTime": 3                                   # precharge time for upper funktion
     },
 
     "Wetter":

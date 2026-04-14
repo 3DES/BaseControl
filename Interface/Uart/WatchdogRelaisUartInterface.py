@@ -418,6 +418,7 @@ class WatchdogRelaisUartInterface(BasicUartInterface):
         if self.firstLoop:
             time.sleep(self.bootTime)
             self.firstLoop = False
+            # todo eventuell ein reset commando senden
             self.getVersionAndUpdate()
             self.setRelayStates({"Relay0": "0", "Relay1": "0", "Relay2": "0", "Relay3": "0", "Relay4": "0", "Relay5": "0", "Relay6": "0"})
 
