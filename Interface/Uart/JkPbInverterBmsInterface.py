@@ -165,10 +165,10 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         """
         use the read_serial_data() function to read the data and then do BMS specific checks (crc, start bytes, etc)
         :param command: the command to be sent to the bms
-        :return: True if everything is fine, else False
+        :param address: the address of the bms
         """
-#        modbus_msg = bytes(address)
-        modbus_msg = address.to_bytes()
+        length = (address.bit_length() + 7) // 8
+        modbus_msg = address.to_bytes(length, byteorder='big')
         modbus_msg += command
         crc = Base.Crc.Crc.modbusCrc(modbus_msg)
         modbus_msg += crc.to_bytes(2, "little")
@@ -240,8 +240,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         '''
         if all bms data received then:
         check for each bms if BmsEntladeFreigabe or BmsLadeFreigabe is not set and set charge or disccharge current to 0 in ChargeDischargeManagement List
-        check if fets are disabled via parameter an set entladefreigabe or ladefreigabe again
-        check if BMS request floatMode and set voltage (perhaps here or in process.. funktion)
+        check if fets are disabled via parameter and set entladefreigabe or ladefreigabe again
+        TODO: check if BMS request floatMode and set voltage (perhaps here or in process.. funktion)
+
         TODO: timing problem lösen beim wiedereinschalten von freigaben kann es sein dass der Fetstatus schon gelesen ist und somit den alten wert anzeigt
         '''
         if not self.localBmsData[bmsName]["BmsLadeFreigabe"]:
