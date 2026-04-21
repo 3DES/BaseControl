@@ -7,6 +7,7 @@ project.json
 json/
 _temp/
 Base/parser.out
+Base/parsetab.py
 nohup.out
 .pydevproject
 logfiles/test_error.log
