@@ -401,6 +401,9 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
         tempBatChargeEn = False if BatChargeEN == 0 else True
         tempBatDisChargeEn = False if BatDisChargeEN == 0 else True
+        if ("ChargeEnSwitch" in self.localBmsData[bmsName]) and ("DischargeEnSwitch" in self.localBmsData[bmsName]):
+            if (tempBatChargeEn != self.localBmsData[bmsName]["ChargeEnSwitch"]) or (tempBatDisChargeEn != self.localBmsData[bmsName]["DischargeEnSwitch"]):
+                self.initRequstDataList(bmsName)
         self.localBmsData[bmsName]["ChargeEnSwitch"] = tempBatChargeEn
         self.localBmsData[bmsName]["DischargeEnSwitch"] = tempBatDisChargeEn
 
