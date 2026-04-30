@@ -67,6 +67,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
     def threadInitMethod(self):
         self.tagsIncluded(["interface", "address"])
         self.numBatterys = len(self.configuration["address"])
+        self.BmsAddressDict = self.configuration["address"]
         super().threadInitMethod()
         self.initLocalBmsData()
         self.initRequstDataList()
