@@ -71,12 +71,16 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.initLocalBmsData()
         self.initRequstDataList()
         # self.sendAndCheckCmd(b"\x10\x15\x08\x00\x01\x02\x00\x0F") # set UART3 to DisplayMode schreibt aufs richtige Register setzt aber nicht den richtigen wert 15 laut app
-        self.setableSwitch = {"DchEnable":True, "ChEnable":True}
-        self.homeAutomation.mqttDiscoverySwitch(self.setableSwitch)
+        setableSwitchNames = ["DischargeEnable", "ChargeEnable"]
+        self.SetableSwitch = {}     # self.SetableSwitch contains the actual values from each bms, incoming switch commands will be written to the bms
+        for bmsName in self.BmsAddressDict:
+            for switchName in setableSwitchNames:
+                if not(bmsName in self.SetableSwitch):
+                    self.SetableSwitch[bmsName] = {}
+                self.SetableSwitch[bmsName].update({switchName:False}) 
+        self.homeAutomation.mqttDiscoverySwitch(self.SetableSwitch)
         # subscribe Global to get commands from extern
         self.mqttSubscribeTopic(self.createInTopic(self.getObjectTopic()), globalSubscription = True)
-
-        #self.logger.info(self, f"Bms: {result}")
 
     def threadMethod(self):
         # check if a new msg is waiting
@@ -89,8 +93,18 @@ class JkPbInverterBmsInterface(BasicUartInterface):
                     if self.timerExists("FullChgReqTimer"):
                         self.timer("FullChgReqTimer", remove=True)
             elif type(newMqttMessageDict["content"]) == dict:
-                self.setableSwitch.update(newMqttMessageDict["content"])
-                # todo switch wieder raus schicken
+                for entity in newMqttMessageDict["content"]:
+                    (bmsName, switchName) = entity.split(".")
+                        # charge aus an
+                        # 01 10 10 70 00 02 04 00 00 00 00 39 4B
+                        # 01 10 10 70 00 02 04 00 00 00 01 F8 8B
+                        # discharge aus an
+                        # 01 10 10 74 00 02 04 00 00 00 00 38 B8
+                        # 01 10 10 74 00 02 04 00 00 00 01 F9 78
+                    if switchName == "ChargeEnable":
+                        self.sendAndCheckCmd(b"\x10\x10\x70\x00\x02\x04\x00\x00\x00" + (b"\x01" if newMqttMessageDict["content"][entity] else b"\x00"), self.BmsAddressDict[bmsName])
+                    if switchName == "DischargeEnable":
+                        self.sendAndCheckCmd(b"\x10\x10\x74\x00\x02\x04\x00\x00\x00" + (b"\x01" if newMqttMessageDict["content"][entity] else b"\x00"), self.BmsAddressDict[bmsName])
         try:
             self.getJkData()
             if self.timerExists("timeoutJkRead"):
@@ -247,16 +261,16 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         '''
         if not self.localBmsData[bmsName]["BmsLadeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
-            # If BmsLadeFreigabe is low based of ChargeEnSwitch is low we manipulate some keys
-            if not self.localBmsData[bmsName]["ChargeEnSwitch"]:
+            # If BmsLadeFreigabe is low based of ChargeEnable is low we manipulate some keys
+            if not self.SetableSwitch[bmsName]["ChargeEnable"]:
                 # delete Prozent value because the pack is not fully connected to the system 
                 del self.localBmsData[bmsName]["Prozent"]
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsLadeFreigabe"] = True
         if not self.localBmsData[bmsName]["BmsEntladeFreigabe"]:
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeCurrent"] = 0
-            # If BmsEntladeFreigabe is low based of DischargeEnSwitch is low we manipulate some keys
-            if not self.localBmsData[bmsName]["DischargeEnSwitch"]:
+            # If BmsEntladeFreigabe is low based of DischargeEnable is low we manipulate some keys
+            if not self.SetableSwitch[bmsName]["DischargeEnable"]:
                 # delete Prozent value because the pack is not fully connected to the system 
                 del self.localBmsData[bmsName]["Prozent"]
                 # If discharge fet is disabled via settings this is not a error and we publish true
@@ -353,6 +367,7 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         return False
 
     def processSettings(self, status_data, bmsName):
+        sendSwitchesToHomeautomation = False
         messageType = unpack_from("<B", status_data, 4)[0]
         if messageType != self.commands["command_settings"]["resptype"]:
             raise Exception("Got unexpected message")
@@ -401,11 +416,14 @@ class JkPbInverterBmsInterface(BasicUartInterface):
         self.localBmsData[bmsName]["ChargeDischargeManagement"]["DischargeVoltage"] = round(VolCellUV * self.cell_count * 1.1, 2)
         tempBatChargeEn = False if BatChargeEN == 0 else True
         tempBatDisChargeEn = False if BatDisChargeEN == 0 else True
-        if ("ChargeEnSwitch" in self.localBmsData[bmsName]) and ("DischargeEnSwitch" in self.localBmsData[bmsName]):
-            if (tempBatChargeEn != self.localBmsData[bmsName]["ChargeEnSwitch"]) or (tempBatDisChargeEn != self.localBmsData[bmsName]["DischargeEnSwitch"]):
-                self.initRequstDataList(bmsName)
-        self.localBmsData[bmsName]["ChargeEnSwitch"] = tempBatChargeEn
-        self.localBmsData[bmsName]["DischargeEnSwitch"] = tempBatDisChargeEn
+        
+        if (tempBatChargeEn != self.SetableSwitch[bmsName]["ChargeEnable"]) or (tempBatDisChargeEn != self.SetableSwitch[bmsName]["DischargeEnable"]):
+            self.initRequstDataList(bmsName)
+            sendSwitchesToHomeautomation = True
+        self.SetableSwitch[bmsName]["ChargeEnable"] = tempBatChargeEn
+        self.SetableSwitch[bmsName]["DischargeEnable"] = tempBatDisChargeEn
+        if sendSwitchesToHomeautomation:
+            self.mqttPublish(self.createOutTopic(self.getObjectTopic()), self.SetableSwitch, globalPublish = True, enableEcho = False)
 
     def processAbout(self, status_data, bmsName):
         messageType = unpack_from("<B", status_data, 4)[0]

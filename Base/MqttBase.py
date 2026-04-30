@@ -673,6 +673,27 @@ class MqttBase(Base.Base):
         self.mqttPublish(self.createInTopic(self.watchDogTopic), content, globalPublish = False)        # send alive message
 
 
+    def getNameListFromDict(self, dictOrList, nameDict : dict):
+
+        if type(dictOrList) == dict:
+            nameList = []
+            for key in dictOrList:
+                # detect a nested dict
+                if type(dictOrList[key]) == dict:
+                    for nestedKey in dictOrList[key]:
+                        nameList.append(f"{key}.{nestedKey}")
+                        # check if key is a topic then extract threadname and create niceName with threadname and nested key
+                        if "/" in key:
+                            threadName = key.split("/")[1]
+                            nameDict[f"{key}.{nestedKey}"] = f"{threadName} {nestedKey}"
+                else:
+                    nameList.append(key)
+        else:
+            nameList = dictOrList
+
+        return nameList
+
+
     def mqttDiscoverySensor(self, sensors, ignoreKeys : list = None, nameDict : dict = None, unitDict : dict = None, subTopic : str = None, senderName : str = None) -> str:
         """
         sensors: dict, nestedDict oder List der Sensoren die angelegt werden sollen
@@ -695,21 +716,7 @@ class MqttBase(Base.Base):
         # create sensors out topic
         topic = self.createOutTopic(self.createProjectTopic(senderName), subTopic = subTopic)
 
-        if type(sensors) == dict:
-            nameList = []
-            for key in sensors:
-                # detect a nested dict
-                if type(sensors[key]) == dict:
-                    for nestedKey in sensors[key]:
-                        nameList.append(f"{key}.{nestedKey}")
-                        # check if key is a topic then extract threadname and create niceName with threadname and nested key
-                        if "/" in key:
-                            threadName = key.split("/")[1]
-                            nameDict[f"{key}.{nestedKey}"] = f"{threadName} {nestedKey}"
-                else:
-                    nameList.append(key)
-        else:
-            nameList = sensors
+        nameList = self.getNameListFromDict(sensors, nameDict)
 
         #Supporter.debugPrint(f"discover sensor called: [{senderName}] [{topic}] [{nameList}]", color = "blue")
 
@@ -829,10 +836,8 @@ class MqttBase(Base.Base):
         """
         senderObj = Supporter.getCaller()      # get caller object
 
-        if type(sensors) == dict:
-            nameList = list(sensors.keys())
-        else:
-            nameList = sensors
+        nameList = self.getNameListFromDict(sensors, nameDict)
+
         for key in nameList:
             niceName = ""
             if (ignoreKeys is None) or (key not in ignoreKeys):

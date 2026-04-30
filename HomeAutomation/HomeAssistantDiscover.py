@@ -66,7 +66,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def _getUnitOfMeasurement(cls, valueName) -> str:
-        units = {"W":["power"], "A":["curr", "battdischarge", "battcharge"], "kWh":["daily", "produ"], "V":["spannung", "voltage", "vmin", "vmax"], "%":["prozent"], "°C":["temperature"]}
+        units = {"W":["power"], "A":["current", "battdischarge", "battcharge"], "kWh":["daily", "produ"], "V":["spannung", "voltage", "vmin", "vmax"], "%":["prozent", "percent"], "°C":["temperature"]}
         for unit in units:
             for segment in units[unit]:
                 if segment in valueName.lower():
@@ -86,7 +86,6 @@ class HomeAssistantDiscover(BaseHomeAutomation):
     @classmethod
     def getDiscoverySensorTopic(cls, deviceName : str, sensorName : str, readOnly : bool = False) -> str:
         return f'homeassistant/{"sensor" if not readOnly else "binary_sensor"}/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config'
-
 
     @classmethod
     def getDiscoverySensorCmd(cls, deviceName : str, sensorName : str, niceName : str, unit : str, topic : str, subStructure : str = None, payloadOff = None, payloadOn = None) -> dict:
@@ -214,7 +213,7 @@ class HomeAssistantDiscover(BaseHomeAutomation):
 
     @classmethod
     def getDiscoverySwitchTopic(cls, deviceName : str, sensorName : str) -> str:
-        return f"homeassistant/switch/{ThreadObject.get_projectName()}_{deviceName}_{sensorName}/config"
+        return f"homeassistant/switch/{ThreadObject.get_projectName()}_{deviceName}_{cls.prepareNameForTopicUse(sensorName)}/config"
 
     @classmethod
     def getDiscoverySwitchCmd(cls,  deviceName : str, sensorName : str, niceName : str = "", subStructure : str = None, payloadOff = None, payloadOn = None, stateOff = None, stateOn = None, icon = None) -> dict:
