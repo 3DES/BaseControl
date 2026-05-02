@@ -264,8 +264,6 @@ class JkPbInverterBmsInterface(BasicUartInterface):
             self.localBmsData[bmsName]["ChargeDischargeManagement"]["ChargeCurrent"] = 0
             # If BmsLadeFreigabe is low based of ChargeEnable is low we manipulate some keys
             if not self.SetableSwitch[bmsName]["ChargeEnable"]:
-                # delete Prozent value because the pack is not fully connected to the system 
-                del self.localBmsData[bmsName]["Prozent"]
                 # If discharge fet is disabled via settings this is not a error and we publish true
                 self.localBmsData[bmsName]["BmsLadeFreigabe"] = True
         if not self.localBmsData[bmsName]["BmsEntladeFreigabe"]:
