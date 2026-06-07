@@ -4,7 +4,7 @@ from Base.Supporter import Supporter
 
 try:
     from Weather.DWD import DWD
-except ImportError:
+except ModuleNotFoundError:
     from DWD import DWD
 
 

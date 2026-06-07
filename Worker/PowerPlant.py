@@ -2,7 +2,11 @@ import time
 import datetime
 from Base.ThreadObject import ThreadObject
 from Logger.Logger import Logger
-from Worker.Worker import Worker
+from cloup.constraints._core import Or
+try:
+    from Worker.Worker import Worker
+except ModuleNotFoundError:
+    from Worker import Worker
 from GridLoad.SocMeter import SocMeter
 from GPIO.BasicUsbRelais import BasicUsbRelais
 from Base.Supporter import Supporter
@@ -893,6 +897,7 @@ class PowerPlant(Worker):
             # timer exists but expired?
             if self.timerExists(externalPvTimer) and self.timer(name = externalPvTimer):
                 self.timer(externalPvTimer, remove = True)
+                self.setScriptValues("externalPvHysteresisTimer", False)
 
             # if there are messages always take the newest one, all others can be thrown away
             latestPvMessage = None
@@ -911,7 +916,7 @@ class PowerPlant(Worker):
                 # self.setScriptValues("externalPvSwitchedToday", True)
                 # self.setScriptValues("externalPvState", self.externalPvStates.STATE_EXTERNAL_PV_GRID)
                 # self.setScriptValues("externalPvForced", True)
-                
+
                 stateSwitched = True
             else:
                 if latestSurplusEnergyLevel is not None:
@@ -921,11 +926,14 @@ class PowerPlant(Worker):
                             self.scriptValues["externalPvState"] != self.externalPvStates.STATE_EXTERNAL_PV_GRID and
                             self.scriptValues["externalPvSwitchedToday"] == False and
                             (
-                                now.hour >= 8 or
                                 (
-                                    now.hour >= 7 and
-                                    latestSurplusEnergyLevel > 500
-                                )
+                                    now.hour >= 8 or                        # force grid after 8:00 in the morning
+                                    (
+                                        now.hour >= 7 and                   # force grid after 7:00 if there is already enough PV energy
+                                        latestSurplusEnergyLevel > 500
+                                    )
+                                ) and
+                                now.hour < 16                               # ensure not to force grid anymore after 16:00
                             )
                         ):
                             self.setScriptValues("externalPvSwitchedToday", True)
@@ -933,17 +941,23 @@ class PowerPlant(Worker):
                             self.setScriptValues("externalPvForced", True)
                             stateSwitched = True
                         elif (
+                            # start external loader when there is enough PV energy but accumulator is not too full
                             self.externalLoader and
                             self.scriptValues["externalLoaderState"] == self.loaderStates.STATE_EXTERNAL_PV_LOADER_NOT_RUNNING and
-                            latestSurplusEnergyLevel > 1200
+                            latestSurplusEnergyLevel > 1200 and 
+                            self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < 85
                         ):
                             self.setScriptValues("externalLoaderState", self.loaderStates.STATE_EXTERNAL_PV_LOADER_RUNNING)
                             self.modifyExcessRelaisData(self.configuration["externalPvLoadRelay"], self.EIN)
                             stateSwitched = True
                         elif (
+                            # stop external loader when there is not enough PV energy anymore or when accumulator is already full enough
                             self.externalLoader and
                             self.scriptValues["externalLoaderState"] == self.loaderStates.STATE_EXTERNAL_PV_LOADER_RUNNING and
-                            latestSurplusEnergyLevel < -500
+                            (
+                                latestSurplusEnergyLevel < -500 or
+                                self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] > 90
+                            )
                         ):
                             self.setScriptValues("externalLoaderState", self.loaderStates.STATE_EXTERNAL_PV_LOADER_NOT_RUNNING)
                             self.modifyExcessRelaisData(self.configuration["externalPvLoadRelay"], self.AUS)
@@ -951,19 +965,23 @@ class PowerPlant(Worker):
                         elif (
                             self.scriptValues["externalPvState"] == self.externalPvStates.STATE_EXTERNAL_PV_GRID and
                             (
-                                now.hour >= 16 and
+                                (
+                                    now.hour >= 16 or       # stop forcing grid between 16:00 and 7:00 when PV energy is too less
+                                    now.hour <  7           
+                                ) and
                                 latestSurplusEnergyLevel < -300
                             )
                         ):
                             self.setScriptValues("externalPvSwitchedToday", True)
                             self.setScriptValues("externalPvState", self.externalPvStates.STATE_EXTERNAL_PV_AUTO)
-                            self.setScriptValues("externalPvForced", False)
+                            self.setScriptValues("externalPvForced", True)
                             stateSwitched = True
 
             # some steps are needed whenever the external PV state has been changed
             if stateSwitched:
                 self.setScriptValues("externalPvInfo", self.EXTERNAL_PV_STRINGS[self.scriptValues["externalPvState"]])      # set correct info message
                 self.setScriptValues("externalLoaderInfo", self.LOADER_STRINGS[self.scriptValues["externalLoaderState"]])   # set correct info message
+                self.setScriptValues("externalPvHysteresisTimer", True)                                                     # show that all changes are suppressed for the next externalPvSwitchDelay minutes
                 self.timer(name = externalPvTimer, timeout = externalPvSwitchDelay, reSetup = True)                         # setup state switch delay timer
 
 
@@ -1248,6 +1266,7 @@ class PowerPlant(Worker):
             self.sensors["externalPvSwitchedToday"] = False                                                         # True if grid mode has already been forced today (we don't want to do that more than once per day)
             self.sensors["externalPvState"] = self.externalPvStates.STATE_EXTERNAL_PV_INIT                          # valid init state for all initial cases  
             self.sensors["externalPvInfo"] = self.EXTERNAL_PV_STRINGS[self.sensors["externalPvState"]]              # readable version of self.sensors["externalPvState"]
+            self.sensors["externalPvHysteresisTimer"] = False                                                       # True if externalPvTimer "externalPvStateSwitched" is running
             if self.externalLoader:
                 self.sensors["externalLoaderState"] = self.loaderStates.STATE_EXTERNAL_PV_LOADER_NOT_RUNNING        # loader not running during startup  
                 self.sensors["externalLoaderInfo"] = self.LOADER_STRINGS[self.sensors["externalLoaderState"]]       # readable version of self.sensors["externalLoaderState"]
@@ -1459,4 +1478,45 @@ class PowerPlant(Worker):
 
     def threadBreak(self):
         time.sleep(0.2)
+
+
+
+
+
+# for debugging of single methods
+if __name__ == "__main__":
+    TestClass = PowerPlant
+    ThreadName = "PowerPlant"
+    
+    from Logger.Logger import Logger
+    loggerConfiguration = {
+        "projectName": "AccuTester",
+        "homeAutomation": "HomeAutomation.HomeAssistantDiscover.HomeAssistantDiscover",
+        "homeAutomationPrefix": "X1"    
+    }
+    TestClass.logger = Logger(threadName = "Logger", configuration = loggerConfiguration, interfaceQueues = None)
+
+    configuration = {
+        "externalPv": "AccuControl/EasyMeterGridSide/out/homeautomation",   # topic to subscribe for to get current power production
+        "externalPvKey": "PeriodSurplusEnergyCurrent",      # value that contains the current power
+        "externalPvLoadRelay": "meanwellNPB",               # if this optional value has been given the relay will be switched
+        "managedEffektas": [],
+        "socMonitorName": "Bms",
+        "bmsName": "Bms",
+        "initModeEffekta": "Auto",                          # Auto, Akku, Netz.  Fallback: Netz
+    }
+    testObject = TestClass(threadName = ThreadName, configuration = configuration)
+
+    #TestClass.classVar = "foo"
+    #testObject.objectVar = "bar"
+    testObject.threadInitMethod()
+
+    testObject.localDeviceData["Bms"] = {"Prozent" : 70}
+    while True:
+        result = testObject.manageExternalPv()
+        if testObject.timerExists("externalPvStateSwitched"):
+            testObject.timer("externalPvStateSwitched", remove = True)
+            testObject.setScriptValues("externalPvHysteresisTimer", False)
+        
+
 
