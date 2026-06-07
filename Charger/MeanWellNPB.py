@@ -233,7 +233,7 @@ class MeanWellNPB(ThreadObject):
         Constructor
         '''
         # for easier interface message handling use an extra queue
-        self.meanWellInterfaceQueue = Queue()
+        self.meanWellInterfaceQueue = Queue(self.QUEUE_SIZE)
 
         # all messages published by our interfaces will be sent to our one interface queue
         super().__init__(threadName, configuration, {None : self.meanWellInterfaceQueue})

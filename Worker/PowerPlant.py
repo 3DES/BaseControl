@@ -9,9 +9,7 @@ from Base.Supporter import Supporter
 from Base.CEnum import CEnum
 from Inverter.EffektaController import EffektaController
 import Base
-import subprocess
-from enum import Enum
-import re
+from queue import Queue
 
 
 class PowerPlant(Worker):
@@ -86,12 +84,29 @@ class PowerPlant(Worker):
         STATE_WAIT_FOR_NEW_INVERTER_DATA            = 12
         STATE_WAIT_FOR_GRID_AND_TIMEOUT             = 13
 
-    class externalPvStates(CEnum):      # 0 <-> 1 <-> 2 -> 3 -> 4 -> 2 <-> 1 <-> 0
-        STATE_EXTERNAL_PV_OFF                  = 0    # no external PV or too less external PV power
-        STATE_EXTERNAL_PV_THRESHOLDS           = 1    # enough external PV power, set defined thresholds what usually will disable batteries
-        STATE_EXTERNAL_PV_LOADER_ONLY          = 2    # enough external PV power to load battery with separate loader
-        STATE_EXTERNAL_PV_LOADER_AND_INVERTERS = 3    # enough external PV power to load battery with separate loader and inverters
-        STATE_EXTERNAL_PV_INVERTERS_ONLY       = 4    # enough external PV power to load battery with inverters only what is usually used to prevent too many write cycles to inverters, so first the loader is activated, then the inverters are activated and if power gets less the loader is the first that will be deactivated
+    class externalPvStates(CEnum):
+        STATE_EXTERNAL_PV_INIT                         = 0    # no external PV or init phase
+        STATE_EXTERNAL_PV_AUTO                         = 1    # too less external PV
+        STATE_EXTERNAL_PV_GRID                         = 2    # akku mode forced to grid
+
+    EXTERNAL_PV_STRINGS = [
+        "Initialisierungsphase",                        # 0 = STATE_EXTERNAL_PV_INIT
+        "Zu wenig externe Energie",                     # 1 = STATE_EXTERNAL_PV_AUTO
+        "Externe Energie ausreichend",                  # 2 = STATE_EXTERNAL_PV_GRID
+    ]
+
+    class loaderStates(CEnum):
+        STATE_EXTERNAL_PV_LOADER_NOT_RUNNING           = 0    # enough external PV power to load battery with separate loader
+        STATE_EXTERNAL_PV_LOADER_RUNNING               = 1    # enough external PV power to load battery with separate loader
+        STATE_EXTERNAL_PV_INVERTERS_RUNNING            = 2    # enough external PV power to load battery with invertes (currently not used)
+        STATE_EXTERNAL_PV_LOADER_AND_INVERTERS_RUNNING = 3    # enough external PV power to load battery with separate loader and inverters (currently not used)
+
+    LOADER_STRINGS = [
+        "Zusatzlader nicht aktiv",                      # 0 = STATE_EXTERNAL_PV_LOADER_NOT_RUNNING
+        "Zusatzlader aktiv",                            # 1 = STATE_EXTERNAL_PV_LOADER_RUNNING
+        "Partielles Schnelladen aktiv",                 # 2 = STATE_EXTERNAL_PV_INVERTERS_RUNNING
+        "Zusatzlader und partielles Schnelladen aktiv", # 3 = STATE_EXTERNAL_PV_LOADER_AND_INVERTERS_RUNNING
+    ]
 
     class dcBoxStartStates(CEnum):
         STATE_WAIT_FOR_EM_STOP_OK                   = 0
@@ -166,10 +181,7 @@ class PowerPlant(Worker):
             "AkkuschutzAbschalten" : max(self.scriptValues["AkkuschutzAbschalten"], self.minAkkustandNacht()),   # ensure self.scriptValues["AkkuschutzAbschalten"] is not too small
             "AkkuschutzAbschalten" : min(self.scriptValues["AkkuschutzAbschalten"], self._HUNDRED_PERCENT)})     # ensure self.scriptValues["AkkuschutzAbschalten"] is not too large
 
-        # Im Fall von zuviel externer PV Energie wird vorrangig auf Netz geschaltet und der Akku-Ladezustand erhalten, andernfalls hat Russia Mode Vorrang, ansonsten entscheiden wir je nach Wetter (Akkuschutz)
-        if self.useExternalPvSetThresholds:
-            setThresholds(self.configuration["externalPvLoadPowerOffPercentage"] - 2 * self.EXTERNAL_PV_HYSTERESIS, self.configuration["externalPvLoadPowerOffPercentage"] + self.EXTERNAL_PV_HYSTERESIS)
-        elif self.scriptValues["RussiaMode"]:
+        if self.scriptValues["RussiaMode"]:
             setThresholds(self.scriptValues["schaltschwelleNetzRussia"], self.scriptValues["schaltschwelleAkkuRussia"])
         elif self.scriptValues["Akkuschutz"]:
             setThresholds(self.scriptValues["schaltschwelleNetzSchlechtesWetter"], self.scriptValues["schaltschwelleAkkuSchlechtesWetter"])
@@ -866,149 +878,93 @@ class PowerPlant(Worker):
                         self.sendEffektaData(EffektaController.GRID_CHARGER_OFF, [inverter])
                 # remember new state for next switch edge
                 self.inverterQuickChargeState[f"Schnellladen{inverter}"] = self.scriptValues[f"Schnellladen{inverter}"]
-        return      # @todo 3DES hier gehst weiter!!!!!!!!!!!!!!!!!!
 
-        # hier durch die Wechselrichter Zust.nde laufen und mit gemerkten Zust.nden vergleichen, ggf. Schnellladen aus oder ein delegieren!!!
-        # self.scriptValues["WrNetzladen"] == False
-
-        netTimer = "externalPvNetTimer"
-        loadTimer = "externalPvLoadTimer"
-
-        def switchState(newState : self.externalPvStates, hysteresis : int = 0):
-            '''
-            Cleans up both timers and switches state to given one
-            '''
-            self.timerRemove(netTimer, exception = False)
-            self.timerRemove(loadTimer, exception = False)
-            self.currentExternalPvLoadHysteresis = hysteresis
-            self.externalPvState = newState
-
-        def socReached():
-            '''
-            Returns True in case SOC is reached and external PV loader is not allowed to load
-            '''
-            return self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] > (self.configuration["externalPvLoadPowerOffPercentage"] - self.currentExternalPvLoadHysteresis)
-
-        def chargingAuthorized():
-            '''
-            Returns True if charging is allowed by BMS
-            '''
-            return self.localDeviceData[self.configuration["bmsName"]]["BmsLadeFreigabe"] and not self.scriptValues["Error"]
-
+        # use external PV?
         if self.externalPv:
-            if self.configuration["externalPvKey"] in self.localDeviceData:
-                currentPower = self.localDeviceData[self.configuration["externalPv"]]
+            stateSwitched = False                           # to be set to True for post processing, whenever a state has been switched
+            externalPvTimer = "externalPvStateSwitched"     # timer name
+            externalPvSwitchDelay = 15 * 60                 # one switch every 10 minutes
+
+            # reset the switch latch daily
+            now = datetime.datetime.now()                   # get now time used in certain states
+            if now.hour == 0 and self.scriptValues["externalPvSwitchedToday"]:
+                self.setScriptValues("externalPvSwitchedToday", False)
+
+            # timer exists but expired?
+            if self.timerExists(externalPvTimer) and self.timer(name = externalPvTimer):
+                self.timer(externalPvTimer, remove = True)
+
+            # if there are messages always take the newest one, all others can be thrown away
+            latestPvMessage = None
+            latestSurplusEnergyLevel = None
+            while not self.externalPvQueue.empty():
+                latestPvMessage = self.readMqttQueue(mqttQueue = self.externalPvQueue, error = False)
+            if latestPvMessage is not None and self.configuration["externalPvKey"] in latestPvMessage:
+                latestSurplusEnergyLevel = latestPvMessage[self.configuration["externalPvKey"]]
+
+            if self.scriptValues["externalPvState"] == self.externalPvStates.STATE_EXTERNAL_PV_INIT:
+                self.mqttSubscribeTopic(self.configuration["externalPv"], globalSubscription = True)
+                self.setScriptValues("externalPvState", self.externalPvStates.STATE_EXTERNAL_PV_AUTO)
+
+                # for debugging clear retained values and start with GRID mode
+                # mosquitto_pub -h localhost -u pi -P raspberry -r -n -t "AccuControl/PowerPlant/out"
+                # self.setScriptValues("externalPvSwitchedToday", True)
+                # self.setScriptValues("externalPvState", self.externalPvStates.STATE_EXTERNAL_PV_GRID)
+                # self.setScriptValues("externalPvForced", True)
                 
-                # maybe the sign of the current power has to be inverted
-                if self.configuration["externalPvValueInverted"]:
-                    currentPower = -currentPower
-
-                # ensure that inverters forced to net only once a day because if they switch back to battery afterwards the battery must be really full and another net switch is not necessary that day
-                now = datetime.datetime.now()
-                if now.hour < 1:
-                    if self.externalPvDontForceNet:
-                        self.externalPvDontForceNet = False
-
-                ################################
-                ## 1. switch to correct state ##
-                ################################
-
-                ## STATE_EXTERNAL_PV_OFF ##
-                if self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_OFF:
-                    # can we switch up so house will probably (depending on battery SOC since thresholds are set to a very high level) be powered from external PV and not from battery anymore?
-                    if currentPower >= self.configuration["externalPvNetPower"]:
-                        # start or check already running switch up timer
-                        if self.timer(name = netTimer, timeout = self.configuration["externalPvNetPowerTime"]):
-                            # switch up to higher state
-                            switchState(self.externalPvStates.STATE_EXTERNAL_PV_THRESHOLDS)
-                    else:
-                        # stay in current state and clear switch up timer if it has been set up
-                        self.timerRemove(netTimer, exception = False)
-
-                ## STATE_EXTERNAL_PV_THRESHOLDS ##
-                elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_THRESHOLDS:
-                    # do we need to switch down again because there is too less external PV power available?
-                    if currentPower >= self.configuration["externalPvNetPowerOff"]:
-                        # stay in current state and clear switch down timer if it has been set up
-                        self.timerRemove(netTimer, exception = False)
-                    else:
-                        # start or check already running switch down timer
-                        if self.timer(name = netTimer, timeout = self.configuration["externalPvNetPowerOffTime"]):
-                            # switch down to lower state
-                            switchState(self.externalPvStates.STATE_EXTERNAL_PV_OFF)
-
-                    # can we switch up and load the battery with external PV power?
-                    if currentPower >= self.configuration["externalPvLoadPower"] and not socReached() and chargingAuthorized():
-                        # start or check already running switch up timer
-                        if self.timer(name = loadTimer, timeout = self.configuration["externalPvLoadPowerTime"]):
-                            # switch up to higher state
-                            switchState(self.externalPvStates.STATE_EXTERNAL_PV_LOADER_ONLY)
-                    else:
-                        # stay in current state and clear switch up timer if it has been set up
-                        self.timerRemove(loadTimer, exception = False)
-
-                ## STATE_EXTERNAL_PV_LOADER_ONLY ##
-                elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_LOADER_ONLY:
-                    # do we need to switch down again for any reason?
-                    if not chargingAuthorized():
-                        # switch down to lower state because BMS disabled charging
-                        switchState(self.externalPvStates.STATE_EXTERNAL_PV_THRESHOLDS)
-                    elif socReached():
-                        # switch down to lower state because defined SOC value has been reached
-                        switchState(self.externalPvStates.STATE_EXTERNAL_PV_THRESHOLDS, hysteresis = self.EXTERNAL_PV_HYSTERESIS)
-                    elif currentPower >= self.configuration["externalPvLoadPowerOff"]:
-                        # stay in current state and clear switch down timer if it has been set up
-                        self.timerRemove(loadTimer, exception = False)
-                    else:
-                        # start or check already running switch down timer
-                        if self.timer(name = loadTimer, timeout = self.configuration["externalPvLoadPowerOffTime"]):
-                            # switch down to lower state because there is not enough external PV power available
-                            switchState(self.externalPvStates.STATE_EXTERNAL_PV_THRESHOLDS)
-                #elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_LOADER_AND_INVERTERS:
-                #elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_INVERTERS_ONLY:
-                #wr-laden nur wenn unter 50% und heute schlechtes Wetter oder unter 80% und heute+morgen schlechtes Wetter
-                #wr-lader leistung regeln!!!
-
-                #############################
-                ## 2. handle current state ##
-                #############################
-                ## STATE_EXTERNAL_PV_OFF ##
-                if self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_OFF:
-                    self.useExternalPvSetThresholds = False
-                    self.externalPvLoaderPower = 0
-                    self.externalPvInverterPower = 0
-                ## STATE_EXTERNAL_PV_THRESHOLDS ##
-                elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_THRESHOLDS:
-                    if not self.externalPvDontForceNet:
-                        # force to net only if inverter is in battery mode otherwise it's already in net mode
-                        if self.scriptValues["WrMode"] == self.AKKU_MODE:
-                            # force to net only if "switch to battery" threshold is not yet reached otherwise it will switch back immediately
-                            if self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] < (self.configuration["externalPvLoadPowerOffPercentage"] + self.EXTERNAL_PV_HYSTERESIS):
-                                self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
-                        self.externalPvDontForceNet = True      # either net mode has been forced or it's not necessary to fore it for today
-                    self.useExternalPvSetThresholds = True
-                    self.externalPvLoaderPower = 0
-                    self.externalPvInverterPower = 0
-                ## STATE_EXTERNAL_PV_LOADER_ONLY ##
-                elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_LOADER_ONLY:
-                    self.useExternalPvSetThresholds = True
-                    self.externalPvLoaderPower = 1
-                    self.externalPvInverterPower = 0
-###                ## STATE_EXTERNAL_PV_LOADER_AND_INVERTERS
-###                elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_LOADER_AND_INVERTERS:
-###                    self.useExternalPvSetThresholds = True
-###                    self.externalPvLoaderPower = 1
-###                    self.externalPvInverterPower = 1
-###                ## STATE_EXTERNAL_PV_INVERTERS_ONLY
-###                elif self.externalPvState == self.externalPvStates.STATE_EXTERNAL_PV_INVERTERS_ONLY:
-###                    self.useExternalPvSetThresholds = True
-###                    self.externalPvLoaderPower = 0
-###                    self.externalPvInverterPower = 1
-
-                # switch external loader ON or OFF
-                self.modifyExcessRelaisData(self.configuration["externalPvLoadRelay"], self.EIN if self.externalPvLoaderPower else self.AUS, sendValueIfChanged = True)
+                stateSwitched = True
             else:
-                pass    # no data received from self.localDeviceData[self.configuration["externalPv"]] so far...
+                if latestSurplusEnergyLevel is not None:
+                    # handle message only if switch timer is not active
+                    if not self.timerExists(externalPvTimer):
+                        if (
+                            self.scriptValues["externalPvState"] != self.externalPvStates.STATE_EXTERNAL_PV_GRID and
+                            self.scriptValues["externalPvSwitchedToday"] == False and
+                            (
+                                now.hour >= 8 or
+                                (
+                                    now.hour >= 7 and
+                                    latestSurplusEnergyLevel > 500
+                                )
+                            )
+                        ):
+                            self.setScriptValues("externalPvSwitchedToday", True)
+                            self.setScriptValues("externalPvState", self.externalPvStates.STATE_EXTERNAL_PV_GRID)
+                            self.setScriptValues("externalPvForced", True)
+                            stateSwitched = True
+                        elif (
+                            self.externalLoader and
+                            self.scriptValues["externalLoaderState"] == self.loaderStates.STATE_EXTERNAL_PV_LOADER_NOT_RUNNING and
+                            latestSurplusEnergyLevel > 1200
+                        ):
+                            self.setScriptValues("externalLoaderState", self.loaderStates.STATE_EXTERNAL_PV_LOADER_RUNNING)
+                            self.modifyExcessRelaisData(self.configuration["externalPvLoadRelay"], self.EIN)
+                            stateSwitched = True
+                        elif (
+                            self.externalLoader and
+                            self.scriptValues["externalLoaderState"] == self.loaderStates.STATE_EXTERNAL_PV_LOADER_RUNNING and
+                            latestSurplusEnergyLevel < -500
+                        ):
+                            self.setScriptValues("externalLoaderState", self.loaderStates.STATE_EXTERNAL_PV_LOADER_NOT_RUNNING)
+                            self.modifyExcessRelaisData(self.configuration["externalPvLoadRelay"], self.AUS)
+                            stateSwitched = True
+                        elif (
+                            self.scriptValues["externalPvState"] == self.externalPvStates.STATE_EXTERNAL_PV_GRID and
+                            (
+                                now.hour >= 16 and
+                                latestSurplusEnergyLevel < -300
+                            )
+                        ):
+                            self.setScriptValues("externalPvSwitchedToday", True)
+                            self.setScriptValues("externalPvState", self.externalPvStates.STATE_EXTERNAL_PV_AUTO)
+                            self.setScriptValues("externalPvForced", False)
+                            stateSwitched = True
+
+            # some steps are needed whenever the external PV state has been changed
+            if stateSwitched:
+                self.setScriptValues("externalPvInfo", self.EXTERNAL_PV_STRINGS[self.scriptValues["externalPvState"]])      # set correct info message
+                self.setScriptValues("externalLoaderInfo", self.LOADER_STRINGS[self.scriptValues["externalLoaderState"]])   # set correct info message
+                self.timer(name = externalPvTimer, timeout = externalPvSwitchDelay, reSetup = True)                         # setup state switch delay timer
 
 
     def wetterPrognoseSchlecht(self, day : str, switchingThreshold : int) -> bool:
@@ -1089,7 +1045,7 @@ class PowerPlant(Worker):
 
     def checkInputsAndSetValue(self):
         if self.getInputValueByName("Shutdown", optional=True) == True:
-            self.scriptValues["Shutdown"] = True
+            self.setScriptValues("Shutdown", True)
 
     def handleMessage(self, message):
         """
@@ -1250,30 +1206,17 @@ class PowerPlant(Worker):
             self.optionalDevices.append(self.configuration["weatherName"])
         self.optionalDevices += self.configuration["inputs"]
 
+        self.externalLoader = False
+        self.externalPv = False
         if self.tagsIncluded(["externalPv"], optional = True):
-            self.optionalDevices.append(self.configuration["externalPv"])
-
-            self.externalPv = True          # true because user specified that external PV exists and has to be handled
-
             # check keys belonging to "externalPv"
             self.tagsIncluded(["externalPvKey"])
-            self.tagsIncluded(["externalPvValueInverted"], optional = True, default = False)
-            self.tagsIncluded(["externalPvNetPower",     "externalPvNetPowerTime"])
-            self.tagsIncluded(["externalPvNetPowerOff",  "externalPvNetPowerOffTime"])
-            self.tagsIncluded(["externalPvLoadPower",    "externalPvLoadPowerTime"])
-            self.tagsIncluded(["externalPvLoadPowerOff", "externalPvLoadPowerOffTime", "externalPvLoadPowerOffPercentage"])
-            self.tagsIncluded(["externalPvLoadRelay"])
+            self.externalPvQueue = Queue(self.QUEUE_SIZE)
 
-            self.modifyExcessRelaisData(self.configuration["externalPvLoadRelay"], self.AUS)
-        else:
-            self.externalPv = False
-        self.EXTERNAL_PV_HYSTERESIS = 5       # hard coded always 5%
-        self.useExternalPvSetThresholds = False
-        self.externalPvLoaderPower = 0
-        self.externalPvInverterPower = 0
-        self.externalPvState = self.externalPvStates.STATE_EXTERNAL_PV_OFF
-        self.currentExternalPvLoadHysteresis = 0   # switches between 0 and self.EXTERNAL_PV_HYSTERESIS
-        self.externalPvDontForceNet = False
+            self.externalPv = True          # true because user specified that external PV exists and has to be used
+            if self.tagsIncluded(["externalPvLoadRelay"], optional = True, default = None):
+                self.modifyExcessRelaisData(self.configuration["externalPvLoadRelay"], self.AUS)
+                self.externalLoader = True
 
         self.tagsIncluded(["REL_PV_AUS_NC"], optional = True, default = True)
         if self.configuration['REL_PV_AUS_NC'] == True:
@@ -1300,6 +1243,14 @@ class PowerPlant(Worker):
             self.inverterQuickChargeState[f"Schnellladen{inverter}"] = True
 
         self.sensors = {"WrNetzladen":False, "Error":False, "AkkuSupply":False, "WrMode":"", "Schnellladen":False, "schaltschwelleAkku":100.0, "schaltschwelleNetz":20.0, "NetzRelais": ""}
+        if self.externalPv:
+            self.sensors["externalPvForced"] = False                                                                # True forces switch to grid mode
+            self.sensors["externalPvSwitchedToday"] = False                                                         # True if grid mode has already been forced today (we don't want to do that more than once per day)
+            self.sensors["externalPvState"] = self.externalPvStates.STATE_EXTERNAL_PV_INIT                          # valid init state for all initial cases  
+            self.sensors["externalPvInfo"] = self.EXTERNAL_PV_STRINGS[self.sensors["externalPvState"]]              # readable version of self.sensors["externalPvState"]
+            if self.externalLoader:
+                self.sensors["externalLoaderState"] = self.loaderStates.STATE_EXTERNAL_PV_LOADER_NOT_RUNNING        # loader not running during startup  
+                self.sensors["externalLoaderInfo"] = self.LOADER_STRINGS[self.sensors["externalLoaderState"]]       # readable version of self.sensors["externalLoaderState"]
         self.manualCommands = ["NetzSchnellLadenEin", "NetzLadenEin", "NetzLadenAus", "WrAufNetz", "WrAufAkku", "ResetErrors"]
         self.dummyCommand = "NoCommand"
         self.manualCommands.append(self.dummyCommand)
@@ -1425,11 +1376,11 @@ class PowerPlant(Worker):
                     # Umschalten auf Netz oder Akku je nach dem ob die Schaltschwellen gerissen wurden. Darauf achten dass Netz vorhanden ist
                     # self.localDeviceData["InputVoltageAndOnDelayed"] = False
                     if self.scriptValues["WrMode"] == self.AKKU_MODE:
-                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"]) and self.localDeviceData["InputVoltageAndOnDelayed"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"] or self.scriptValues["externalPvForced"]) and self.localDeviceData["InputVoltageAndOnDelayed"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
                             self.publishAndLog(Logger.LOG_LEVEL.INFO, "%iP erreicht -> schalte auf Netz." %self.scriptValues["schaltschwelleNetz"])
                     elif self.scriptValues["WrMode"] == self.GRID_MODE:
-                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"]) or not self.localDeviceData["InputVoltageAndOnDelayed"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"] and not self.scriptValues["externalPvForced"]) or not self.localDeviceData["InputVoltageAndOnDelayed"]:
                             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
                             self.NetzLadenAusGesperrt = False
                             if self.localDeviceData["InputVoltageAndOnDelayed"]:
