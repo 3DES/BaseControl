@@ -924,7 +924,7 @@ class PowerPlant(Worker):
                     if not self.timerExists(externalPvTimer):
                         if (
                             self.scriptValues["externalPvState"] != self.externalPvStates.STATE_EXTERNAL_PV_GRID and
-                            self.scriptValues["externalPvSwitchedToday"] == False and
+                            not self.scriptValues["externalPvSwitchedToday"] and
                             (
                                 (
                                     now.hour >= 8 or                        # force grid after 8:00 in the morning
@@ -974,7 +974,7 @@ class PowerPlant(Worker):
                         ):
                             self.setScriptValues("externalPvSwitchedToday", True)
                             self.setScriptValues("externalPvState", self.externalPvStates.STATE_EXTERNAL_PV_AUTO)
-                            self.setScriptValues("externalPvForced", True)
+                            self.setScriptValues("externalPvForced", False)
                             stateSwitched = True
 
             # some steps are needed whenever the external PV state has been changed
