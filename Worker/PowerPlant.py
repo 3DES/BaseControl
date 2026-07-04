@@ -945,10 +945,7 @@ class PowerPlant(Worker):
                         (
                             (
                                 now.hour >= 8 or                        # force grid after 8:00 in the morning
-                                (
-                                    now.hour >= 7 and                   # force grid after 7:00 if there is already enough PV energy
-                                    latestSurplusEnergyLevel > 500
-                                )
+                                latestSurplusEnergyLevel > 500          # or earlier when there is already enough PV energy
                             ) and
                             now.hour < 16                               # ensure not to force grid anymore after 16:00
                         )

@@ -270,8 +270,11 @@ class DWD:
                 continue
             elementTime = self.get_time(time_stamp)
             if elementDay == currentDay:
-                if currentTime is not None and elementTime < currentTime:
-                    continue 
+                if currentTime is not None:
+                    element_time = datetime.strptime(elementTime, "%H:%M:%S.%fZ").time()
+                    current_time = datetime.strptime(currentTime, "%H:%M:%S.%fZ").time()                
+                    if element_time < current_time:
+                        continue 
                 if self.values[key][index] != "-":
                     sum += float(self.values[key][index])
                     summed_up_this_day = True
