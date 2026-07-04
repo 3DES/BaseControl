@@ -1434,10 +1434,10 @@ class PowerPlant(Worker):
                         if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"] or self.scriptValues["externalPvForced"]) and self.localDeviceData["InputVoltageAndOnDelayed"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
 
-                            if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] > self.scriptValues["schaltschwelleNetz"]) and self.scriptValues["externalPvForced"]:
-                                showMessage = f"{self.scriptValues['schaltschwelleNetz']}P erreicht"
-                            else:
+                            if self.scriptValues["externalPvForced"]:
                                 showMessage = self.EXTERNAL_PV_STRINGS[self.scriptValues["externalPvState"]] 
+                            else:
+                                showMessage = f"{self.scriptValues['schaltschwelleNetz']}P erreicht"
                             showMessage += " -> schalte auf Netz."
 
                             self.publishAndLog(Logger.LOG_LEVEL.INFO, showMessage)
