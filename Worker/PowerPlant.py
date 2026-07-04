@@ -1206,6 +1206,13 @@ class PowerPlant(Worker):
                 if self.localDeviceData["expectedDevicesPresent"]:
                     self.publishAndLog(Logger.LOG_LEVEL.INFO, "Starte PowerPlant!")
 
+    def externalPvForced(self):
+        return (
+            self.externalPv
+            and ("externalPvForced" in self.scriptValues)
+            and self.scriptValues["externalPvForced"]
+        )
+
     def threadInitMethod(self):
         def addStrictSensor(sensorName : str, sensorValue):
             self.sensors[sensorName] = sensorValue
@@ -1431,10 +1438,10 @@ class PowerPlant(Worker):
                     # Umschalten auf Netz oder Akku je nach dem ob die Schaltschwellen gerissen wurden. Darauf achten dass Netz vorhanden ist
                     # self.localDeviceData["InputVoltageAndOnDelayed"] = False
                     if self.scriptValues["WrMode"] == self.AKKU_MODE:
-                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"] or self.scriptValues["externalPvForced"]) and self.localDeviceData["InputVoltageAndOnDelayed"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] <= self.scriptValues["schaltschwelleNetz"] or self.externalPvForced()) and self.localDeviceData["InputVoltageAndOnDelayed"]:
                             self.schalteAlleWrAufNetzOhneNetzLaden(self.configuration["managedEffektas"])
 
-                            if self.scriptValues["externalPvForced"]:
+                            if self.externalPvForced():
                                 showMessage = self.EXTERNAL_PV_STRINGS[self.scriptValues["externalPvState"]] 
                             else:
                                 showMessage = f"{self.scriptValues['schaltschwelleNetz']}P erreicht"
@@ -1442,7 +1449,7 @@ class PowerPlant(Worker):
 
                             self.publishAndLog(Logger.LOG_LEVEL.INFO, showMessage)
                     elif self.scriptValues["WrMode"] == self.GRID_MODE:
-                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"] and not self.scriptValues["externalPvForced"]) or not self.localDeviceData["InputVoltageAndOnDelayed"]:
+                        if (self.localDeviceData[self.configuration["socMonitorName"]]["Prozent"] >= self.scriptValues["schaltschwelleAkku"] and not self.externalPvForced()) or not self.localDeviceData["InputVoltageAndOnDelayed"]:
                             self.schalteAlleWrAufAkku(self.configuration["managedEffektas"])
                             self.NetzLadenAusGesperrt = False
 
